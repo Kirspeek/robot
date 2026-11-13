@@ -86,6 +86,7 @@ button{font:inherit;color:inherit}
 .phase.alarm{border-color:rgba(255,90,72,.6)}
 .phase.alarm b{color:var(--bad)}
 .hqbar{display:flex;gap:8px;align-items:center;width:100%;margin-top:5px;font:500 10px var(--f-mono);color:var(--muted);text-transform:uppercase;letter-spacing:.1em}
+.phase .hqbar span{font:inherit}
 .hqbar i,.hp i{flex:1;height:6px;border-radius:3px;background:rgba(255,255,255,.1);overflow:hidden;display:block}
 .hqbar em{display:block;height:100%;width:100%;background:var(--accent)}
 .hp em{display:block;height:100%;width:100%;background:var(--ok)}
@@ -101,6 +102,7 @@ button{font:inherit;color:inherit}
 .banner b{font:400 clamp(34px,6vw,58px)/1 var(--f-head);letter-spacing:.06em;text-transform:uppercase}
 .banner span{font-weight:500}
 .hurt{position:absolute;inset:0;background:radial-gradient(ellipse at center,rgba(160,0,0,0) 45%,rgba(170,10,0,.6) 100%);opacity:0}
+.rad{position:absolute;inset:0;background:radial-gradient(ellipse at center,rgba(70,255,40,0) 35%,rgba(90,255,40,.42) 100%);opacity:0}
 .cross.hit::before,.cross.hit::after{background:var(--bad)}
 @media (max-width:1100px){.vitals{width:170px}.slot{width:76px}}
 .toast{position:absolute;top:128px;left:50%;transform:translate(-50%,-8px);background:var(--panel);border:1px solid var(--line);border-radius:999px;padding:8px 18px;font-weight:500;opacity:0;transition:.2s}
@@ -146,6 +148,9 @@ input[type=checkbox]{width:18px;height:18px;accent-color:var(--accent)}
 .chr.on{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent) inset}
 .chr b{font:600 14px var(--f-body)}
 .chr small{font:400 11px/1.3 var(--f-body);color:var(--muted)}
+.maps{display:grid;gap:6px}
+.netlink{display:grid;gap:6px}
+.netlink code{font:500 13px var(--f-mono);background:rgba(255,255,255,.06);border:1px solid var(--line);border-radius:8px;padding:8px 10px;user-select:all;-webkit-user-select:all;word-break:break-all}
 .note{margin:0;font-size:13px;color:var(--muted)}
 .note kbd{font:500 11px var(--f-mono);background:rgba(255,255,255,.08);border:1px solid var(--line);border-radius:4px;padding:0 5px}
 .lock{position:fixed;inset:0;display:grid;place-items:center;background:rgba(10,12,8,.45);cursor:pointer}
@@ -157,7 +162,8 @@ input[type=checkbox]{width:18px;height:18px;accent-color:var(--accent)}
 
 <div class="hud off" id="hud">
   <div class="hurt" id="hurt"></div>
-  <div class="mode" id="mode"><i class="dot"></i><b id="modeName">БОЙ</b><span id="res" class="res">◆ 1500</span><span id="wallCount">стен: 0</span><span id="allyCount" class="ally"></span></div>
+  <div class="rad" id="rad"></div>
+  <div class="mode" id="mode"><i class="dot"></i><b id="modeName">БОЙ</b><span id="res" class="res">◆ 1500</span><span id="wallCount">стен: 0</span><span id="allyCount" class="ally"></span><span id="netHud" class="ally"></span></div>
   <div class="phase" id="phase">
     <b id="phaseTitle">ПОДГОТОВКА</b><span id="phaseTime">5:00</span><small id="phaseSub"></small>
     <div class="hqbar"><span>Штаб</span><i><em id="hqFill"></em></i></div>
@@ -195,6 +201,8 @@ input[type=checkbox]{width:18px;height:18px;accent-color:var(--accent)}
     <nav id="pMain">
       <button class="btn primary" id="bPlay">Играть <small>Enter</small></button>
       <button class="btn" id="bNew">Новая игра <small>с начала</small></button>
+      <button class="btn" id="bNet">Вдвоём по сети <small id="netState">выкл</small></button>
+      <button class="btn" id="bMap">Карта <small id="mapName"></small></button>
       <button class="btn" id="bChar">Персонаж <small id="charName">Солдат</small></button>
       <button class="btn" id="bControls">Управление</button>
       <button class="btn" id="bSettings">Настройки</button>
@@ -242,6 +250,24 @@ input[type=checkbox]{width:18px;height:18px;accent-color:var(--accent)}
       <div class="row"><button class="btn" id="bDefaults">По умолчанию</button><button class="btn back">Назад</button></div>
     </section>
 
+    <section class="panel" id="pNet" hidden>
+      <h2>Вдвоём по сети</h2>
+      <p class="note" id="netText"></p>
+      <div class="netlink" id="netLink" hidden></div>
+      <div class="row"><button class="btn primary" id="bNetGo">Подключиться</button><button class="btn danger" id="bNetOff" hidden>Отключиться</button></div>
+      <button class="btn back">Назад</button>
+    </section>
+
+    <section class="panel" id="pMap" hidden>
+      <h2>Карта</h2>
+      <div class="maps" id="mapList">
+        <button class="chr" data-map="base"><b>Военная база</b><small>Периметр с воротами, казармы, ангар и вертолёт. Роботы идут с юга через ворота.</small></button>
+        <button class="chr" data-map="bunker"><b>Бункер и радиоактивная улица</b><small>Бункер в конце разрушенной улицы. Роботы идут по улице. Зелёные лужи радиоактивны.</small></button>
+      </div>
+      <p class="note">У каждой карты свои стены, волны и рекорд. Игра перезагрузится.</p>
+      <button class="btn back">Назад</button>
+    </section>
+
     <section class="panel" id="pChar" hidden>
       <h2>Персонаж</h2>
       <div class="chars" id="charList"></div>
@@ -282,6 +308,12 @@ const store = {
   set(k, v){ try{ localStorage.setItem(k, JSON.stringify(v)); }catch(e){} }
 };
 Object.assign(S, store.get('forpost.settings') || {});
+// which map: «Военная база» or «Бункер и радиоактивная улица» (?map=bunker in the address also works)
+const MAP = (() => { let m = null; try { m = new URLSearchParams(location.search).get('map'); } catch(e){}
+  if(m === 'base' || m === 'bunker'){ store.set('forpost.map', m); return m; } return store.get('forpost.map') === 'bunker' ? 'bunker' : 'base'; })();
+const KEY = MAP === 'base' ? 'forpost' : 'forpost.bunker';     // walls and waves are saved per map
+const START_Z = MAP === 'base' ? 18 : -14;
+const MAP_NAME = MAP === 'base' ? 'Военная база' : 'Бункер и радиоактивная улица';
 
 // ---------- renderer, scene, light ----------
 const canvas = $('c');
@@ -289,7 +321,7 @@ const renderer = new THREE.WebGLRenderer({canvas, antialias:true});
 renderer.shadowMap.enabled = S.shadows;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 const scene = new THREE.Scene();
-scene.fog = new THREE.Fog(0xc9d2d2, 150, 640);
+scene.fog = MAP === 'base' ? new THREE.Fog(0xc9d2d2, 150, 640) : new THREE.Fog(0x9fa585, 60, 400);
 const camera = new THREE.PerspectiveCamera(S.fov, 1, 0.1, 1600);
 function resize(){
   renderer.setPixelRatio(Math.min(devicePixelRatio || 1, S.hq ? 2 : 1));
@@ -301,15 +333,15 @@ addEventListener('resize', resize); resize();
 const sky = new THREE.Mesh(new THREE.SphereGeometry(1200, 32, 16), new THREE.ShaderMaterial({
   side:THREE.BackSide, depthWrite:false, fog:false,
   vertexShader:'varying vec3 vP; void main(){ vP = normalize(position); gl_Position = projectionMatrix*modelViewMatrix*vec4(position,1.); }',
-  fragmentShader:'varying vec3 vP; void main(){ float h = vP.y; vec3 top = vec3(.30,.50,.76), hor = vec3(.79,.82,.82), gnd = vec3(.60,.57,.48);'
+  fragmentShader:'varying vec3 vP; void main(){ float h = vP.y; ' + (MAP === 'base' ? 'vec3 top = vec3(.30,.50,.76), hor = vec3(.79,.82,.82), gnd = vec3(.60,.57,.48);' : 'vec3 top = vec3(.40,.46,.36), hor = vec3(.66,.68,.53), gnd = vec3(.36,.35,.28);')
     + ' vec3 c = h > 0. ? mix(hor, top, pow(h, .55)) : mix(hor, gnd, min(1., -h*5.));'
     + ' float sun = max(0., dot(vP, normalize(vec3(-.45,.8,.35)))); c += vec3(1.,.9,.7)*pow(sun, 300.)*1.2 + vec3(.25,.2,.1)*pow(sun, 8.)*.4;'
     + ' gl_FragColor = vec4(c, 1.); }'
 }));
 sky.renderOrder = -1; scene.add(sky);
 
-scene.add(new THREE.HemisphereLight(0xd8e6f0, 0x6f6448, 0.62));
-const sun = new THREE.DirectionalLight(0xfff1dc, 0.95);
+scene.add(MAP === 'base' ? new THREE.HemisphereLight(0xd8e6f0, 0x6f6448, 0.62) : new THREE.HemisphereLight(0xcfd8b4, 0x4a4636, 0.58));
+const sun = MAP === 'base' ? new THREE.DirectionalLight(0xfff1dc, 0.95) : new THREE.DirectionalLight(0xf2f0c2, 0.8);
 sun.castShadow = true; sun.shadow.mapSize.set(2048, 2048);
 Object.assign(sun.shadow.camera, {left:-50, right:50, top:50, bottom:-50, near:1, far:260});
 sun.shadow.bias = -0.0005; sun.shadow.normalBias = 0.04;
@@ -476,210 +508,536 @@ const WIRE = 4;
 const ground = new THREE.Mesh(new THREE.PlaneGeometry(1600, 1600), texMat(TEX.sand, 400, 400));
 ground.rotation.x = -HALF_PI; ground.receiveShadow = true; scene.add(ground);
 function slab(w, d, x, z, mat, y){ const m = new THREE.Mesh(new THREE.PlaneGeometry(w, d), mat); m.rotation.x = -HALF_PI; m.position.set(x, y, z); m.receiveShadow = true; scene.add(m); return m; }
-slab(140, 140, 0, 0, texMat(TEX.gravel, 35, 35), 0.01);
-slab(40, 34, 0, -25, texMat(TEX.concrete, 10, 8, {color:0xb8b5aa}), 0.025);
-slab(10, 78, 0, 31, texMat(TEX.asphalt, 1, 10), 0.03);
-slab(10, 330, 0, 235, texMat(TEX.asphalt, 1, 42), 0.03);
-slab(22, 8, 31, -18, texMat(TEX.asphalt, 3, 1), 0.028);
-slab(16, 12, 42, -20, texMat(TEX.concrete, 4, 3, {color:0xa9a69c}), 0.029);
-
-// perimeter wall with a gate on the south side
 const PER = 70, GATE = 6;
-const perMat = texMat(TEX.concrete, 35, 1);
-box(2*PER + 1, 4, 1, perMat, 0, 0, -PER);
-box(1, 4, 2*PER + 1, perMat, -PER, 0, 0);
-box(1, 4, 2*PER + 1, perMat, PER, 0, 0);
-box(PER - GATE + 0.5, 4, 1, texMat(TEX.concrete, 16, 1), -(PER + GATE)/2 - 0.25, 0, PER);
-box(PER - GATE + 0.5, 4, 1, texMat(TEX.concrete, 16, 1), (PER + GATE)/2 + 0.25, 0, PER);
-{ // concertina coil along the top of the wall
-  const coil = mergeParts(coilParts(4, .36, 20, 0, 0, 30, 8, 3)), segs = [];
-  for(let t = -PER + 2; t < PER; t += 4){ segs.push([t, -PER, 0], [-PER, t, 1], [PER, t, 1]); if(Math.abs(t) > GATE + 1) segs.push([t, PER, 0]); }
-  const im = new THREE.InstancedMesh(coil, new THREE.MeshStandardMaterial({vertexColors:true, metalness:.75, roughness:.38}), segs.length), m4 = new THREE.Matrix4();
-  segs.forEach(([x, z, r], i) => im.setMatrixAt(i, m4.makeRotationY(r ? HALF_PI : 0).setPosition(x, 4.36, z))); im.frustumCulled = false; im.castShadow = true; scene.add(im);
-}
-// gate posts, guard booths and a barrier arm that lifts when you come close
-box(1.2, 5, 1.2, MAT.concrete, -GATE - 0.6, 0, PER); box(1.2, 5, 1.2, MAT.concrete, GATE + 0.6, 0, PER);
-const barrier = new THREE.Group(); barrier.position.set(-GATE + 0.4, 1.1, PER + 1.4); scene.add(barrier);
-box(0.4, 1.1, 0.4, MAT.red, -GATE + 0.4, 0, PER + 1.4, {col:false});
-mesh(new THREE.BoxGeometry(11.2, 0.16, 0.16), texMat(TEX.stripes, 6, 1), 5.6, 0, 0, {parent:barrier});
-for(const s of [-1, 1]){
-  const x = s*11, z = PER - 4;
-  box(3, 2.7, 3, MAT.plaster, x, 0, z);
-  box(3.04, 0.7, 3.04, MAT.glass, x, 1.4, z, {col:false});
-  box(3.6, 0.2, 3.6, MAT.oliveD, x, 2.7, z, {col:false});
-  // sandbag nest next to the booth
-  for(const [dx, dz, r] of [[s*4.5, -4, 0], [s*6.5, -2, 1]]){ const w = WT[3], m = mesh(w.geo, w.mat, x + dx, 0, z + dz, {ry:r*HALF_PI}); solids.push(m); colFor(x + dx, z + dz, w.L, w.T, 0, w.H, r*HALF_PI); }
-}
-
-// watchtowers in the corners
-function tower(x, z){
-  for(const sx of [-1, 1]) for(const sz of [-1, 1]) box(0.3, 7, 0.3, MAT.wood, x + sx*1.8, 0, z + sz*1.8);
-  box(4.6, 0.3, 4.6, MAT.wood, x, 7, z, {col:false});
-  for(const [dx, dz, w, d] of [[0, 2.2, 4.6, 0.12], [0, -2.2, 4.6, 0.12], [2.2, 0, 0.12, 4.6], [-2.2, 0, 0.12, 4.6]]) box(w, 1, d, MAT.wood, x + dx, 7.3, z + dz, {col:false});
-  for(const sx of [-1, 1]) for(const sz of [-1, 1]) box(0.14, 2.3, 0.14, MAT.wood, x + sx*2.1, 7.3, z + sz*2.1, {col:false});
-  const roof = mesh(new THREE.ConeGeometry(3.9, 1.7, 4), MAT.roof, x, 10.45, z); roof.rotation.y = Math.PI/4;
-  for(let y = 0.4; y < 7; y += 0.45) box(0.9, 0.06, 0.08, MAT.wood, x, y, z + 2.05, {col:false});
-  const lightHead = cyl(0.3, 0.38, 0.6, MAT.steel, x, 7.8, z); lightHead.rotation.z = HALF_PI;
-}
-for(const sx of [-1, 1]) for(const sz of [-1, 1]) tower(sx*(PER - 4), sz*(PER - 4));
-
-// barracks: long houses with gable roofs
-function barracks(x, z){
-  const w = 26, d = 10, h = 4;
-  box(w, h, d, MAT.plaster, x, 0, z);
-  box(w + 0.2, 0.4, d + 0.2, MAT.concrete, x, 0, z, {col:false});
-  const r = mesh(gableGeo(d + 1.2, w + 1, 2.4), MAT.roof, x, h, z); r.rotation.y = HALF_PI;
-  for(let i = 0; i < 7; i++){ const wx = x - 10.5 + i*3.5; if(i === 3) continue;
-    for(const s of [-1, 1]){ box(1.5, 1.2, 0.12, MAT.white, wx, 1.6, z + s*(d/2 + 0.02), {col:false}); box(1.3, 1.0, 0.14, MAT.glass, wx, 1.7, z + s*(d/2 + 0.02), {col:false}); } }
-  box(1.6, 2.4, 0.14, MAT.door, x, 0, z + d/2 + 0.04, {col:false});
-  box(2.6, 0.2, 1.4, MAT.concrete, x, 0, z + d/2 + 0.7, {col:false});
-  box(2.6, 0.12, 1.6, MAT.oliveD, x, 2.7, z + d/2 + 0.8, {col:false});
-}
-barracks(-45, -45); barracks(-45, -25); barracks(-45, -5);
-
-// headquarters with a sign, antennas and a flag in front
-{
-  const x = 0, z = -52, w = 20, d = 12, h = 8;
-  box(w, h, d, texMat(TEX.concrete, 5, 2, {color:0xd4d0c0}), x, 0, z);
-  box(w + 0.6, 0.6, d + 0.6, MAT.concrete, x, h, z, {col:false});
-  for(const fl of [0, 1]) for(let i = 0; i < 6; i++){ const wx = -7.5 + i*3; if(fl === 0 && Math.abs(wx) < 2) continue;
-    for(const s of [-1, 1]) box(1.8, 1.5, 0.14, MAT.glass, x + wx, 1.3 + fl*3.6, z + s*(d/2 + 0.02), {col:false}); }
-  box(2.4, 2.8, 0.14, MAT.glass, x, 0, z + d/2 + 0.04, {col:false});
-  box(5, 0.25, 2.4, MAT.oliveD, x, 3.1, z + d/2 + 1.2, {col:false});
-  for(const s of [-1, 1]) box(0.25, 3.1, 0.25, MAT.steel, x + s*2.3, 0, z + d/2 + 2.2);
-  const sign = mesh(new THREE.PlaneGeometry(5, 1.25), new THREE.MeshStandardMaterial({map:TEX.sign, roughness:.7}), x, 3.95, z + d/2 + 0.09, {shadow:false});
-  sign.castShadow = false;
-  box(4, 0.3, 3, MAT.concrete, x, 0, z + d/2 + 1.4, {col:false});
-  cyl(0.06, 0.1, 7, MAT.steel, x + 7, h + 0.6, z - 3, 6);
-  cyl(0.05, 0.08, 5, MAT.steel, x + 5.5, h + 0.6, z - 3.5, 6);
-  const dish = mesh(new THREE.SphereGeometry(1.1, 16, 8, 0, Math.PI*2, 0, 0.9), MAT.white, x - 6, h + 1.6, z - 2); dish.rotation.x = -1.0; dish.material = std(0xe2ded2, .5, .1, {side:THREE.DoubleSide});
-  box(0.3, 1, 0.3, MAT.steel, x - 6, h + 0.6, z - 2, {col:false});
-}
-cyl(0.09, 0.14, 13, MAT.steel, 0, 0, -38, 8); box(1.6, 0.4, 1.6, MAT.concrete, 0, 0, -38);
-const flagGeo = new THREE.PlaneGeometry(3.2, 2, 16, 8); flagGeo.translate(1.6, 0, 0);
-const flag = mesh(flagGeo, new THREE.MeshStandardMaterial({map:TEX.flag, side:THREE.DoubleSide, roughness:.9}), 0.1, 11.8, -38, {shadow:true});
-const flagBase = flagGeo.attributes.position.array.slice();
-
-// hangar: half a cylinder with doors at the front
-{
-  const x = 42, z = -40, r = 10, len = 28;
-  const shell = new THREE.CylinderGeometry(r, r, len, 28, 1, true, HALF_PI, Math.PI); shell.rotateX(HALF_PI);
-  mesh(shell, MAT.hangar, x, 0, z);
-  const endMat = texMat(TEX.metal, 10, 1, {color:0x7f857a, metalness:.35, roughness:.55, side:THREE.DoubleSide});
-  mesh(new THREE.CircleGeometry(r, 28, 0, Math.PI), endMat, x, 0, z + len/2);
-  mesh(new THREE.CircleGeometry(r, 28, 0, Math.PI), endMat, x, 0, z - len/2);
-  for(const s of [-1, 1]) box(7.2, 7.6, 0.25, MAT.door, x + s*3.65, 0, z + len/2 + 0.15, {col:false});
-  box(14.8, 0.3, 0.4, MAT.dark, x, 7.6, z + len/2 + 0.2, {col:false});
-  addCol(x - r, x + r, 0, 9, z - len/2, z + len/2);
-  const hangarHit = new THREE.Mesh(new THREE.BoxGeometry(2*r, 9, len), new THREE.MeshBasicMaterial({visible:false})); hangarHit.position.set(x, 4.5, z); scene.add(hangarHit); solids.push(hangarHit);
-}
-
-// helipad with a parked helicopter whose rotor turns slowly
-const pad = new THREE.Mesh(new THREE.CylinderGeometry(9, 9.3, 0.2, 40), [MAT.concrete, new THREE.MeshStandardMaterial({map:TEX.pad, roughness:.9}), MAT.concrete]);
-pad.position.set(40, 0.1, 15); pad.receiveShadow = true; scene.add(pad);
-const heli = new THREE.Group(); heli.position.set(40, 0.2, 15); heli.rotation.y = -0.6; scene.add(heli);
-let rotor;
-{
-  const o = {parent:heli};
-  mesh(new THREE.SphereGeometry(1, 20, 14), MAT.olive, 0, 1.7, 0.4, o).scale.set(1.25, 1.15, 2.6);
-  mesh(new THREE.SphereGeometry(1, 16, 10, 0, Math.PI*2, 0, 1.2), MAT.glass, 0, 1.75, 1.6, o).scale.set(1.05, 0.95, 1.4);
-  const boom = mesh(new THREE.CylinderGeometry(0.22, 0.42, 6.5, 10), MAT.olive, 0, 2.0, -4.6, o); boom.rotation.x = HALF_PI;
-  mesh(new THREE.BoxGeometry(0.12, 1.6, 1.1), MAT.olive, 0, 2.6, -7.6, o).rotation.x = -0.3;
-  const tr = mesh(new THREE.BoxGeometry(0.06, 1.6, 0.16), MAT.dark, 0.2, 2.6, -7.7, o);
-  for(const s of [-1, 1]){ const sk = mesh(new THREE.CylinderGeometry(0.07, 0.07, 4.8, 6), MAT.dark, s*1.1, 0.08, 0.4, o); sk.rotation.x = HALF_PI;
-    for(const zz of [-0.8, 1.6]) mesh(new THREE.BoxGeometry(0.08, 0.7, 0.08), MAT.dark, s*1.0, 0.4, zz, o).rotation.z = s*0.3; }
-  mesh(new THREE.CylinderGeometry(0.18, 0.25, 0.5, 10), MAT.dark, 0, 2.95, 0.3, o);
-  rotor = new THREE.Group(); rotor.position.set(0, 3.25, 0.3); heli.add(rotor);
-  for(let i = 0; i < 4; i++){ const b = mesh(new THREE.BoxGeometry(5.6, 0.05, 0.3), MAT.dark, 2.8, 0, 0, {parent:rotor}); const g = new THREE.Group(); g.rotation.y = i*HALF_PI; g.add(b); rotor.add(g); }
-  addCol(37.5, 42.5, 0, 3.2, 12.5, 17.5);
-}
-
-// radar on a lattice tower
+let barrier = null, rotor = null, flagGeo = null, flagBase = null;
 const radarHead = new THREE.Group();
-{
-  const x = 60, z = -6;
-  for(const sx of [-1, 1]) for(const sz of [-1, 1]) box(0.22, 10, 0.22, MAT.steel, x + sx*1.3, 0, z + sz*1.3, {col:false});
-  for(const y of [2.5, 5, 7.5]){ box(2.8, 0.12, 0.12, MAT.steel, x, y, z - 1.3, {col:false}); box(2.8, 0.12, 0.12, MAT.steel, x, y, z + 1.3, {col:false}); box(0.12, 0.12, 2.8, MAT.steel, x - 1.3, y, z, {col:false}); box(0.12, 0.12, 2.8, MAT.steel, x + 1.3, y, z, {col:false}); }
-  box(3.4, 0.3, 3.4, MAT.steel, x, 10, z, {col:false});
-  addCol(x - 1.5, x + 1.5, 0, 10.3, z - 1.5, z + 1.5);
-  radarHead.position.set(x, 10.3, z); scene.add(radarHead);
-  mesh(new THREE.CylinderGeometry(0.3, 0.4, 1.2, 10), MAT.dark, 0, 0.6, 0, {parent:radarHead});
-  const dish = mesh(new THREE.SphereGeometry(2.6, 24, 10, 0, Math.PI*2, 0, 0.8), std(0xd9d6cb, .5, .2, {side:THREE.DoubleSide}), 0, 2.2, -1.6, {parent:radarHead});
-  dish.rotation.x = -HALF_PI - 0.35;
-  const horn = mesh(new THREE.CylinderGeometry(0.05, 0.05, 2.2, 6), MAT.dark, 0, 2.2, 0, {parent:radarHead}); horn.rotation.x = HALF_PI - 0.35;
-}
+if(MAP === 'base'){
+  slab(140, 140, 0, 0, texMat(TEX.gravel, 35, 35), 0.01);
+  slab(40, 34, 0, -25, texMat(TEX.concrete, 10, 8, {color:0xb8b5aa}), 0.025);
+  slab(10, 78, 0, 31, texMat(TEX.asphalt, 1, 10), 0.03);
+  slab(10, 330, 0, 235, texMat(TEX.asphalt, 1, 42), 0.03);
+  slab(22, 8, 31, -18, texMat(TEX.asphalt, 3, 1), 0.028);
+  slab(16, 12, 42, -20, texMat(TEX.concrete, 4, 3, {color:0xa9a69c}), 0.029);
 
-// fuel depot
-for(const z of [42, 50, 58]){
-  const t = mesh(new THREE.CylinderGeometry(1.6, 1.6, 8, 22), MAT.white, 54, 2.1, z); t.rotation.z = HALF_PI;
-  const band = mesh(new THREE.CylinderGeometry(1.63, 1.63, 0.5, 22), MAT.red, 54, 2.1, z); band.rotation.z = HALF_PI;
-  for(const dx of [-2.6, 2.6]) box(0.5, 1.2, 2.6, MAT.concrete, 54 + dx, 0, z, {col:false});
-  addCol(50, 58, 0, 3.7, z - 1.6, z + 1.6); solids.push(t);
-}
-for(let i = 0; i < 9; i++){ const x = 60 + (i % 3)*1.0, z = 30 + Math.floor(i/3)*1.0;
-  const b = cyl(0.42, 0.42, 1.25, [MAT.olive, MAT.red, std(0x2f4f6a, .6, .2)][i % 3], x, 0, z, 14); solids.push(b); addCol(x - .42, x + .42, 0, 1.25, z - .42, z + .42); }
-
-// tents
-for(let i = 0; i < 4; i++){
-  const x = -46 + i*8, z = 30;
-  mesh(gableGeo(5, 6, 3), MAT.camo, x, 0, z);
-  const flap = new THREE.Shape(); flap.moveTo(-0.8, 0); flap.lineTo(0.8, 0); flap.lineTo(0, 1.9); flap.closePath();
-  mesh(new THREE.ShapeGeometry(flap), MAT.dark, x, 0.01, z + 3.01, {shadow:false});
-  addCol(x - 2.5, x + 2.5, 0, 3, z - 3, z + 3);
-}
-
-// army trucks
-function truck(x, z, ry){
-  const g = new THREE.Group(); g.position.set(x, 0, z); g.rotation.y = ry; scene.add(g); const o = {parent:g};
-  mesh(new THREE.BoxGeometry(2.3, 0.4, 6.4), MAT.dark, 0, 0.9, 0, o);
-  mesh(new THREE.BoxGeometry(2.4, 1.6, 1.8), MAT.olive, 0, 1.9, 1.7, o);
-  mesh(new THREE.BoxGeometry(2.2, 0.9, 1.0), MAT.olive, 0, 1.5, 3.1, o);
-  mesh(new THREE.BoxGeometry(2.0, 0.7, 0.05), MAT.glass, 0, 2.25, 2.62, o);
-  mesh(new THREE.BoxGeometry(2.4, 0.7, 4), MAT.oliveD, 0, 1.45, -1.3, o);
-  const cover = new THREE.CylinderGeometry(1.2, 1.2, 4, 16, 1, true, HALF_PI, Math.PI); cover.rotateX(HALF_PI);
-  mesh(cover, std(0x5a5f3e, .95, 0, {side:THREE.DoubleSide}), 0, 1.8, -1.3, o);
-  mesh(new THREE.CircleGeometry(1.2, 16, 0, Math.PI), std(0x4b5034, .95, 0, {side:THREE.DoubleSide}), 0, 1.8, 0.7, o);
-  for(const wz of [2.9, -0.8, -2.2]) for(const s of [-1, 1]){ const w = mesh(new THREE.CylinderGeometry(0.52, 0.52, 0.4, 14), MAT.dark, s*1.1, 0.52, wz, o); w.rotation.z = HALF_PI; }
-  colFor(x, z, 2.6, 7, 0, 3, ry);
-  const hit = new THREE.Mesh(new THREE.BoxGeometry(2.6, 3, 7), new THREE.MeshBasicMaterial({visible:false})); hit.position.set(0, 1.5, 0); g.add(hit); solids.push(hit);
-}
-truck(16, 28, 0); truck(23, 28, 0); truck(-22, -54, HALF_PI);
-
-// shipping containers behind the headquarters
-for(const [x, y, z, c] of [[22, 0, -62, 0x7a3b2a], [22, 2.6, -62, 0x3a5a6a], [22, 0, -57, 0x56603e], [-24, 0, -62, 0x8a6a2a]])
-  box(6, 2.6, 2.45, texMat(TEX.metal, 8, 1, {color:c, metalness:.35, roughness:.6}), x, y, z);
-
-// crates and supply stacks
-for(const [x, z, n] of [[28, -14, 3], [31, -14, 2], [28, -11, 1], [-14, 12, 2], [-12, 12, 1], [-28, 46, 1], [62, 22, 2]])
-  for(let k = 0; k < n; k++) box(1.2, 1.2, 1.2, MAT.crate, x + rr(-.05, .05), k*1.2, z, {ry:0});
-
-// shooting range: firing line of sandbags, a berm and targets
-for(let i = 0; i < 6; i++){ const w = WT[3], x = -60 + 2 + i*4, m = mesh(w.geo, w.mat, x, 0, 46); solids.push(m); colFor(x, 46, w.L, w.T, 0, w.H); }
-box(28, 3, 2.5, texMat(TEX.sand, 6, 1), -48, 0, 65);
-for(let i = 0; i < 5; i++){ const x = -58 + i*5;
-  box(0.12, 1.6, 0.12, MAT.wood, x - 0.55, 0, 61.5, {col:false}); box(0.12, 1.6, 0.12, MAT.wood, x + 0.55, 0, 61.5, {col:false});
-  const t = mesh(new THREE.PlaneGeometry(1.2, 1.2), new THREE.MeshStandardMaterial({map:TEX.target, side:THREE.DoubleSide, roughness:.9}), x, 2.0, 61.45); t.rotation.y = Math.PI; }
-
-// street lamps along the road
-for(const z of [60, 42, 24, 6]) for(const s of [-1, 1]){
-  cyl(0.08, 0.12, 6, MAT.dark, s*6.5, 0, z, 8); addCol(s*6.5 - .15, s*6.5 + .15, 0, 6, z - .15, z + .15);
-  box(1.4, 0.08, 0.08, MAT.dark, s*5.9, 5.9, z, {col:false}); box(0.5, 0.18, 0.3, MAT.lamp, s*5.3, 5.75, z, {col:false});
-}
-
-// outside: trees and low hills
-{
-  const n = 260, trunks = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.22, 0.32, 2.2, 6).translate(0, 1.1, 0), std(0x5a4430, .95), n);
-  const crowns = new THREE.InstancedMesh(new THREE.ConeGeometry(2.2, 6, 7).translate(0, 5, 0), std(0x3f5a2e, .95), n);
-  const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler();
-  for(let i = 0; i < n; i++){
-    let x, z; do { const a = rnd()*Math.PI*2, r = rr(88, 330); x = Math.cos(a)*r; z = Math.sin(a)*r; } while((Math.abs(x) < 80 && Math.abs(z) < 80) || (Math.abs(x) < 10 && z > 60));
-    const s = rr(0.7, 1.4); q.setFromEuler(e.set(0, rnd()*6, 0));
-    m4.compose(new THREE.Vector3(x, 0, z), q, new THREE.Vector3(s, s*rr(.85, 1.2), s));
-    trunks.setMatrixAt(i, m4); crowns.setMatrixAt(i, m4); addCol(x - .3*s, x + .3*s, 0, 7*s, z - .3*s, z + .3*s, {tree:true});
+  // perimeter wall with a gate on the south side
+  const perMat = texMat(TEX.concrete, 35, 1);
+  box(2*PER + 1, 4, 1, perMat, 0, 0, -PER);
+  box(1, 4, 2*PER + 1, perMat, -PER, 0, 0);
+  box(1, 4, 2*PER + 1, perMat, PER, 0, 0);
+  box(PER - GATE + 0.5, 4, 1, texMat(TEX.concrete, 16, 1), -(PER + GATE)/2 - 0.25, 0, PER);
+  box(PER - GATE + 0.5, 4, 1, texMat(TEX.concrete, 16, 1), (PER + GATE)/2 + 0.25, 0, PER);
+  { // concertina coil along the top of the wall
+    const coil = mergeParts(coilParts(4, .36, 20, 0, 0, 30, 8, 3)), segs = [];
+    for(let t = -PER + 2; t < PER; t += 4){ segs.push([t, -PER, 0], [-PER, t, 1], [PER, t, 1]); if(Math.abs(t) > GATE + 1) segs.push([t, PER, 0]); }
+    const im = new THREE.InstancedMesh(coil, new THREE.MeshStandardMaterial({vertexColors:true, metalness:.75, roughness:.38}), segs.length), m4 = new THREE.Matrix4();
+    segs.forEach(([x, z, r], i) => im.setMatrixAt(i, m4.makeRotationY(r ? HALF_PI : 0).setPosition(x, 4.36, z))); im.frustumCulled = false; im.castShadow = true; scene.add(im);
   }
-  for(const im of [trunks, crowns]){ im.castShadow = im.receiveShadow = true; im.frustumCulled = false; scene.add(im); }
-  for(let i = 0; i < 18; i++){ const a = i/18*Math.PI*2 + rr(-.1, .1), r = rr(470, 600);
-    const h = new THREE.Mesh(new THREE.SphereGeometry(1, 18, 10), std(i % 2 ? 0x7d7d55 : 0x8c8460, 1)); h.position.set(Math.cos(a)*r, -6, Math.sin(a)*r); h.scale.set(rr(70, 140), rr(22, 55), rr(70, 140)); scene.add(h); }
+  // gate posts, guard booths and a barrier arm that lifts when you come close
+  box(1.2, 5, 1.2, MAT.concrete, -GATE - 0.6, 0, PER); box(1.2, 5, 1.2, MAT.concrete, GATE + 0.6, 0, PER);
+  barrier = new THREE.Group(); barrier.position.set(-GATE + 0.4, 1.1, PER + 1.4); scene.add(barrier);
+  box(0.4, 1.1, 0.4, MAT.red, -GATE + 0.4, 0, PER + 1.4, {col:false});
+  mesh(new THREE.BoxGeometry(11.2, 0.16, 0.16), texMat(TEX.stripes, 6, 1), 5.6, 0, 0, {parent:barrier});
+  for(const s of [-1, 1]){
+    const x = s*11, z = PER - 4;
+    box(3, 2.7, 3, MAT.plaster, x, 0, z);
+    box(3.04, 0.7, 3.04, MAT.glass, x, 1.4, z, {col:false});
+    box(3.6, 0.2, 3.6, MAT.oliveD, x, 2.7, z, {col:false});
+    // sandbag nest next to the booth
+    for(const [dx, dz, r] of [[s*4.5, -4, 0], [s*6.5, -2, 1]]){ const w = WT[3], m = mesh(w.geo, w.mat, x + dx, 0, z + dz, {ry:r*HALF_PI}); solids.push(m); colFor(x + dx, z + dz, w.L, w.T, 0, w.H, r*HALF_PI); }
+  }
+
+  // watchtowers in the corners
+  function tower(x, z){
+    for(const sx of [-1, 1]) for(const sz of [-1, 1]) box(0.3, 7, 0.3, MAT.wood, x + sx*1.8, 0, z + sz*1.8);
+    box(4.6, 0.3, 4.6, MAT.wood, x, 7, z, {col:false});
+    for(const [dx, dz, w, d] of [[0, 2.2, 4.6, 0.12], [0, -2.2, 4.6, 0.12], [2.2, 0, 0.12, 4.6], [-2.2, 0, 0.12, 4.6]]) box(w, 1, d, MAT.wood, x + dx, 7.3, z + dz, {col:false});
+    for(const sx of [-1, 1]) for(const sz of [-1, 1]) box(0.14, 2.3, 0.14, MAT.wood, x + sx*2.1, 7.3, z + sz*2.1, {col:false});
+    const roof = mesh(new THREE.ConeGeometry(3.9, 1.7, 4), MAT.roof, x, 10.45, z); roof.rotation.y = Math.PI/4;
+    for(let y = 0.4; y < 7; y += 0.45) box(0.9, 0.06, 0.08, MAT.wood, x, y, z + 2.05, {col:false});
+    const lightHead = cyl(0.3, 0.38, 0.6, MAT.steel, x, 7.8, z); lightHead.rotation.z = HALF_PI;
+  }
+  for(const sx of [-1, 1]) for(const sz of [-1, 1]) tower(sx*(PER - 4), sz*(PER - 4));
+
+  // barracks: long houses with gable roofs
+  function barracks(x, z){
+    const w = 26, d = 10, h = 4;
+    box(w, h, d, MAT.plaster, x, 0, z);
+    box(w + 0.2, 0.4, d + 0.2, MAT.concrete, x, 0, z, {col:false});
+    const r = mesh(gableGeo(d + 1.2, w + 1, 2.4), MAT.roof, x, h, z); r.rotation.y = HALF_PI;
+    for(let i = 0; i < 7; i++){ const wx = x - 10.5 + i*3.5; if(i === 3) continue;
+      for(const s of [-1, 1]){ box(1.5, 1.2, 0.12, MAT.white, wx, 1.6, z + s*(d/2 + 0.02), {col:false}); box(1.3, 1.0, 0.14, MAT.glass, wx, 1.7, z + s*(d/2 + 0.02), {col:false}); } }
+    box(1.6, 2.4, 0.14, MAT.door, x, 0, z + d/2 + 0.04, {col:false});
+    box(2.6, 0.2, 1.4, MAT.concrete, x, 0, z + d/2 + 0.7, {col:false});
+    box(2.6, 0.12, 1.6, MAT.oliveD, x, 2.7, z + d/2 + 0.8, {col:false});
+  }
+  barracks(-45, -45); barracks(-45, -25); barracks(-45, -5);
+
+  // headquarters with a sign, antennas and a flag in front
+  {
+    const x = 0, z = -52, w = 20, d = 12, h = 8;
+    box(w, h, d, texMat(TEX.concrete, 5, 2, {color:0xd4d0c0}), x, 0, z);
+    box(w + 0.6, 0.6, d + 0.6, MAT.concrete, x, h, z, {col:false});
+    for(const fl of [0, 1]) for(let i = 0; i < 6; i++){ const wx = -7.5 + i*3; if(fl === 0 && Math.abs(wx) < 2) continue;
+      for(const s of [-1, 1]) box(1.8, 1.5, 0.14, MAT.glass, x + wx, 1.3 + fl*3.6, z + s*(d/2 + 0.02), {col:false}); }
+    box(2.4, 2.8, 0.14, MAT.glass, x, 0, z + d/2 + 0.04, {col:false});
+    box(5, 0.25, 2.4, MAT.oliveD, x, 3.1, z + d/2 + 1.2, {col:false});
+    for(const s of [-1, 1]) box(0.25, 3.1, 0.25, MAT.steel, x + s*2.3, 0, z + d/2 + 2.2);
+    const sign = mesh(new THREE.PlaneGeometry(5, 1.25), new THREE.MeshStandardMaterial({map:TEX.sign, roughness:.7}), x, 3.95, z + d/2 + 0.09, {shadow:false});
+    sign.castShadow = false;
+    box(4, 0.3, 3, MAT.concrete, x, 0, z + d/2 + 1.4, {col:false});
+    cyl(0.06, 0.1, 7, MAT.steel, x + 7, h + 0.6, z - 3, 6);
+    cyl(0.05, 0.08, 5, MAT.steel, x + 5.5, h + 0.6, z - 3.5, 6);
+    const dish = mesh(new THREE.SphereGeometry(1.1, 16, 8, 0, Math.PI*2, 0, 0.9), MAT.white, x - 6, h + 1.6, z - 2); dish.rotation.x = -1.0; dish.material = std(0xe2ded2, .5, .1, {side:THREE.DoubleSide});
+    box(0.3, 1, 0.3, MAT.steel, x - 6, h + 0.6, z - 2, {col:false});
+  }
+  cyl(0.09, 0.14, 13, MAT.steel, 0, 0, -38, 8); box(1.6, 0.4, 1.6, MAT.concrete, 0, 0, -38);
+  flagGeo = new THREE.PlaneGeometry(3.2, 2, 16, 8); flagGeo.translate(1.6, 0, 0);
+  mesh(flagGeo, new THREE.MeshStandardMaterial({map:TEX.flag, side:THREE.DoubleSide, roughness:.9}), 0.1, 11.8, -38, {shadow:true});
+  flagBase = flagGeo.attributes.position.array.slice();
+
+  // hangar: half a cylinder with doors at the front
+  {
+    const x = 42, z = -40, r = 10, len = 28;
+    const shell = new THREE.CylinderGeometry(r, r, len, 28, 1, true, HALF_PI, Math.PI); shell.rotateX(HALF_PI);
+    mesh(shell, MAT.hangar, x, 0, z);
+    const endMat = texMat(TEX.metal, 10, 1, {color:0x7f857a, metalness:.35, roughness:.55, side:THREE.DoubleSide});
+    mesh(new THREE.CircleGeometry(r, 28, 0, Math.PI), endMat, x, 0, z + len/2);
+    mesh(new THREE.CircleGeometry(r, 28, 0, Math.PI), endMat, x, 0, z - len/2);
+    for(const s of [-1, 1]) box(7.2, 7.6, 0.25, MAT.door, x + s*3.65, 0, z + len/2 + 0.15, {col:false});
+    box(14.8, 0.3, 0.4, MAT.dark, x, 7.6, z + len/2 + 0.2, {col:false});
+    addCol(x - r, x + r, 0, 9, z - len/2, z + len/2);
+    const hangarHit = new THREE.Mesh(new THREE.BoxGeometry(2*r, 9, len), new THREE.MeshBasicMaterial({visible:false})); hangarHit.position.set(x, 4.5, z); scene.add(hangarHit); solids.push(hangarHit);
+  }
+
+  // helipad with a parked helicopter whose rotor turns slowly
+  const pad = new THREE.Mesh(new THREE.CylinderGeometry(9, 9.3, 0.2, 40), [MAT.concrete, new THREE.MeshStandardMaterial({map:TEX.pad, roughness:.9}), MAT.concrete]);
+  pad.position.set(40, 0.1, 15); pad.receiveShadow = true; scene.add(pad);
+  const heli = new THREE.Group(); heli.position.set(40, 0.2, 15); heli.rotation.y = -0.6; scene.add(heli);
+  {
+    const o = {parent:heli};
+    mesh(new THREE.SphereGeometry(1, 20, 14), MAT.olive, 0, 1.7, 0.4, o).scale.set(1.25, 1.15, 2.6);
+    mesh(new THREE.SphereGeometry(1, 16, 10, 0, Math.PI*2, 0, 1.2), MAT.glass, 0, 1.75, 1.6, o).scale.set(1.05, 0.95, 1.4);
+    const boom = mesh(new THREE.CylinderGeometry(0.22, 0.42, 6.5, 10), MAT.olive, 0, 2.0, -4.6, o); boom.rotation.x = HALF_PI;
+    mesh(new THREE.BoxGeometry(0.12, 1.6, 1.1), MAT.olive, 0, 2.6, -7.6, o).rotation.x = -0.3;
+    const tr = mesh(new THREE.BoxGeometry(0.06, 1.6, 0.16), MAT.dark, 0.2, 2.6, -7.7, o);
+    for(const s of [-1, 1]){ const sk = mesh(new THREE.CylinderGeometry(0.07, 0.07, 4.8, 6), MAT.dark, s*1.1, 0.08, 0.4, o); sk.rotation.x = HALF_PI;
+      for(const zz of [-0.8, 1.6]) mesh(new THREE.BoxGeometry(0.08, 0.7, 0.08), MAT.dark, s*1.0, 0.4, zz, o).rotation.z = s*0.3; }
+    mesh(new THREE.CylinderGeometry(0.18, 0.25, 0.5, 10), MAT.dark, 0, 2.95, 0.3, o);
+    rotor = new THREE.Group(); rotor.position.set(0, 3.25, 0.3); heli.add(rotor);
+    for(let i = 0; i < 4; i++){ const b = mesh(new THREE.BoxGeometry(5.6, 0.05, 0.3), MAT.dark, 2.8, 0, 0, {parent:rotor}); const g = new THREE.Group(); g.rotation.y = i*HALF_PI; g.add(b); rotor.add(g); }
+    addCol(37.5, 42.5, 0, 3.2, 12.5, 17.5);
+  }
+
+  // radar on a lattice tower
+  {
+    const x = 60, z = -6;
+    for(const sx of [-1, 1]) for(const sz of [-1, 1]) box(0.22, 10, 0.22, MAT.steel, x + sx*1.3, 0, z + sz*1.3, {col:false});
+    for(const y of [2.5, 5, 7.5]){ box(2.8, 0.12, 0.12, MAT.steel, x, y, z - 1.3, {col:false}); box(2.8, 0.12, 0.12, MAT.steel, x, y, z + 1.3, {col:false}); box(0.12, 0.12, 2.8, MAT.steel, x - 1.3, y, z, {col:false}); box(0.12, 0.12, 2.8, MAT.steel, x + 1.3, y, z, {col:false}); }
+    box(3.4, 0.3, 3.4, MAT.steel, x, 10, z, {col:false});
+    addCol(x - 1.5, x + 1.5, 0, 10.3, z - 1.5, z + 1.5);
+    radarHead.position.set(x, 10.3, z); scene.add(radarHead);
+    mesh(new THREE.CylinderGeometry(0.3, 0.4, 1.2, 10), MAT.dark, 0, 0.6, 0, {parent:radarHead});
+    const dish = mesh(new THREE.SphereGeometry(2.6, 24, 10, 0, Math.PI*2, 0, 0.8), std(0xd9d6cb, .5, .2, {side:THREE.DoubleSide}), 0, 2.2, -1.6, {parent:radarHead});
+    dish.rotation.x = -HALF_PI - 0.35;
+    const horn = mesh(new THREE.CylinderGeometry(0.05, 0.05, 2.2, 6), MAT.dark, 0, 2.2, 0, {parent:radarHead}); horn.rotation.x = HALF_PI - 0.35;
+  }
+
+  // fuel depot
+  for(const z of [42, 50, 58]){
+    const t = mesh(new THREE.CylinderGeometry(1.6, 1.6, 8, 22), MAT.white, 54, 2.1, z); t.rotation.z = HALF_PI;
+    const band = mesh(new THREE.CylinderGeometry(1.63, 1.63, 0.5, 22), MAT.red, 54, 2.1, z); band.rotation.z = HALF_PI;
+    for(const dx of [-2.6, 2.6]) box(0.5, 1.2, 2.6, MAT.concrete, 54 + dx, 0, z, {col:false});
+    addCol(50, 58, 0, 3.7, z - 1.6, z + 1.6); solids.push(t);
+  }
+  for(let i = 0; i < 9; i++){ const x = 60 + (i % 3)*1.0, z = 30 + Math.floor(i/3)*1.0;
+    const b = cyl(0.42, 0.42, 1.25, [MAT.olive, MAT.red, std(0x2f4f6a, .6, .2)][i % 3], x, 0, z, 14); solids.push(b); addCol(x - .42, x + .42, 0, 1.25, z - .42, z + .42); }
+
+  // tents
+  for(let i = 0; i < 4; i++){
+    const x = -46 + i*8, z = 30;
+    mesh(gableGeo(5, 6, 3), MAT.camo, x, 0, z);
+    const flap = new THREE.Shape(); flap.moveTo(-0.8, 0); flap.lineTo(0.8, 0); flap.lineTo(0, 1.9); flap.closePath();
+    mesh(new THREE.ShapeGeometry(flap), MAT.dark, x, 0.01, z + 3.01, {shadow:false});
+    addCol(x - 2.5, x + 2.5, 0, 3, z - 3, z + 3);
+  }
+
+  // army trucks
+  function truck(x, z, ry){
+    const g = new THREE.Group(); g.position.set(x, 0, z); g.rotation.y = ry; scene.add(g); const o = {parent:g};
+    mesh(new THREE.BoxGeometry(2.3, 0.4, 6.4), MAT.dark, 0, 0.9, 0, o);
+    mesh(new THREE.BoxGeometry(2.4, 1.6, 1.8), MAT.olive, 0, 1.9, 1.7, o);
+    mesh(new THREE.BoxGeometry(2.2, 0.9, 1.0), MAT.olive, 0, 1.5, 3.1, o);
+    mesh(new THREE.BoxGeometry(2.0, 0.7, 0.05), MAT.glass, 0, 2.25, 2.62, o);
+    mesh(new THREE.BoxGeometry(2.4, 0.7, 4), MAT.oliveD, 0, 1.45, -1.3, o);
+    const cover = new THREE.CylinderGeometry(1.2, 1.2, 4, 16, 1, true, HALF_PI, Math.PI); cover.rotateX(HALF_PI);
+    mesh(cover, std(0x5a5f3e, .95, 0, {side:THREE.DoubleSide}), 0, 1.8, -1.3, o);
+    mesh(new THREE.CircleGeometry(1.2, 16, 0, Math.PI), std(0x4b5034, .95, 0, {side:THREE.DoubleSide}), 0, 1.8, 0.7, o);
+    for(const wz of [2.9, -0.8, -2.2]) for(const s of [-1, 1]){ const w = mesh(new THREE.CylinderGeometry(0.52, 0.52, 0.4, 14), MAT.dark, s*1.1, 0.52, wz, o); w.rotation.z = HALF_PI; }
+    colFor(x, z, 2.6, 7, 0, 3, ry);
+    const hit = new THREE.Mesh(new THREE.BoxGeometry(2.6, 3, 7), new THREE.MeshBasicMaterial({visible:false})); hit.position.set(0, 1.5, 0); g.add(hit); solids.push(hit);
+  }
+  truck(16, 28, 0); truck(23, 28, 0); truck(-22, -54, HALF_PI);
+
+  // shipping containers behind the headquarters
+  for(const [x, y, z, c] of [[22, 0, -62, 0x7a3b2a], [22, 2.6, -62, 0x3a5a6a], [22, 0, -57, 0x56603e], [-24, 0, -62, 0x8a6a2a]])
+    box(6, 2.6, 2.45, texMat(TEX.metal, 8, 1, {color:c, metalness:.35, roughness:.6}), x, y, z);
+
+  // crates and supply stacks
+  for(const [x, z, n] of [[28, -14, 3], [31, -14, 2], [28, -11, 1], [-14, 12, 2], [-12, 12, 1], [-28, 46, 1], [62, 22, 2]])
+    for(let k = 0; k < n; k++) box(1.2, 1.2, 1.2, MAT.crate, x + rr(-.05, .05), k*1.2, z, {ry:0});
+
+  // shooting range: firing line of sandbags, a berm and targets
+  for(let i = 0; i < 6; i++){ const w = WT[3], x = -60 + 2 + i*4, m = mesh(w.geo, w.mat, x, 0, 46); solids.push(m); colFor(x, 46, w.L, w.T, 0, w.H); }
+  box(28, 3, 2.5, texMat(TEX.sand, 6, 1), -48, 0, 65);
+  for(let i = 0; i < 5; i++){ const x = -58 + i*5;
+    box(0.12, 1.6, 0.12, MAT.wood, x - 0.55, 0, 61.5, {col:false}); box(0.12, 1.6, 0.12, MAT.wood, x + 0.55, 0, 61.5, {col:false});
+    const t = mesh(new THREE.PlaneGeometry(1.2, 1.2), new THREE.MeshStandardMaterial({map:TEX.target, side:THREE.DoubleSide, roughness:.9}), x, 2.0, 61.45); t.rotation.y = Math.PI; }
+
+  // street lamps along the road
+  for(const z of [60, 42, 24, 6]) for(const s of [-1, 1]){
+    cyl(0.08, 0.12, 6, MAT.dark, s*6.5, 0, z, 8); addCol(s*6.5 - .15, s*6.5 + .15, 0, 6, z - .15, z + .15);
+    box(1.4, 0.08, 0.08, MAT.dark, s*5.9, 5.9, z, {col:false}); box(0.5, 0.18, 0.3, MAT.lamp, s*5.3, 5.75, z, {col:false});
+  }
+
+  // outside: trees and low hills
+  {
+    const n = 260, trunks = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.22, 0.32, 2.2, 6).translate(0, 1.1, 0), std(0x5a4430, .95), n);
+    const crowns = new THREE.InstancedMesh(new THREE.ConeGeometry(2.2, 6, 7).translate(0, 5, 0), std(0x3f5a2e, .95), n);
+    const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler();
+    for(let i = 0; i < n; i++){
+      let x, z; do { const a = rnd()*Math.PI*2, r = rr(88, 330); x = Math.cos(a)*r; z = Math.sin(a)*r; } while((Math.abs(x) < 80 && Math.abs(z) < 80) || (Math.abs(x) < 10 && z > 60));
+      const s = rr(0.7, 1.4); q.setFromEuler(e.set(0, rnd()*6, 0));
+      m4.compose(new THREE.Vector3(x, 0, z), q, new THREE.Vector3(s, s*rr(.85, 1.2), s));
+      trunks.setMatrixAt(i, m4); crowns.setMatrixAt(i, m4); addCol(x - .3*s, x + .3*s, 0, 7*s, z - .3*s, z + .3*s, {tree:true});
+    }
+    for(const im of [trunks, crowns]){ im.castShadow = im.receiveShadow = true; im.frustumCulled = false; scene.add(im); }
+    for(let i = 0; i < 18; i++){ const a = i/18*Math.PI*2 + rr(-.1, .1), r = rr(470, 600);
+      const h = new THREE.Mesh(new THREE.SphereGeometry(1, 18, 10), std(i % 2 ? 0x7d7d55 : 0x8c8460, 1)); h.position.set(Math.cos(a)*r, -6, Math.sin(a)*r); h.scale.set(rr(70, 140), rr(22, 55), rr(70, 140)); scene.add(h); }
+  }
+}
+
+// ---------- map 2: a bunker at the end of a ruined, radioactive street ----------
+// Same orientation as the base: the bunker (the headquarters) is in the north, robots come down the street from the south.
+const PUDDLES = [], FANS = [], BLINK = [], PGLOW = [];
+const DOOR = {o:0, want:0, col:null, L:null, R:null};
+const inBunker = q => Math.abs(q.x) < 8 && q.z < -48.7 && q.z > -67;   // inside the bunker hall
+let DUST = null, DUSTV = null;
+if(MAP === 'bunker'){
+  const tex = {
+    ash: canvasTex(256, 256, (g, w, h) => { g.fillStyle = '#5d5b4c'; g.fillRect(0, 0, w, h);
+      for(let i = 0; i < 50; i++){ g.fillStyle = `rgba(${rnd() < .5 ? '38,38,32' : '112,116,78'},${rr(.1, .25)})`; g.beginPath(); g.arc(rnd()*w, rnd()*h, rr(8, 34), 0, 7); g.fill(); }
+      speckle(g, w, h, 8000, ['rgba(30,30,26,.35)', 'rgba(150,150,120,.25)', 'rgba(80,92,50,.25)']); }),
+    road: canvasTex(256, 256, (g, w, h) => { g.fillStyle = '#3f403c'; g.fillRect(0, 0, w, h);
+      speckle(g, w, h, 9000, ['rgba(20,20,20,.4)', 'rgba(110,110,100,.3)'], 2);
+      g.strokeStyle = 'rgba(14,14,12,.75)';
+      for(let i = 0; i < 14; i++){ g.lineWidth = rr(.8, 2.4); let x = rnd()*w, y = rnd()*h; g.beginPath(); g.moveTo(x, y); for(let k = 0; k < 6; k++){ x += rr(-22, 22); y += rr(-22, 22); g.lineTo(x, y); } g.stroke(); }
+      g.fillStyle = 'rgba(210,200,150,.32)'; for(let y = 0; y < h; y += 64) if(rnd() < .75) g.fillRect(w/2 - 3, y, 6, 30); }),
+    glow: canvasTex(128, 128, (g, w, h) => { const gr = g.createRadialGradient(w/2, h/2, 0, w/2, h/2, w/2);
+      gr.addColorStop(0, 'rgba(150,255,90,.9)'); gr.addColorStop(.4, 'rgba(90,255,50,.35)'); gr.addColorStop(1, 'rgba(60,255,30,0)'); g.fillStyle = gr; g.fillRect(0, 0, w, h); }),
+    crater: canvasTex(128, 128, (g, w, h) => { const gr = g.createRadialGradient(w/2, h/2, 0, w/2, h/2, w/2);
+      gr.addColorStop(0, 'rgba(12,11,9,.95)'); gr.addColorStop(.55, 'rgba(25,23,18,.8)'); gr.addColorStop(.8, 'rgba(60,55,45,.5)'); gr.addColorStop(1, 'rgba(60,55,45,0)'); g.fillStyle = gr; g.fillRect(0, 0, w, h);
+      speckle(g, w, h, 500, ['rgba(0,0,0,.4)', 'rgba(120,110,90,.3)'], 3); })
+  };
+  // the radiation trefoil, used on signs, barrels and the bunker
+  const trefoil = (g, x, y, r, col = '#141414') => { g.fillStyle = col;
+    for(let k = 0; k < 3; k++){ const a = -HALF_PI + k*Math.PI*2/3; g.beginPath(); g.moveTo(x, y); g.arc(x, y, r, a - Math.PI/6, a + Math.PI/6); g.closePath(); g.fill(); }
+    g.fillStyle = col; g.beginPath(); g.arc(x, y, r*.18, 0, 7); g.fill(); g.fillStyle = '#e2bc1f'; g.beginPath(); g.arc(x, y, r*.28, 0, 7); g.fill(); g.fillStyle = col; g.beginPath(); g.arc(x, y, r*.17, 0, 7); g.fill(); };
+  const words = (g, text, x, y, size, col) => { g.fillStyle = col; g.font = `400 ${size}px "Russo One", Impact, sans-serif`; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(text, x, y); };
+  const drawSign = (g, w, h) => { g.fillStyle = '#e2bc1f'; g.fillRect(0, 0, w, h); g.strokeStyle = '#141414'; g.lineWidth = 10; g.strokeRect(8, 8, w - 16, h - 16);
+    trefoil(g, w/2, h*.36, h*.24); words(g, 'ОПАСНО', w/2, h*.72, 40, '#141414'); words(g, 'РАДИАЦИЯ', w/2, h*.87, 34, '#141414'); };
+  tex.sign = canvasTex(256, 256, drawSign); redrawOnFonts(tex.sign, drawSign);
+  const drawPlate = (g, w, h) => { g.fillStyle = '#2a2f24'; g.fillRect(0, 0, w, h); g.strokeStyle = '#d9b93e'; g.lineWidth = 6; g.strokeRect(6, 6, w - 12, h - 12); words(g, 'БУНКЕР № 7', w/2, h/2 + 3, 62, '#ece6d2'); };
+  tex.plate = canvasTex(512, 112, drawPlate); redrawOnFonts(tex.plate, drawPlate);
+  tex.barrel = canvasTex(256, 128, (g, w, h) => { g.fillStyle = '#d4ad1c'; g.fillRect(0, 0, w, h); speckle(g, w, h, 900, ['rgba(110,60,20,.35)', 'rgba(60,40,10,.25)'], 3);
+    g.fillStyle = '#1b1b18'; g.fillRect(0, 10, w, 10); g.fillRect(0, h - 20, w, 10); trefoil(g, w*.25, h/2, 28); trefoil(g, w*.75, h/2, 28); });
+  tex.door = canvasTex(256, 160, (g, w, h) => { g.fillStyle = '#6a6f68'; g.fillRect(0, 0, w, h); speckle(g, w, h, 2500, ['rgba(110,60,30,.3)', 'rgba(20,20,20,.25)']);
+    g.strokeStyle = '#3c3f3a'; g.lineWidth = 4; g.strokeRect(14, 14, w - 28, h - 28); g.beginPath(); g.moveTo(w/2, 14); g.lineTo(w/2, h - 14); g.stroke();
+    g.fillStyle = '#2d2f2c'; for(let x = 22; x < w - 14; x += 18) for(const y of [22, h - 22]){ g.beginPath(); g.arc(x, y, 2.5, 0, 7); g.fill(); }
+    for(const x of [w*.3, w*.7]){ g.strokeStyle = '#a32a1e'; g.lineWidth = 7; g.beginPath(); g.arc(x, h*.45, 20, 0, 7); g.stroke(); g.beginPath(); g.moveTo(x - 20, h*.45); g.lineTo(x + 20, h*.45); g.moveTo(x, h*.45 - 20); g.lineTo(x, h*.45 + 20); g.stroke(); }
+    for(let x = -40; x < w + 40; x += 28){ g.fillStyle = '#e0b52c'; g.beginPath(); g.moveTo(x, h - 2); g.lineTo(x + 14, h - 2); g.lineTo(x + 30, h - 26); g.lineTo(x + 16, h - 26); g.fill(); } });
+  const facade = (base, seed) => canvasTex(256, 96, (g, w, h) => {
+    g.fillStyle = base; g.fillRect(0, 0, w, h); speckle(g, w, h, 2500, ['rgba(40,40,35,.25)', 'rgba(220,215,200,.15)']);
+    for(const x of [22, 150]){
+      const broken = rnd() < seed;
+      g.fillStyle = broken ? '#0e0e0c' : '#232c2c'; g.fillRect(x, 24, 84, 50);
+      if(broken){ const gr = g.createLinearGradient(0, 0, 0, 24); gr.addColorStop(0, 'rgba(15,14,12,0)'); gr.addColorStop(1, 'rgba(15,14,12,.85)'); g.fillStyle = gr; g.fillRect(x - 8, 0, 100, 24); }
+      else { g.strokeStyle = '#55544c'; g.lineWidth = 3; g.strokeRect(x, 24, 84, 50); g.beginPath(); g.moveTo(x + 42, 24); g.lineTo(x + 42, 74); g.stroke(); }
+    }
+    for(let i = 0; i < 6; i++){ const x = rnd()*w, gr = g.createLinearGradient(0, 74, 0, h); gr.addColorStop(0, 'rgba(40,36,28,.4)'); gr.addColorStop(1, 'rgba(40,36,28,0)'); g.fillStyle = gr; g.fillRect(x, 74, rr(4, 14), h - 74); }
+    g.fillStyle = 'rgba(50,48,42,.55)'; g.fillRect(0, h - 6, w, 6);
+  });
+  const FAC = [facade('#8b887c', .45), facade('#9c8166', .6), facade('#b3b0a2', .35)];
+
+  const M = {
+    con: texMat(TEX.concrete, 2, 2, {color:0x8f8d84}), bcon: texMat(TEX.concrete, 4, 2, {color:0xa4a194}),
+    roof: std(0x4f4d45, .95), rust: texMat(TEX.metal, 1, 1, {color:0x6b4a2e, metalness:.3, roughness:.9}),
+    burnt: std(0x2b2724, .95), rebar: std(0x5a3d28, .7, .4), rubble: texMat(TEX.gravel, 3, 3, {color:0x6d6a60}),
+    barrel: new THREE.MeshStandardMaterial({map:tex.barrel, metalness:.3, roughness:.6}),
+    sign: new THREE.MeshStandardMaterial({map:tex.sign, roughness:.7, side:THREE.DoubleSide}),
+    tree: std(0x3b3128, .95)
+  };
+
+  ground.material = texMat(tex.ash, 400, 400);
+
+  // ---- the street: cracked asphalt, sidewalks, the yard in front of the bunker
+  slab(16, 305, 0, 147.5, texMat(tex.road, 2, 38), 0.03);
+  for(const s of [-1, 1]) slab(3, 300, s*9.5, 150, texMat(TEX.concrete, 1, 75, {color:0x7a776d}), 0.034);
+  slab(96, 82, 0, -41, texMat(TEX.concrete, 24, 20, {color:0x8c897d}), 0.025);
+
+  // ---- ruined houses on both sides of the street
+  function ruin(x, z, w, d, floors, v, s){
+    const h = floors*3, fm = texMat(FAC[v], w/8, floors), sm = texMat(FAC[v], d/8, floors);
+    const m = mesh(new THREE.BoxGeometry(w, h, d), [sm, sm, M.roof, M.roof, fm, fm], x, h/2, z);
+    addCol(x - w/2, x + w/2, 0, h, z - d/2, z + d/2); solids.push(m);
+    // broken top: slabs and chunks of the fallen floor above, rebar sticking out
+    for(let i = 0; i < 4; i++){ const bw = rr(1.5, w*.45), bh = rr(.6, 2.6), bd = rr(1.5, d*.45);
+      const c = mesh(new THREE.BoxGeometry(bw, bh, bd), M.con, x + rr(-w/2 + bw/2, w/2 - bw/2), h + bh/2 - .3, z + rr(-d/2 + bd/2, d/2 - bd/2)); c.rotation.set(rr(-.15, .15), rr(-.3, .3), rr(-.15, .15)); }
+    for(let i = 0; i < 6; i++){ const r = mesh(new THREE.CylinderGeometry(.03, .03, rr(1, 2.4), 4), M.rebar, x + rr(-w/2, w/2), h + .6, z + rr(-d/2, d/2), {shadow:false}); r.rotation.set(rr(-.5, .5), 0, rr(-.5, .5)); }
+    // a pile of rubble that slid onto the sidewalk
+    if(rnd() < .45){ const pz = z + rr(-d/3, d/3), px = s*10.4;
+      const p = mesh(new THREE.SphereGeometry(1, 10, 6, 0, Math.PI*2, 0, HALF_PI), M.rubble, px, 0, pz); p.scale.set(rr(1.6, 2.4), rr(.8, 1.4), rr(2, 3.5));
+      addCol(px - 1.2, px + 1.2, 0, .9, pz - 2, pz + 2); }
+  }
+  for(const s of [-1, 1]){
+    let z = 2;
+    while(z < 258){
+      const d = rr(12, 22);
+      if(rnd() < .16){ z += rr(5, 9); continue; }             // an alley between houses
+      const w = rr(10, 16), floors = 2 + Math.floor(rnd()*4);
+      ruin(s*(11.2 + w/2), z + d/2, w, d, floors, Math.floor(rnd()*3), s);
+      z += d + rr(.4, 2.6);
+    }
+  }
+  // distant ruined city in the haze
+  for(let i = 0; i < 46; i++){ const a = rnd()*Math.PI*2, r = rr(290, 480), w = rr(14, 34), h = rr(14, 58), d = rr(14, 34);
+    mesh(new THREE.BoxGeometry(w, h, d), std(shade(0x45463f, rr(.8, 1.15)), 1), Math.cos(a)*r, h/2, Math.sin(a)*r, {shadow:false}); }
+
+  // ---- debris all over the street
+  {
+    const n = 520, im = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), M.con, n), m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler();
+    for(let i = 0; i < n; i++){ const s = rr(.15, .6), side = rnd() < .5 ? -1 : 1, x = rnd() < .6 ? side*rr(6, 11) : rr(-7, 7), z = rr(-5, 255);
+      q.setFromEuler(e.set(rnd()*3, rnd()*3, rnd()*3)); m4.compose(new THREE.Vector3(x, s*.3, z), q, new THREE.Vector3(s*rr(.8, 2), s, s*rr(.8, 1.6))); im.setMatrixAt(i, m4); }
+    im.castShadow = im.receiveShadow = true; im.frustumCulled = false; scene.add(im);
+  }
+  // bomb craters
+  const craterMat = new THREE.MeshBasicMaterial({map:tex.crater, transparent:true, depthWrite:false});
+  for(const [x, z, r] of [[2, 30, 3], [-3, 84, 3.6], [4, 128, 2.6], [-1, 160, 3.2], [3, 208, 3], [-25, -22, 3]]){
+    const c = new THREE.Mesh(new THREE.PlaneGeometry(r*2.2, r*2.2), craterMat); c.rotation.x = -HALF_PI; c.rotation.z = rnd()*6; c.position.set(x, 0.04, z); scene.add(c); }
+
+  // ---- burnt-out cars and a bus, pushed to the sides so the middle lane stays open
+  function wreckCar(x, z, ry){
+    const g = new THREE.Group(); g.position.set(x, 0, z); g.rotation.y = ry; scene.add(g); const o = {parent:g};
+    mesh(new THREE.BoxGeometry(1.9, .7, 4.4), M.rust, 0, .55, 0, o);
+    mesh(new THREE.BoxGeometry(1.7, .62, 2.1), M.burnt, 0, 1.2, -.2, o);
+    mesh(new THREE.BoxGeometry(1.5, .45, .05), MAT.dark, 0, 1.22, .87, o);
+    for(const sx of [-1, 1]) for(const sz of [-1.4, 1.4]){ const w = mesh(new THREE.CylinderGeometry(.34, .34, .25, 10), MAT.dark, sx*.88, .3, sz, o); w.rotation.z = HALF_PI; }
+    colFor(x, z, 2, 4.5, 0, 1.55, Math.round(ry/HALF_PI)*HALF_PI);
+    const hit = new THREE.Mesh(new THREE.BoxGeometry(2, 1.6, 4.5), new THREE.MeshBasicMaterial({visible:false})); hit.position.y = .8; g.add(hit); solids.push(hit);
+  }
+  for(const [x, z, ry] of [[-5.6, 12, .1], [5.8, 36, -.15], [-6, 58, 3.0], [5.4, 77, .3], [-5.2, 101, -.2], [6, 124, 3.3], [-5.8, 150, .05], [5.6, 181, -.25], [-5.5, 214, 2.9], [5.7, 236, .15]]) wreckCar(x, z, ry);
+  { // a burnt bus
+    const x = 5.6, z = 160, g = new THREE.Group(); g.position.set(x, 0, z); g.rotation.y = .04; scene.add(g); const o = {parent:g};
+    mesh(new THREE.BoxGeometry(2.6, 2.7, 11), M.rust, 0, 1.6, 0, o);
+    mesh(new THREE.BoxGeometry(2.66, .8, 10), M.burnt, 0, 2.2, 0, o);
+    addCol(x - 1.35, x + 1.35, 0, 2.95, z - 5.5, z + 5.5); solids.push(g.children[0]);
+  }
+
+  // ---- anti-tank hedgehogs, concrete blocks, broken street lamps
+  function hedgehog(x, z){
+    const g = new THREE.Group(); g.position.set(x, .75, z); g.rotation.y = rnd()*3; scene.add(g);
+    for(const [rx, rz] of [[0, .62], [0, -.62], [HALF_PI, 0]]){ const b = mesh(new THREE.BoxGeometry(.22, .22, 2.4), M.rust, 0, 0, 0, {parent:g}); b.rotation.set(rx + (rz ? 0 : 0), rz ? HALF_PI : 0, rz); }
+    addCol(x - .8, x + .8, 0, 1.5, z - .8, z + .8);
+  }
+  for(const [x, z] of [[-13, -6], [-16, -3], [13.5, -5], [17, -2.5], [-7.5, 66], [7.6, 112], [-7.4, 190], [-20, -60], [21, -66]]) hedgehog(x, z);
+  for(const [x, z] of [[-9, 4], [9, 6], [-8.6, 24], [8.6, 90], [-8.7, 140], [8.6, 222]]) box(.7, .9, 3, M.con, x, 0, z, {ry:0});
+  for(let z = 14; z < 250; z += 26) for(const s of [-1, 1]){
+    if(rnd() < .3) continue;
+    const pole = mesh(new THREE.CylinderGeometry(.08, .12, 6, 8), MAT.dark, s*8.3, 3, z + s*6); pole.rotation.z = s*rr(.05, .35); pole.rotation.x = rr(-.12, .12);
+    addCol(s*8.3 - .15, s*8.3 + .15, 0, 2.5, z + s*6 - .15, z + s*6 + .15);
+  }
+
+  // ---- radioactive puddles: they glow, hum and burn whoever steps in
+  const puddleMat = new THREE.MeshStandardMaterial({color:0x2c7a16, emissive:0x55ff22, emissiveIntensity:.95, roughness:.12, metalness:.1, transparent:true, opacity:.93});
+  for(const [x, z, r] of [[-3.5, 18, 2.2], [4.5, 44, 1.6], [-2, 70, 2.8], [5.5, 96, 1.4], [-4.5, 118, 2], [1, 146, 3], [-5.5, 172, 1.6], [3.5, 196, 2.4], [-2.5, 226, 2], [9.4, 60, 1.2], [-9.4, 132, 1.2], [-30, -8, 2.4], [32, -62, 2.2], [-25, -22, 1.4]]){
+    const sh = new THREE.Shape(), n = 18;
+    for(let k = 0; k <= n; k++){ const a = k/n*Math.PI*2, rr_ = r*(k === n ? 1 : rr(.82, 1.12)); if(k === 0) sh.moveTo(Math.cos(a)*r, Math.sin(a)*r); else if(k === n) sh.lineTo(Math.cos(a)*r, Math.sin(a)*r); else sh.lineTo(Math.cos(a)*rr_, Math.sin(a)*rr_); }
+    const p = new THREE.Mesh(new THREE.ShapeGeometry(sh), puddleMat); p.rotation.x = -HALF_PI; p.position.set(x, 0.05, z); p.receiveShadow = true; scene.add(p);
+    const s = new THREE.Sprite(new THREE.SpriteMaterial({map:tex.glow, color:0x8dff5a, transparent:true, depthWrite:false, blending:THREE.AdditiveBlending, opacity:.55}));
+    s.scale.set(r*3.4, r*1.6, 1); s.position.set(x, .7, z); scene.add(s);
+    PUDDLES.push({x, z, r}); PGLOW.push({s, base:.55, ph:rnd()*6});
+    if(r >= 2.4){ const L = new THREE.PointLight(0x66ff33, 1.1, r*6, 2); L.position.set(x, 1.2, z); scene.add(L); }
+  }
+  // barrels of waste, some tipped over and leaking into the puddles
+  function barrel(x, z, tipped){
+    const b = mesh(new THREE.CylinderGeometry(.4, .4, 1.2, 16), M.barrel, x, tipped ? .4 : .6, z);
+    if(tipped){ b.rotation.z = HALF_PI; b.rotation.y = rnd()*3; addCol(x - .6, x + .6, 0, .8, z - .6, z + .6); }
+    else { b.rotation.y = rnd()*6; addCol(x - .4, x + .4, 0, 1.2, z - .4, z + .4); }
+    solids.push(b);
+  }
+  for(const [x, z, t] of [[-6.4, 19.5, 1], [6.6, 43, 0], [7.2, 44.2, 0], [-7.3, 71, 0], [-7.6, 72.2, 0], [-6.8, 73.4, 1], [7.4, 147, 1], [-32.5, -6, 0], [-33.4, -7.2, 0], [-32, -10.5, 1],
+    [14, -40, 0], [14.9, -40, 0], [14.45, -39.2, 0], [15.8, -39.6, 0], [30, -64, 1], [-11, 119, 1]]) barrel(x, z, t);
+  // warning signs on posts, facing the street
+  for(const [x, z] of [[9.8, -3], [-9.8, -3], [8.6, 38], [-8.6, 112], [8.6, 192], [-27, -14], [28, -56]]){
+    const ry = x > 0 ? -HALF_PI : HALF_PI;
+    cyl(.05, .05, 2.2, MAT.dark, x, 0, z, 6); mesh(new THREE.PlaneGeometry(1.1, 1.1), M.sign, x + (x > 0 ? -.07 : .07), 2.3, z, {ry});
+    addCol(x - .1, x + .1, 0, 2.2, z - .1, z + .1);
+  }
+
+  // ---- the bunker: a concrete portal with a blast door, the rest buried under an earth mound
+  // the mound sits behind the portal so the doorway looks into the hall; colliders go round the hall
+  const mound = mesh(new THREE.SphereGeometry(1, 32, 14, 0, Math.PI*2, 0, HALF_PI), texMat(tex.ash, 8, 8, {color:0x8c8a70}), 0, 0, -68);
+  mound.scale.set(27, 9.5, 19); solids.push(mound);
+  addCol(-23, -8.8, 0, 6.5, -82, -49); addCol(8.8, 23, 0, 6.5, -82, -49); addCol(-23, 23, 0, 6.5, -82, -67.8);
+  // portal (z -48.7 … -45.7) with a doorway 6 m wide and 4.4 m high
+  for(const s of [-1, 1]) box(6.5, 7.6, 3, M.bcon, s*6.25, 0, -47.2);
+  box(6, 3.2, 3, M.bcon, 0, 4.4, -47.2);
+  box(20, .6, 3.6, M.bcon, 0, 7.6, -47.2, {col:false});
+  for(const s of [-1, 1]) box(1.4, 4.4, 9, M.bcon, s*10.2, 0, -41.2);
+  // the blast door: two leaves that roll aside when a player comes up to it
+  for(const s of [-1, 1]){
+    const dt_ = tex.door.clone(); dt_.needsUpdate = true; dt_.repeat.set(.5, 1); dt_.offset.set(s < 0 ? 0 : .5, 0);
+    const leaf = mesh(new THREE.BoxGeometry(3.05, 4.4, .35), new THREE.MeshStandardMaterial({map:dt_, metalness:.45, roughness:.55}), s*1.525, 2.2, -45.45);
+    if(s < 0) DOOR.L = leaf; else DOOR.R = leaf;
+    box(3.2, .18, .5, MAT.dark, s*4.6, 0, -45.35, {col:false});            // rail the leaf rolls on
+  }
+  DOOR.col = addCol(-3, 3, 0, 4.4, -45.7, -45.2);
+  mesh(new THREE.PlaneGeometry(7, .45), texMat(TEX.hazard, 7, 1), 0, 4.75, -45.68, {shadow:false});
+
+  // ---- inside the bunker: command post, map table, bunks, supplies, generator. Health comes back quickly in here
+  {
+    const inMat = texMat(TEX.concrete, 4, 1.4, {color:0xb9b5a6}), zc = -57.85;
+    slab(16, 18.3, 0, zc, texMat(TEX.concrete, 4, 5, {color:0x77746a}), 0.03);
+    box(.8, 5.2, 19.1, inMat, -8.4, 0, zc); box(.8, 5.2, 19.1, inMat, 8.4, 0, zc); box(17.6, 5.2, .8, inMat, 0, 0, -67.4);
+    box(17.6, .6, 19.1, M.bcon, 0, 4.6, zc);
+    for(const s of [-1, 1]) mesh(new THREE.PlaneGeometry(18.3, .3), texMat(TEX.hazard, 14, 1), s*7.98, .9, zc, {ry:-s*HALF_PI, shadow:false});
+    for(const z of [-51.5, -57.5, -63.5]) box(2.2, .12, .4, MAT.lamp, 0, 4.48, z, {col:false});
+    for(const z of [-53, -62]){ const L = new THREE.PointLight(0xffe4b0, 1.1, 18, 2); L.position.set(0, 4, z); scene.add(L); }
+    // command desk with three green monitors and a «ШТАБ» sign
+    const scr = canvasTex(128, 96, (g, w, h) => { g.fillStyle = '#062a10'; g.fillRect(0, 0, w, h); g.strokeStyle = '#5dff7a'; g.lineWidth = 2;
+      g.beginPath(); for(let x = 0; x < w; x += 4) g.lineTo(x, h*.5 + Math.sin(x*.15)*h*.25*rnd()); g.stroke();
+      g.fillStyle = 'rgba(93,255,122,.7)'; for(let y = 12; y < h; y += 14) g.fillRect(8, y, rr(20, 60), 4); });
+    const scrMat = new THREE.MeshStandardMaterial({map:scr, emissive:0xffffff, emissiveMap:scr, emissiveIntensity:.9, roughness:.3});
+    box(6, .95, 1.3, MAT.oliveD, 0, 0, -64.8);
+    for(const x of [-2, 0, 2]){ box(1.4, .95, .12, MAT.dark, x, .95, -65.2, {col:false}); mesh(new THREE.PlaneGeometry(1.25, .82), scrMat, x, 1.43, -65.13, {shadow:false}); }
+    for(const x of [-2, 0, 2]) box(.55, .5, .55, MAT.dark, x, 0, -63.5, {col:false});
+    mesh(new THREE.PlaneGeometry(4, 1), new THREE.MeshStandardMaterial({map:TEX.sign, roughness:.7}), 0, 3.3, -66.98, {shadow:false});
+    // the map table: the street, the bunker and red marks where the robots come from
+    const mapT = canvasTex(256, 160, (g, w, h) => { g.fillStyle = '#cdbf94'; g.fillRect(0, 0, w, h); g.strokeStyle = 'rgba(80,70,40,.35)'; g.lineWidth = 1;
+      for(let x = 0; x < w; x += 16){ g.beginPath(); g.moveTo(x, 0); g.lineTo(x, h); g.stroke(); } for(let y = 0; y < h; y += 16){ g.beginPath(); g.moveTo(0, y); g.lineTo(w, y); g.stroke(); }
+      g.fillStyle = '#5a5546'; g.fillRect(20, h/2 - 8, w - 40, 16); g.fillStyle = '#2f4a2a'; g.fillRect(4, h/2 - 22, 24, 44);
+      g.fillStyle = '#b3261e'; for(const x of [150, 190, 230]){ g.beginPath(); g.moveTo(x, h/2 - 26); g.lineTo(x + 10, h/2 - 14); g.lineTo(x - 10, h/2 - 14); g.fill(); }
+      g.strokeStyle = '#b3261e'; g.lineWidth = 3; g.beginPath(); g.moveTo(240, h/2 + 20); g.lineTo(40, h/2 + 20); g.lineTo(52, h/2 + 12); g.stroke(); });
+    box(3.4, .9, 2.2, MAT.wood, 0, 0, -57.5);
+    const top = mesh(new THREE.PlaneGeometry(3.3, 2.1), new THREE.MeshStandardMaterial({map:mapT, roughness:.85}), 0, .91, -57.5, {shadow:false}); top.rotation.x = -HALF_PI;
+    // bunk beds along the west wall
+    const mattress = std(0x5d6a4a, .95);
+    for(const z of [-51.5, -55.5, -59.5]){
+      for(const [dx, dz] of [[-.55, -1], [.55, -1], [-.55, 1], [.55, 1]]) box(.08, 2.2, .08, MAT.dark, -7.1 + dx, 0, z + dz, {col:false});
+      for(const y of [.45, 1.65]){ box(1.15, .08, 2.1, MAT.dark, -7.1, y, z, {col:false}); box(1, .2, 2, mattress, -7.1, y + .08, z, {col:false}); }
+      addCol(-7.75, -6.45, 0, 2.2, z - 1.05, z + 1.05);
+    }
+    // shelves with crates, tins and first-aid kits along the east wall
+    const kitT = canvasTex(64, 64, (g, w, h) => { g.fillStyle = '#e8e4da'; g.fillRect(0, 0, w, h); g.fillStyle = '#c3271d'; g.fillRect(26, 12, 12, 40); g.fillRect(12, 26, 40, 12); });
+    const kitMat = new THREE.MeshStandardMaterial({map:kitT, roughness:.6}), tin = std(0x8a8f86, .4, .7);
+    for(const z of [-51.5, -55.5, -59.5]){
+      for(const dz of [-1.4, 1.4]) for(const dx of [-.4, .4]) box(.06, 2.4, .06, MAT.steel, 7.3 + dx, 0, z + dz, {col:false});
+      for(const y of [.4, 1.2, 2.0]){ box(.9, .05, 2.9, MAT.steel, 7.3, y, z, {col:false});
+        for(let k = 0; k < 4; k++){ const zz = z - 1.1 + k*.72 + rr(-.1, .1), r = rnd();
+          if(r < .35) box(.5, .45, .5, MAT.crate, 7.3, y + .05, zz, {col:false});
+          else if(r < .65) box(.42, .3, .3, kitMat, 7.3, y + .05, zz, {col:false});
+          else for(let c = 0; c < 3; c++) cyl(.09, .09, .22, tin, 7.15 + c*.15, y + .05, zz, 8, {shadow:false}); } }
+      addCol(6.8, 7.8, 0, 2.4, z - 1.5, z + 1.5);
+    }
+    // generator in the far corner and a row of lockers
+    box(2.6, 1.7, 1.2, MAT.olive, 5.6, 0, -65.9); mesh(new THREE.PlaneGeometry(2.6, .25), texMat(TEX.hazard, 3, 1), 5.6, 1.2, -65.29, {shadow:false});
+    cyl(.15, .15, 2.9, MAT.steel, 6.6, 1.7, -66.2, 8);
+    for(let i = 0; i < 4; i++) box(.7, 2.1, .55, std(0x4f5a4a, .6, .3), -7.4 + i*.75, 0, -66.7);
+  }
+  const plate = mesh(new THREE.PlaneGeometry(5.2, 1.14), new THREE.MeshStandardMaterial({map:tex.plate, roughness:.7}), 0, 6.55, -45.68, {shadow:false});
+  for(const s of [-1, 1]){
+    mesh(new THREE.PlaneGeometry(1.5, 1.5), M.sign, s*7, 4.4, -45.68, {shadow:false});
+    box(.6, .35, .4, MAT.lamp, s*5.2, 6.1, -45.5, {col:false});
+  }
+  { const L = new THREE.PointLight(0xffe2a0, 1, 20, 2); L.position.set(0, 5.8, -43.5); scene.add(L); }
+  // ventilation shafts with spinning fans, an antenna with a blinking light
+  for(const s of [-1, 1]){
+    const x = s*9, z = -62; cyl(1.1, 1.1, 4.5, M.bcon, x, 4.6, z, 18); cyl(1.2, 1.2, .3, MAT.steel, x, 9.1, z, 18);
+    const fan = new THREE.Group(); fan.position.set(x, 9.25, z); scene.add(fan);
+    for(let i = 0; i < 4; i++){ const b = mesh(new THREE.BoxGeometry(1.9, .04, .32), MAT.dark, 0, 0, 0, {parent:fan}); b.rotation.y = i*Math.PI/4*2; b.rotation.x = .3; }
+    FANS.push(fan);
+  }
+  cyl(.12, .2, 12, MAT.steel, 5, 6.5, -68, 8);
+  const blink = new THREE.MeshStandardMaterial({color:0xff2a1a, emissive:0xff2a1a, emissiveIntensity:2});
+  mesh(new THREE.SphereGeometry(.22, 10, 8), blink, 5, 18.6, -68, {shadow:false}); BLINK.push(blink);
+  // sandbag nests in front of the door
+  for(const [x, z, r] of [[-6.5, -32, 0], [6.5, -32, 0], [-10.6, -34.5, 1], [10.6, -34.5, 1]]){ const w = WT[3], m = mesh(w.geo, w.mat, x, 0, z, {ry:r*HALF_PI}); solids.push(m); colFor(x, z, w.L, w.T, 0, w.H, r*HALF_PI); }
+  // a broken concrete fence round the yard, with gaps you can slip through
+  const fenceMat = texMat(TEX.concrete, 1, 1, {color:0x9a978b});
+  for(let t = -78; t < -2; t += 4) for(const s of [-1, 1]){ if(rnd() < .22) continue; const tall = rnd() < .2 ? rr(.8, 1.6) : 2.6; box(.25, tall, 3.9, fenceMat, s*48, 0, t + 2); }
+  for(let t = -46; t < 46; t += 4){ if(rnd() < .15) continue; box(3.9, 2.6, .25, fenceMat, t + 2, 0, -82); }
+
+  // ---- dead trees in the wasteland around
+  {
+    const geo = mergeParts([[part(new THREE.CylinderGeometry(.12, .26, 5, 6), 0, 2.5, 0), 0xffffff],
+      [part(new THREE.CylinderGeometry(.05, .1, 2.2, 5), .55, 3.6, 0, 0, 0, -.75), 0xdddddd], [part(new THREE.CylinderGeometry(.04, .09, 1.8, 5), -.45, 4.1, .1, .2, 0, .8), 0xdddddd],
+      [part(new THREE.CylinderGeometry(.03, .06, 1.3, 5), .1, 4.9, -.4, -.7, 0, 0), 0xcccccc]]);
+    const n = 150, im = new THREE.InstancedMesh(geo, new THREE.MeshStandardMaterial({color:0x3b3128, vertexColors:true, roughness:.95}), n), m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler();
+    for(let i = 0; i < n; i++){
+      let x, z; do { const a = rnd()*Math.PI*2, r = rr(55, 300); x = Math.cos(a)*r; z = Math.sin(a)*r; } while((Math.abs(x) < 42 && z > -12) || (Math.abs(x) < 56 && z > -90 && z <= -12));
+      const s = rr(.8, 1.5); q.setFromEuler(e.set(rr(-.08, .08), rnd()*6, rr(-.08, .08))); m4.compose(new THREE.Vector3(x, 0, z), q, new THREE.Vector3(s, s, s));
+      im.setMatrixAt(i, m4); addCol(x - .25*s, x + .25*s, 0, 5*s, z - .25*s, z + .25*s, {tree:true});
+    }
+    im.castShadow = im.receiveShadow = true; im.frustumCulled = false; scene.add(im);
+  }
+
+  // ---- radioactive dust drifting in the air around the camera
+  {
+    const n = 600, pos = new Float32Array(n*3); DUSTV = new Float32Array(n*3);
+    for(let i = 0; i < n; i++){ pos[i*3] = rr(-30, 30); pos[i*3 + 1] = rr(0, 14); pos[i*3 + 2] = rr(-30, 30); DUSTV[i*3] = rr(-.4, .4); DUSTV[i*3 + 1] = rr(-.15, .2); DUSTV[i*3 + 2] = rr(-.4, .4); }
+    const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+    DUST = new THREE.Points(geo, new THREE.PointsMaterial({color:0xb8ff8a, size:.09, transparent:true, opacity:.6, depthWrite:false, blending:THREE.AdditiveBlending}));
+    DUST.frustumCulled = false; scene.add(DUST);
+  }
+}
+function updateBunkerWorld(dt){
+  if(DOOR.L){   // the blast door opens for a player (either of the two) standing at it or inside
+    const near = q => Math.hypot(q.x, q.z + 45.4) < 7 || inBunker(q);
+    const want = (started && P.dead <= 0 && near(P.pos)) || (PEER.on && !PEER.dead && near(PEER.p)) ? 1 : 0;
+    if(want !== DOOR.want){ DOOR.want = want; sfxAt('door', {x:0, z:-45.4}); }
+    DOOR.o += clamp(want - DOOR.o, -dt*.7, dt*.7);
+    DOOR.L.position.x = -1.525 - DOOR.o*3.05; DOOR.R.position.x = 1.525 + DOOR.o*3.05;
+    DOOR.col.y1 = DOOR.o > .6 ? -1 : 4.4;
+  }
+  for(const f of FANS) f.rotation.y += dt*5;
+  for(const b of BLINK) b.emissiveIntensity = Math.sin(time*3) > .55 ? 2.4 : .08;
+  for(const g of PGLOW) g.s.material.opacity = g.base*(.75 + .25*Math.sin(time*1.7 + g.ph));
+  if(DUST){
+    const a = DUST.geometry.attributes.position.array, c = [camera.position.x, camera.position.y, camera.position.z], half = [30, 8, 30];
+    for(let i = 0; i < a.length; i += 3) for(let k = 0; k < 3; k++){
+      a[i + k] += DUSTV[i + k]*dt + (k === 1 ? 0 : Math.sin(time*.7 + i)*.15*dt);
+      const d = a[i + k] - c[k]; if(d > half[k]) a[i + k] -= 2*half[k]; else if(d < -half[k]) a[i + k] += 2*half[k];
+    }
+    DUST.geometry.attributes.position.needsUpdate = true;
+  }
+}
+// radiation: 0 outside the puddles, up to 1 in the middle of one; also how far the nearest puddle is
+let radToast = -99, shelterToast = -99;
+function radAt(x, z){
+  let k = 0, near = 99;
+  for(const p of PUDDLES){ const d = Math.hypot(x - p.x, z - p.z); near = Math.min(near, d - p.r); if(d < p.r + .4) k = Math.max(k, Math.min(1, (p.r + .4 - d)/(p.r*.5 + .4))); }
+  return {k, near};
+}
+function updateRadiation(dt){
+  const r = P.dead <= 0 ? radAt(P.pos.x, P.pos.z) : {k:0, near:99}, k = P.pos.y < .8 ? r.k : 0;
+  P.rad += (k - P.rad)*Math.min(1, 3*dt);
+  if(k > 0){ damagePlayer(16*k*dt, true); if(time - radToast > 6){ radToast = time; toast('Радиация! Уйдите из зелёной лужи', true); } }
+  const rate = k > 0 ? 12 + 40*k : r.near < 7 ? 4*(1 - r.near/7) : 0;
+  if(rate && rnd() < rate*dt) sfx('geiger', .45 + .55*k);
+  $('rad').style.opacity = Math.min(1, P.rad*1.1).toFixed(3);
+  if(P.dead <= 0 && inBunker(P.pos) && P.hp < P.maxHp){
+    P.hp = Math.min(P.maxHp, P.hp + P.maxHp*0.1*dt);
+    if(time - shelterToast > 30){ shelterToast = time; toast('Вы в бункере: здоровье быстро восстанавливается'); }
+  }
 }
 
 // ---------- the soldier: helmet, gas mask with red lenses, chest rig, knee pads ----------
@@ -1037,11 +1395,13 @@ const heroGroup = new THREE.Group(); scene.add(heroGroup);
 
 // vehicle bay near the gate: every character you are not playing stands on its own pad
 function redrawOnFonts(tex, draw){ try { document.fonts.ready.then(() => { const c = tex.image, g = c.getContext('2d'); g.clearRect(0, 0, c.width, c.height); draw(g, c.width, c.height); tex.needsUpdate = true; }); } catch(e){} }
-slab(38, 28, 28, 49.5, texMat(TEX.concrete, 9, 7, {color:0xa5a296}), 0.027);
+if(MAP === 'base') slab(38, 28, 28, 49.5, texMat(TEX.concrete, 9, 7, {color:0xa5a296}), 0.027);
+else for(const [w, x] of [[36, 29], [29, -25.5]]) slab(w, 9, x, -24, texMat(TEX.concrete, w/4, 2, {color:0xa5a296}), 0.027);
 const padTex = canvasTex(128, 128, (g, w, h) => { g.strokeStyle = '#d9b93e'; g.lineWidth = 6; g.strokeRect(5, 5, w - 10, h - 10); g.fillStyle = '#d9b93e'; for(const [x, y] of [[5, 5], [w - 25, 5], [5, h - 25], [w - 25, h - 25]]) g.fillRect(x, y, 20, 20); });
 const padMat = new THREE.MeshStandardMaterial({map:padTex, transparent:true, depthWrite:false, roughness:.9});
 const slots = RIGS.map((R, i) => {
-  const row = i < 5 ? 0 : 1, x = row ? 17.5 + (i - 5)*7 : 14 + i*7, z = row ? 58 : 41, ry = row ? Math.PI : 0;
+  const row = i < 5 ? 0 : 1, base = MAP === 'base';
+  const x = base ? (row ? 17.5 + (i - 5)*7 : 14 + i*7) : (row ? -15 - (i - 5)*7 : 15 + i*7), z = base ? (row ? 58 : 41) : -24, ry = base && row ? Math.PI : 0;
   slab(6, 6, x, z, padMat, 0.035);
   const g = new THREE.Group(); g.position.set(x, 0, z); g.rotation.y = ry; scene.add(g);
   const draw = (c, w, h) => { c.fillStyle = 'rgba(16,19,13,.78)'; c.fillRect(0, 0, w, h); c.strokeStyle = '#d9b93e'; c.lineWidth = 3; c.strokeRect(1.5, 1.5, w - 3, h - 3);
@@ -1078,8 +1438,8 @@ function nearSlot(){
 }
 
 // ---------- player movement and collision ----------
-const P = {pos:new THREE.Vector3(0, 0, 18), vel:new THREE.Vector3(), r:0.33, h:1.85, step:0.45, onGround:true, face:Math.PI, walk:0, speed:0, place:0,
-  hp:100, maxHp:0, dead:0, ammo:30, reload:0, fireCD:0, aimT:0, recoil:0, hurt:0};
+const P = {pos:new THREE.Vector3(0, 0, START_Z), vel:new THREE.Vector3(), r:0.33, h:1.85, step:0.45, onGround:true, face:Math.PI, walk:0, speed:0, place:0,
+  hp:100, maxHp:0, dead:0, ammo:30, reload:0, fireCD:0, aimT:0, recoil:0, hurt:0, rad:0};
 function collideXZ(p){
   for(let it = 0; it < 2; it++) for(const c of COLS){
     if(p.y >= c.y1 - P.step || p.y + P.h <= c.y0) continue;
@@ -1119,7 +1479,7 @@ addEventListener('keydown', e => {
   else if(/^Digit[1-5]$/.test(e.code)){ sel = +e.code[5] - 1; if(!build) setBuild(true); renderBar(); sfx('tick'); }
   else if(e.code === 'KeyX' && build) removeAim();
   else if(e.code === 'KeyF' && build) repairAim();
-  else if(e.code === 'KeyT' && G.phase === 'build') G.timer = 0;
+  else if(e.code === 'KeyT' && G.phase === 'build'){ if(NET.guest) netSend({t:'wave'}); else G.timer = 0; }
   else if(e.code === 'KeyE' && P.dead <= 0){
     if(P.repair) cancelRepair('Ремонт отменён, запчасти возвращены');
     else { const w = nearWreck(); if(w) startRepair(w);
@@ -1179,7 +1539,7 @@ function addWall(t, x, y, z, r, hp){
   const f = footprint(t, x, z, r), col = {x0:f.x0, x1:f.x1, y0:y, y1:y + w.H, z0:f.z0, z1:f.z1, built:true, wire:!!w.wire};
   if(!w.wire) COLS.push(col);                                   // wire is not solid: you walk into it and it slows you
   const b = {t, x, y, z, r, mesh:m, col, max:w.hp, hp:hp > 0 ? Math.min(hp, w.hp) : w.hp}; col.wall = b;
-  m.userData.built = b; built.push(b); rayTargets.push(m); if(b.hp < b.max) tintWall(b); return b;
+  b.id = ++WALL_ID; m.userData.built = b; built.push(b); rayTargets.push(m); if(b.hp < b.max) tintWall(b); return b;
 }
 function dropWall(b){
   scene.remove(b.mesh);
@@ -1205,8 +1565,8 @@ function tintWall(b){
   b.mesh.material.color.setScalar(0.35 + 0.65*Math.max(0, b.hp/b.max));
 }
 let saveT;
-function saveWalls(){ clearTimeout(saveT); saveT = setTimeout(() => store.set('forpost.walls', built.map(b => [b.t, b.x, +b.y.toFixed(2), b.z, b.r, Math.round(b.hp)])), 300); updateCount(); }
-function loadWalls(){ const list = store.get('forpost.walls'); if(Array.isArray(list)) for(const w of list){ if(Array.isArray(w) && WT[w[0]]) addWall(w[0], w[1], w[2], w[3], w[4] ? 1 : 0, w[5]); } updateCount(); }
+function saveWalls(now){ if(NET.guest) return; clearTimeout(saveT); const f = () => store.set(KEY + '.walls', built.map(b => [b.t, b.x, +b.y.toFixed(2), b.z, b.r, Math.round(b.hp)])); if(now) f(); else saveT = setTimeout(f, 300); updateCount(); }
+function loadWalls(){ const list = store.get(KEY + '.walls'); if(Array.isArray(list)) for(const w of list){ if(Array.isArray(w) && WT[w[0]]) addWall(w[0], w[1], w[2], w[3], w[4] ? 1 : 0, w[5]); } updateCount(); }
 
 function computeAim(){
   aim = null; aimWall = null;
@@ -1242,11 +1602,13 @@ function computeAim(){
 function placeWall(){
   if(!aim){ toast('Наведите прицел на землю', true); sfx('err'); return; }
   if(aim.why){ toast(aim.why, true); sfx('err'); return; }
+  if(NET.guest){ netSend({t:'place', a:[aim.t, aim.x, aim.y, aim.z, aim.r]}); sfx('place'); P.place = 1; return; }
   addWall(aim.t, aim.x, aim.y, aim.z, aim.r); G.res -= WT[aim.t].cost; saveWalls(); saveGame(); sfx('place'); P.place = 1;
 }
 // dismantling gives back half of what is left of the wall
 function removeAim(){
   if(!aimWall){ toast('Наведите прицел на свою стену', true); sfx('err'); return; }
+  if(NET.guest){ netSend({t:'unbuild', id:aimWall.id}); aimWall = null; sfx('break'); P.place = 1; return; }
   const b = aimWall, back = Math.floor(WT[b.t].cost*0.5*b.hp/b.max);
   dropWall(b); G.res += back;
   const fell = collapse();
@@ -1257,6 +1619,7 @@ function repairAim(){
   const b = aimWall;
   if(!b){ toast('Наведите прицел на стену', true); sfx('err'); return; }
   if(b.hp >= b.max){ toast('Стена цела'); return; }
+  if(NET.guest){ netSend({t:'fixwall', id:b.id}); sfx('place'); P.place = 1; return; }
   const cost = Math.ceil(WT[b.t].cost*(1 - b.hp/b.max));
   if(G.res < cost){ toast(`Нужно ${cost} ресурсов`, true); sfx('err'); return; }
   G.res -= cost; b.hp = b.max; tintWall(b); saveWalls(); saveGame(); sfx('place'); P.place = 1; toast(`Починено за ${cost}`);
@@ -1288,9 +1651,9 @@ function updateGhost(){
 const START_RES = 1500, START_PARTS = 30, BUILD_FIRST = 300, BUILD_NEXT = 90;
 const G = {phase:'build', timer:BUILD_FIRST, wave:0, res:START_RES, parts:START_PARTS, hq:3000, hqMax:3000, kills:0, best:0, queue:[], spawnT:0};
 const HQ = {x0:-10, x1:10, z0:-58, z1:-46};
-function saveGame(){ store.set('forpost.game', {wave:G.wave, res:Math.floor(G.res), parts:Math.floor(G.parts), hq:Math.round(G.hq), best:G.best, kills:G.kills}); }
+function saveGame(){ if(NET.guest) return; store.set(KEY + '.game', {wave:G.wave, res:Math.floor(G.res), parts:Math.floor(G.parts), hq:Math.round(G.hq), best:G.best, kills:G.kills}); }
 function loadGame(){
-  const s = store.get('forpost.game');
+  const s = store.get(KEY + '.game');
   if(s && typeof s === 'object'){ G.wave = s.wave | 0; G.res = Number.isFinite(s.res) ? s.res : START_RES; G.hq = clamp(Number.isFinite(s.hq) ? s.hq : G.hqMax, 1, G.hqMax); G.best = s.best | 0; G.kills = s.kills | 0; G.parts = Number.isFinite(s.parts) ? s.parts : START_PARTS; }
   G.phase = 'build'; G.timer = G.wave ? BUILD_NEXT : BUILD_FIRST;
 }
@@ -1373,7 +1736,7 @@ const enemies = [], allies = [], wrecks = [], hitTargets = [], EPOOL = {};
 const hitMat = new THREE.MeshBasicMaterial({visible:false});
 const barBgMat = new THREE.SpriteMaterial({color:0x111111, depthTest:false, transparent:true, opacity:.75});
 const _a = new THREE.Vector3(), _b = new THREE.Vector3(), _c = new THREE.Vector3(), _d = new THREE.Vector3(), _cr = new THREE.Vector3(), _v2 = new THREE.Vector2();
-function spawnEnemy(type){
+function makeUnit(type){
   const T = ETYPES[type], pool = EPOOL[type] || (EPOOL[type] = []);
   let e = pool.pop();
   if(!e){
@@ -1386,8 +1749,12 @@ function spawnEnemy(type){
     e = {type, T, R, g, hit, bg, fill, p:new THREE.Vector3(), v:new THREE.Vector3()};
     hit.userData.enemy = e;
   }
+  return e;
+}
+function spawnEnemy(type){
+  const e = makeUnit(type), T = e.T; e.id = ++UNIT_ID;
   const k = 1 + (G.wave - 1)*0.08;
-  e.p.set(rr(-55, 55), 0, rr(150, 195)); e.v.set(0, 0, 0);
+  if(MAP === 'base') e.p.set(rr(-55, 55), 0, rr(150, 195)); else e.p.set(rr(-6, 6), 0, rr(215, 245)); e.v.set(0, 0, 0);
   Object.assign(e, {state:'enemy', hp:T.hp*k, max:T.hp*k, face:Math.PI, walk:0, cd:rr(.5, 1.5), dead:false, chkT:1.2, cx:e.p.x, cz:e.p.z, sideT:0, side:1, punch:0, fall:0});
   setGlow(e, 'enemy'); tintRig(e.R, 1); e.R.root.rotation.set(0, 0, 0); e.R.root.position.y = 0;
   e.g.position.copy(e.p); e.g.rotation.y = e.face; e.bg.visible = e.fill.visible = false;
@@ -1416,6 +1783,7 @@ const distToBox = (x, z, b) => Math.hypot(Math.max(b.x0 - x, 0, x - b.x1), Math.
 const distToBox3 = (p, c) => Math.hypot(Math.max(c.x0 - p.x, 0, p.x - c.x1), Math.max(c.y0 - p.y, 0, p.y - c.y1), Math.max(c.z0 - p.z, 0, p.z - c.z1));
 // the only way in or out of the base is the south gate; robots outside on other sides walk round the corners first
 function navPoint(p, tx, tz){
+  if(MAP !== 'base') return {x:tx, z:tz, direct:true};   // the street is open all the way to the bunker
   const ein = inBase(p.x, p.z), tin = inBase(tx, tz);
   if(ein === tin) return {x:tx, z:tz, direct:true};
   if(!ein && p.z < 74) return Math.abs(p.x) < 78 ? {x:Math.sign(p.x || 1)*84, z:-84} : {x:Math.sign(p.x)*84, z:84};
@@ -1479,7 +1847,7 @@ function updateEnemies(dt){
     // target: the nearest of the player and the repaired robots, when close; otherwise the headquarters
     let foe = null, fd = 34;
     if(P.dead <= 0){ const d = Math.hypot(P.pos.x - p.x, P.pos.z - p.z); if(d < fd){ fd = d; foe = 'player'; } }
-    for(const a of allies){ if(a.fall > 0) continue; const d = Math.hypot(a.p.x - p.x, a.p.z - p.z); if(d < fd - 2){ fd = d; foe = a; } }
+    for(const a of NET.host ? allies.concat(PEER) : allies){ if(a.fall > 0) continue; const d = Math.hypot(a.p.x - p.x, a.p.z - p.z); if(d < fd - 2){ fd = d; foe = a; } }
     let tx, tz, dT;
     if(foe === 'player'){ tx = P.pos.x; tz = P.pos.z; dT = fd - P.r; }
     else if(foe){ tx = foe.p.x; tz = foe.p.z; dT = fd - foe.R.r; }
@@ -1555,7 +1923,7 @@ function bar(u, f, color){
 function enemyShoot(e, from, to, kind, wall){
   const T = e.T, hit = (kind !== 'player' && kind !== 'ally') || rnd() < T.acc, end = _c.copy(to);
   if(!hit){ end.x += rr(-1.5, 1.5); end.y += rr(-.5, 1.2); end.z += rr(-1.5, 1.5); }
-  tracer(from, end, 0xff5a3a); emit(SPARK, from.x, from.y, from.z, 3, 0xffb060, 2, .15, 0);
+  tracer(from, end, 0xff5a3a); emit(SPARK, from.x, from.y, from.z, 3, 0xffb060, 2, .15, 0); if(NET.host) netFx(0, from, end, 0xff5a3a);
   sfxAt('eshot', from);
   if(!hit) return;
   if(kind === 'player') damagePlayer(T.dmg);
@@ -1573,6 +1941,7 @@ function melee(e, foe){
 // ---------- damage ----------
 function hitWall(b, dmg, pt){
   if(!b || b.dead || dmg <= 0) return;
+  if(NET.guest){ netSend({t:'wallhit', id:b.id, d:r1(dmg)}); if(pt && rnd() < .6) emit(SPARK, pt.x, pt.y, pt.z, 4, 0xb8b0a0, 3, .4); return; }
   b.hp -= dmg; tintWall(b);
   if(pt && rnd() < .6) emit(SPARK, pt.x, pt.y, pt.z, 4, WT[b.t].wire ? 0xd0d4d4 : 0xb8b0a0, 3, .4);
   if(b.hp <= 0){
@@ -1584,18 +1953,20 @@ function hitWall(b, dmg, pt){
 function explode(pt, rad, dmg, src){
   burst(pt.x, pt.y, pt.z, 30, 0xff9a3a, 9, 1.0); emit(PUFF, pt.x, pt.y, pt.z, 14, 0x55524c, 3, 2.2, -0.6, 1);
   boomLight.position.copy(pt); boomLight.intensity = 3; sfxAt('boom', pt);
+  if(NET.host && src !== 'player') netFx(1, pt);
   // the player's blasts hurt walls a little, allies' blasts spare them, enemies' blasts hit everything of ours
   const wf = src === 'player' ? CHARS[cur].w.wallF : src === 'ally' ? 0 : 1;
   if(wf > 0) for(const b of built.slice()){ if(b.dead) continue; const d = distToBox3(pt, b.col); if(d < rad) hitWall(b, dmg*(1 - d/rad)*wf, null); }
   if(src !== 'enemy'){ for(const e of enemies.slice()){ const d = Math.max(0, Math.hypot(e.p.x - pt.x, e.p.z - pt.z) - e.R.r); if(d < rad) damageEnemy(e, dmg*(1 - d/rad), src); } }
   else {
     const d = Math.hypot(P.pos.x - pt.x, P.pos.z - pt.z); if(d < rad) damagePlayer(dmg*(1 - d/rad));
-    for(const a of allies.slice()){ const da = Math.max(0, Math.hypot(a.p.x - pt.x, a.p.z - pt.z) - a.R.r); if(da < rad) damageAlly(a, dmg*(1 - da/rad)); }
+    for(const a of NET.host ? allies.concat(PEER) : allies.slice()){ const da = Math.max(0, Math.hypot(a.p.x - pt.x, a.p.z - pt.z) - a.R.r); if(da < rad) damageAlly(a, dmg*(1 - da/rad)); }
   }
 }
 // a destroyed robot does not blow up: it falls and stays as a wreck that can be repaired
 function damageEnemy(e, d, by = 'player'){
   if(e.dead) return;
+  if(NET.guest){ netSend({t:'hit', id:e.id, d:r1(d)}); return; }
   e.hp -= d;
   if(e.hp <= 0){ killReward(e, by); makeWreck(e); }
 }
@@ -1604,7 +1975,9 @@ function killReward(e, by){
   const T = e.T, parts = by === 'wire' ? Math.ceil(T.parts/2) : T.parts;
   G.res += T.reward; G.parts += parts; G.kills++;
   if(by === 'player') hitMark(true);
-  feed(`${CHARS[T.c].name}: +${T.reward} ◆ +${parts} ⚙`, by === 'player' ? 'вы' : by === 'ally' ? 'союзник' : by === 'wire' ? 'проволока' : 'взрыв', by);
+  const text = `${CHARS[T.c].name}: +${T.reward} ◆ +${parts} ⚙`, who = {player:'вы', peer:'напарник', ally:'союзник', wire:'проволока'};
+  feed(text, who[by] || 'взрыв', by === 'peer' ? 'ally' : by);
+  if(NET.host) netSend({t:'feed', x:text, w:by === 'peer' ? 'вы' : by === 'player' ? 'напарник' : who[by] || 'взрыв', c:by === 'peer' ? 'player' : by === 'player' ? 'ally' : by, k:by === 'peer' ? 1 : 0});
 }
 function feed(text, who, cls){
   const box = $('feed'), d = document.createElement('div');
@@ -1613,6 +1986,7 @@ function feed(text, who, cls){
   setTimeout(() => d.classList.add('out'), 3000); setTimeout(() => d.remove(), 3600);
 }
 function damageAlly(a, d){
+  if(a === PEER){ if(!PEER.dead) netSend({t:'hurt', d}); return; }
   if(!a || a.dead || a.fall > 0) return;
   a.hp -= d;
   if(a.hp <= 0){ toast(`${CHARS[a.T.c].name} выведен из строя. Его можно починить снова`, true); makeWreck(a); }
@@ -1661,6 +2035,7 @@ function playerFire(){
     else emit(SPARK, end.x, end.y, end.z, 4, 0xc8bea8, 2.5, .3);
   }
   if(W.splash) explode(end, W.splash, W.dmg*.7, 'player');
+  if(NET.peer && NET.shots.length < 12) NET.shots.push([r2(from.x), r2(from.y), r2(from.z), r2(end.x), r2(end.y), r2(end.z), W.col, W.snd, W.splash ? 1 : 0]);
   if(P.ammo <= 0) startReload();
 }
 
@@ -1698,6 +2073,7 @@ function nearWreck(){
   return best;
 }
 function startRepair(w){
+  if(NET.guest){ netSend({t:'fix', id:w.id}); sfx('weld'); return; }
   if(allies.length >= ALLY_MAX){ toast(`Союзников уже ${ALLY_MAX}, больше не управиться`, true); sfx('err'); return; }
   const cost = repairCost(w);
   if(G.parts < cost){ toast(`Для ремонта нужно ${cost} ⚙ запчастей, есть ${Math.floor(G.parts)}`, true); sfx('err'); return; }
@@ -1720,12 +2096,12 @@ function reviveAlly(w){
   w.v.set(0, 0, 0); tintRig(w.R, 1); setGlow(w, 'ally');
   allies.push(w);
   emit(SPARK, w.p.x, 1, w.p.z, 40, 0x6fe0ff, 5, .7); sfx('place');
-  banner(CHARS[w.T.c].name, 'Отремонтирован и воюет за вас');
+  banner(CHARS[w.T.c].name, 'Отремонтирован и воюет за вас'); netSend({t:'banner', a:CHARS[w.T.c].name, b:'Отремонтирован и воюет за вас'});
 }
 function allyShoot(a, from, to, foe){
   const T = a.T, hit = rnd() < Math.min(.95, (T.acc || .6) + .2), end = _c.copy(to);
   if(!hit){ end.x += rr(-1.2, 1.2); end.y += rr(-.4, 1); end.z += rr(-1.2, 1.2); }
-  tracer(from, end, 0x6fe0ff); emit(SPARK, from.x, from.y, from.z, 3, 0x9fe8ff, 2, .15, 0);
+  tracer(from, end, 0x6fe0ff); emit(SPARK, from.x, from.y, from.z, 3, 0x9fe8ff, 2, .15, 0); if(NET.host) netFx(0, from, end, 0x6fe0ff);
   sfxAt('eshot', from);
   if(hit) damageEnemy(foe, T.dmg, 'ally');
   if(T.splash) explode(end, T.splash, T.dmg*.6, 'ally');
@@ -1778,6 +2154,7 @@ function updateAllies(dt){
   });
 }
 function toggleAllyMode(){
+  if(NET.guest){ toast('Союзниками командует первый игрок'); return; }
   if(!allies.length){ toast('Союзников пока нет. Почините подбитого робота: подойдите и нажмите E'); return; }
   allyMode = allyMode === 'follow' ? 'hold' : 'follow';
   for(const a of allies){ a.hx = a.p.x; a.hz = a.p.z; }
@@ -1804,6 +2181,7 @@ function makeDrone(){
 }
 const DR = {...makeDrone(), inv:true, back:false, p:new THREE.Vector3(), v:new THREE.Vector3(), task:null, scanT:0, waitT:0, face:0, warnT:0};
 function toggleDrone(){
+  if(NET.guest){ toast('Ремонтный дрон есть только у первого игрока'); return; }
   if(DR.inv){
     DR.inv = false; DR.back = false; DR.task = null; DR.p.set(P.pos.x, P.pos.y + P.h + 0.6, P.pos.z); DR.v.set(0, 2, 0);
     scene.add(DR.g); sfx('ui'); toast('Ремонтный робот выпущен. Он сам ищет, что починить');
@@ -1895,7 +2273,8 @@ function droneStatus(){
 
 // ---------- phases ----------
 function updateGame(dt){
-  if(G.phase === 'build'){ G.timer -= dt; if(G.timer <= 0) startWave(); }
+  if(NET.guest){}
+  else if(G.phase === 'build'){ G.timer -= dt; if(G.timer <= 0) startWave(); }
   else if(G.phase === 'wave'){
     G.spawnT -= dt;
     if(G.queue.length && G.spawnT <= 0 && enemies.length < 14){ spawnEnemy(G.queue.shift()); G.spawnT = rr(.8, 2.2); }
@@ -1909,15 +2288,18 @@ function updateGame(dt){
   if(firing && !build) playerFire();
   updateRepair(dt);
   if(hitT > 0){ hitT -= dt; if(hitT <= 0) $('cross').classList.remove('hit'); }
+  if(MAP === 'bunker') updateRadiation(dt);
   if(G.hq < G.hqMax*.7 && rnd() < dt*(1 - G.hq/G.hqMax)*12) emit(PUFF, rr(-8, 8), 8.4, rr(-56, -48), 1, 0x3a3835, .6, 3.5, -1.2, 1.2);
 }
 function startWave(){
   G.wave++; G.queue = waveList(G.wave); G.phase = 'wave'; G.spawnT = 0;
-  banner(`Волна ${G.wave}`, `Роботы наступают с юга: ${G.queue.length}`); sfx('alarm'); saveGame();
+  banner(`Волна ${G.wave}`, `${MAP === 'base' ? 'Роботы наступают с юга' : 'Роботы идут по улице'}: ${G.queue.length}`); sfx('alarm'); saveGame();
+  netSend({t:'banner', a:$('bannerT').textContent, b:$('bannerS').textContent, s:'alarm'});
 }
 function endWave(){
   const bonus = 150 + G.wave*50, pb = 10 + G.wave*5; G.res += bonus; G.parts += pb; G.best = Math.max(G.best, G.wave); G.phase = 'build'; G.timer = BUILD_NEXT;
   banner('Волна отбита', `+${bonus} ◆ и +${pb} ⚙. Следующая через 1:30`); saveWalls(); saveGame();
+  netSend({t:'banner', a:'Волна отбита', b:`+${bonus} ◆ и +${pb} ⚙. Следующая через 1:30`});
 }
 function respawn(){
   P.hp = P.maxHp; P.pos.set(0, 0, -36); P.vel.set(0, 0, 0); P.face = Math.PI; yaw = 0; P.ammo = curW().mag; P.reload = 0;
@@ -1991,6 +2373,8 @@ function sfx(kind, vol = 1){
     if(kind === 'place'){ tone(120, 45, 0.25, 0.5); noise(0.18, 900, 0.35); }
     else if(kind === 'break'){ noise(0.4, 2400, 0.4); tone(90, 40, 0.3, 0.35); }
     else if(kind === 'err'){ tone(220, 180, 0.12, 0.12, 'square'); }
+    else if(kind === 'door'){ noise(1.4, 260, 0.35); tone(58, 42, 1.3, 0.3, 'sawtooth'); }
+    else if(kind === 'geiger'){ noise(0.012, 6000, 0.55); tone(2600, 2000, 0.01, 0.05, 'square'); }
     else if(kind === 'tick'){ tone(900, 700, 0.05, 0.08, 'triangle'); }
     else if(kind === 'ui'){ tone(520, 640, 0.07, 0.07, 'triangle'); }
     else if(kind === 'step'){ noise(0.06, 500, 0.12); }
@@ -2018,12 +2402,23 @@ function updateCharUI(){
 }
 $('charList').onclick = e => { const b = e.target.closest('.chr'); if(!b) return; setCharacter(+b.dataset.i); sfx('ui'); };
 $('bChar').onclick = () => { sfx('ui'); showPanel('pChar'); };
-function showPanel(id){ for(const p of ['pMain', 'pControls', 'pSettings', 'pConfirm', 'pChar', 'pOver']) $(p).hidden = p !== id; const b = $(id).querySelector('button'); if(b) b.focus({preventScroll:true}); }
+$('mapName').textContent = MAP_NAME;
+document.querySelectorAll('#mapList .chr').forEach(b => b.classList.toggle('on', b.dataset.map === MAP));
+$('bMap').onclick = () => { sfx('ui'); if(NET.peer){ toast('Карту меняют без напарника: сначала отключитесь', true); return; } showPanel('pMap'); };
+$('bNet').onclick = () => { sfx('ui'); renderNetPanel(); showPanel('pNet'); };
+$('bNetGo').onclick = () => { sfx('ui'); netConnect(); };
+$('bNetOff').onclick = () => { sfx('ui'); netDisconnect(); };
+$('mapList').onclick = e => { const b = e.target.closest('.chr'); if(!b) return; sfx('ui');
+  if(b.dataset.map === MAP){ showPanel('pMain'); return; }
+  saveWalls(true); saveGame(); store.set('forpost.map', b.dataset.map);
+  location.href = location.pathname + '?map=' + b.dataset.map; };
+if(MAP === 'bunker') $('lede').textContent = 'У вас 5 минут, чтобы перегородить улицу стенами и колючей проволокой. Потом по ней пойдут роботы: они ломают стены и рвутся к бункеру. Не наступайте в зелёные лужи — там радиация.';
+function showPanel(id){ for(const p of ['pMain', 'pControls', 'pSettings', 'pConfirm', 'pChar', 'pOver', 'pMap', 'pNet']) $(p).hidden = p !== id; const b = $(id).querySelector('button'); if(b) b.focus({preventScroll:true}); }
 function openMenu(){
   state = 'menu'; $('menu').hidden = false; $('hud').classList.add('off'); $('lock').hidden = true; ghost.visible = false;
   $('menu').classList.toggle('paused', started);
   const over = G.phase === 'over';
-  $('kicker').textContent = over ? 'Штаб разрушен' : started ? 'Пауза' : 'Оборона военной базы';
+  $('kicker').textContent = over ? 'Штаб разрушен' : started ? 'Пауза' : MAP === 'base' ? 'Оборона военной базы' : 'Бункер · радиоактивная улица';
   $('bPlay').firstChild.textContent = over ? 'Новая игра ' : started ? 'Продолжить ' : 'Играть ';
   $('lede').hidden = started;
   for(const k in keys) keys[k] = false;
@@ -2032,12 +2427,12 @@ function openMenu(){
   showPanel('pMain');
 }
 function startPlay(){
-  if(G.phase === 'over'){ newGame(); return; }
+  if(G.phase === 'over'){ if(NET.guest) netSend({t:'again'}); else { newGame(); return; } }
   const first = !started;
   if(!started){ started = true; yaw = 0; pitch = 0.32; }
   state = 'play'; $('menu').hidden = true; $('hud').classList.remove('off');
   sfx('ui'); lock();
-  if(first && G.phase === 'build') banner(G.wave ? 'Передышка' : 'Подготовка', G.wave ? 'Чините стены, волна скоро' : '5 минут, чтобы укрепить базу. Потом пойдут роботы');
+  if(first && G.phase === 'build') banner(G.wave ? 'Передышка' : 'Подготовка', G.wave ? 'Чините стены, волна скоро' : `5 минут, чтобы укрепить ${MAP === 'base' ? 'базу' : 'бункер'}. Потом пойдут роботы`);
 }
 function newGame(){
   for(const b of built.slice()) dropWall(b);
@@ -2046,11 +2441,11 @@ function newGame(){
   Object.assign(G, {phase:'build', timer:BUILD_FIRST, wave:0, res:START_RES, parts:START_PARTS, hq:G.hqMax, kills:0, queue:[]});
   P.hp = P.maxHp; P.dead = 0; P.ammo = curW().mag; P.reload = 0; rig.root.rotation.set(0, 0, 0);
   saveWalls(); saveGame();
-  P.pos.set(0, 0, 18); P.vel.set(0, 0, 0); P.face = Math.PI; yaw = 0; pitch = 0.32; started = true; setBuild(false);
-  startPlay(); banner('Подготовка', '5 минут, чтобы укрепить базу. Потом пойдут роботы');
+  P.pos.set(0, 0, START_Z); P.vel.set(0, 0, 0); P.face = Math.PI; yaw = 0; pitch = 0.32; started = true; setBuild(false);
+  startPlay(); banner('Подготовка', `5 минут, чтобы укрепить ${MAP === 'base' ? 'базу' : 'бункер'}. Потом пойдут роботы`);
 }
 $('bPlay').onclick = startPlay;
-$('bNew').onclick = () => { sfx('ui'); if(built.length || G.wave) showPanel('pConfirm'); else newGame(); };
+$('bNew').onclick = () => { sfx('ui'); if(NET.guest){ toast('Новую игру начинает первый игрок', true); return; } if(built.length || G.wave) showPanel('pConfirm'); else newGame(); };
 $('bAgain').onclick = newGame;
 $('bYes').onclick = newGame;
 $('bControls').onclick = () => { sfx('ui'); showPanel('pControls'); };
@@ -2071,6 +2466,233 @@ $('sShadows').onchange = e => { S.shadows = e.target.checked; applySettings(); }
 $('sHq').onchange = e => { S.hq = e.target.checked; applySettings(); };
 $('sSound').onchange = e => { S.sound = e.target.checked; applySettings(); };
 $('bDefaults').onclick = () => { Object.assign(S, DEF); applySettings(); sfx('ui'); };
+
+// ---------- playing together over the network ----------
+// The first player to connect hosts: robots, waves, walls, resources and the headquarters live on their computer.
+// The second player (the guest) moves and shoots on their own and asks the host for everything else.
+// server.py relays the messages between the two browsers.
+const NET = {ws:null, role:'', peer:false, host:false, guest:false, pT:0, sT:0, wT:0, wSig:-1, shots:[], fx:[], units:new Map(), status:'off'};
+const PEER = {on:false, i:-1, R:null, g:new THREE.Group(), p:new THREE.Vector3(), t:new THREE.Vector3(), face:0, tface:0, walk:0, amt:0, air:0, build:false,
+  pitch:0, place:0, dead:true, fall:1, label:null};
+scene.add(PEER.g); PEER.g.visible = false;
+{
+  const draw = (c, w, h) => { c.fillStyle = 'rgba(8,30,40,.8)'; c.fillRect(0, 0, w, h); c.strokeStyle = '#3fd6ff'; c.lineWidth = 3; c.strokeRect(1.5, 1.5, w - 3, h - 3);
+    c.fillStyle = '#bff3ff'; c.font = '400 34px "Russo One", Impact, sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText('Напарник', w/2, h/2 + 2); };
+  const tex = canvasTex(256, 64, draw); redrawOnFonts(tex, draw);
+  PEER.label = new THREE.Sprite(new THREE.SpriteMaterial({map:tex, depthWrite:false, transparent:true})); PEER.label.scale.set(2.2, .55, 1); PEER.label.visible = false; scene.add(PEER.label);
+}
+const PEER_RIGS = {};
+let UNIT_ID = 0, WALL_ID = 0;
+const r1 = v => Math.round(v*10)/10, r2 = v => Math.round(v*100)/100;
+
+function netSend(m){ if(NET.ws && NET.ws.readyState === 1) NET.ws.send(JSON.stringify(m)); }
+function netUpdateFlags(){
+  NET.host = NET.role === 'host' && NET.peer; NET.guest = NET.role === 'guest' && NET.peer;
+  if(!NET.peer){ PEER.on = false; PEER.fall = 1; }
+  const s = !NET.ws ? 'выкл' : NET.peer ? (NET.host ? 'вы ведёте игру' : 'в игре у напарника') : 'ждём напарника';
+  NET.status = s; $('netState').textContent = s; $('netHud').textContent = NET.peer ? 'вдвоём' : '';
+  renderNetPanel();
+}
+function netConnect(){
+  if(NET.ws) return;
+  if(location.protocol === 'file:'){ renderNetPanel(); return; }
+  const ws = new WebSocket((location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/ws');
+  NET.ws = ws; NET.status = 'подключаюсь…'; renderNetPanel();
+  ws.onmessage = e => { let m; try { m = JSON.parse(e.data); } catch(err){ return; } netOnMessage(m); };
+  ws.onclose = () => {
+    const wasGuest = NET.guest; NET.ws = null; NET.role = ''; NET.peer = false; netUpdateFlags();
+    if(wasGuest){ toast('Связь с напарником потеряна', true); setTimeout(() => { location.href = location.pathname + '?map=' + MAP; }, 1500); }
+  };
+  ws.onerror = () => { $('netText').textContent = 'Не удалось подключиться к серверу игры. Запустите игру ярлыком «Играть — ….command».'; };
+}
+function netDisconnect(){ if(NET.ws){ const g = NET.guest; NET.ws.close(); if(g) location.href = location.pathname + '?map=' + MAP; } }
+
+function netOnMessage(m){
+  switch(m.t){
+    case 'full': toast('В игре уже двое', true); NET.ws.close(); break;
+    case 'role': NET.role = m.role; netUpdateFlags(); break;
+    case 'joined':                       // a guest came in: tell them the map and send the whole world
+      NET.peer = true; netUpdateFlags(); NET.wSig = -1;
+      netSend({t:'welcome', map:MAP}); netSendWalls(); netSendSnap();
+      toast('Напарник подключился'); sfx('ui'); break;
+    case 'welcome':
+      if(m.map !== MAP){ store.set('forpost.map', m.map); location.href = location.pathname + '?map=' + m.map + '&net=1'; return; }
+      NET.peer = true;
+      // the guest drops their own world and takes the host's
+      P.repair = null; droneHome();
+      for(const u of [...enemies, ...allies, ...wrecks]) removeUnit(u);
+      for(const b of built.slice()) dropWall(b);
+      netUpdateFlags(); updateCount(); toast('Вы в игре у напарника'); sfx('ui');
+      if(state !== 'play') startPlay();
+      break;
+    case 'left':
+      NET.peer = false; PEER.g.visible = PEER.label.visible = false;
+      if(NET.role === 'guest'){ netUpdateFlags(); toast('Напарник вышел из игры', true); setTimeout(() => { location.href = location.pathname + '?map=' + MAP; }, 1500); }
+      else { NET.units.clear(); netUpdateFlags(); toast('Напарник вышел из игры', true); }
+      break;
+    case 'p': netOnPeer(m); break;
+    case 's': if(NET.guest) netApplySnap(m); break;
+    case 'walls': if(NET.guest) netApplyWalls(m.w); break;
+    case 'banner': banner(m.a, m.b); if(m.s) sfx(m.s); break;
+    case 'toast': toast(m.m, !!m.bad); if(m.bad) sfx('err'); break;
+    case 'feed': feed(m.x, m.w, m.c); if(m.k) hitMark(true); break;
+    case 'hurt': damagePlayer(m.d); break;
+    // requests from the guest, carried out by the host
+    case 'hit': if(NET.host){ const e = enemies.find(u => u.id === m.id); if(e) damageEnemy(e, m.d, 'peer'); } break;
+    case 'wallhit': if(NET.host){ const b = built.find(w => w.id === m.id); if(b) hitWall(b, m.d, null); } break;
+    case 'place': if(NET.host){
+      const [tt, x, y, z, r] = m.a, w = WT[tt];
+      if(!w) break;
+      if(G.res < w.cost){ netSend({t:'toast', m:`Не хватает ресурсов: нужно ${w.cost}`, bad:1}); break; }
+      if(built.some(b => b.x === x && b.z === z && b.r === r && Math.abs(b.y - y) < .01)){ netSend({t:'toast', m:'Место занято', bad:1}); break; }
+      addWall(tt, x, y, z, r); G.res -= w.cost; saveWalls(); saveGame(); sfxAt('place', {x, z}); } break;
+    case 'unbuild': if(NET.host){ const b = built.find(w => w.id === m.id); if(!b) break;
+      const back = Math.floor(WT[b.t].cost*0.5*b.hp/b.max); dropWall(b); G.res += back; collapse(); saveWalls(); saveGame();
+      netSend({t:'toast', m:`Разобрано, +${back}`}); } break;
+    case 'fixwall': if(NET.host){ const b = built.find(w => w.id === m.id); if(!b || b.hp >= b.max) break;
+      const cost = Math.ceil(WT[b.t].cost*(1 - b.hp/b.max));
+      if(G.res < cost){ netSend({t:'toast', m:`Нужно ${cost} ресурсов`, bad:1}); break; }
+      G.res -= cost; b.hp = b.max; tintWall(b); saveWalls(); saveGame(); netSend({t:'toast', m:`Починено за ${cost}`}); } break;
+    case 'fix': if(NET.host){ const w = wrecks.find(u => u.id === m.id); if(!w) break;
+      const cost = repairCost(w);
+      if(allies.length >= ALLY_MAX){ netSend({t:'toast', m:`Союзников уже ${ALLY_MAX}`, bad:1}); break; }
+      if(G.parts < cost){ netSend({t:'toast', m:`Для ремонта нужно ${cost} ⚙ запчастей`, bad:1}); break; }
+      if(P.repair && P.repair.w === w) cancelRepair();
+      G.parts -= cost; reviveAlly(w); } break;
+    case 'wave': if(NET.host && G.phase === 'build') G.timer = 0; break;
+    case 'again': if(NET.host && G.phase === 'over') newGame(); break;
+  }
+}
+
+// ---- the other player's soldier (or robot) on our screen
+function netOnPeer(m){
+  PEER.on = true; PEER.t.set(m.x, m.y, m.z); PEER.tface = m.f; PEER.walk = m.w; PEER.amt = m.a; PEER.air = m.air; PEER.build = !!m.b;
+  PEER.pitch = m.pi; PEER.place = m.pl; PEER.dead = !!m.d; PEER.fall = PEER.dead ? 1 : 0;
+  if(m.c !== PEER.i && CHARS[m.c]){
+    if(PEER.R) PEER.g.remove(PEER.R.root);
+    PEER.i = m.c; PEER.R = PEER_RIGS[m.c] || (PEER_RIGS[m.c] = CHARS[m.c].make()); PEER.g.add(PEER.R.root);
+    PEER.p.copy(PEER.t); PEER.face = PEER.tface;
+  }
+  for(const s of m.s || []){   // their shots: [from xyz, to xyz, colour, sound, splash]
+    _a.set(s[0], s[1], s[2]); _b.set(s[3], s[4], s[5]); tracer(_a, _b, s[6]); sfxAt(s[7], _a);
+    if(s[8]){ burst(_b.x, _b.y, _b.z, 24, 0xff9a3a, 8, .9); boomLight.position.copy(_b); boomLight.intensity = 3; sfxAt('boom', _b); }
+  }
+}
+function updatePeer(dt){
+  const show = NET.peer && PEER.on && !!PEER.R;
+  PEER.g.visible = PEER.label.visible = show; if(!show) return;
+  if(PEER.p.distanceTo(PEER.t) > 8) PEER.p.copy(PEER.t); else PEER.p.lerp(PEER.t, Math.min(1, 12*dt));
+  let d = PEER.tface - PEER.face; d = Math.atan2(Math.sin(d), Math.cos(d)); PEER.face += d*Math.min(1, 12*dt);
+  const R = PEER.R;
+  animateRig(R, PEER.walk, PEER.amt, PEER.air, PEER.place, PEER.build, PEER.pitch);
+  if(PEER.dead){ R.root.rotation.x = -HALF_PI*0.92; R.root.position.y = R.r*0.5; } else { R.root.rotation.x = R.lean || 0; R.root.position.y = 0; }
+  PEER.g.position.copy(PEER.p); PEER.g.rotation.y = PEER.face;
+  PEER.label.position.set(PEER.p.x, PEER.p.y + R.h + 0.9, PEER.p.z);
+}
+
+// ---- the host's world, sent to the guest
+function netSendSnap(){
+  const u = [];
+  for(const [list, st] of [[enemies, 0], [allies, 1], [wrecks, 2]]) for(const e of list)
+    u.push([e.id, e.type, st, r1(e.p.x), r1(e.p.z), r2(e.face), Math.round(e.hp), Math.round(e.max), r2(e.fall || 0), r1(e.punch || 0)]);
+  netSend({t:'s', g:[G.phase, r1(G.timer), G.wave, Math.floor(G.res), Math.floor(G.parts), Math.round(G.hq), G.kills, G.best], u, fx:NET.fx.splice(0)});
+}
+function netFx(kind, a, b, col){ if(NET.fx.length < 60) NET.fx.push(kind ? [1, r1(a.x), r1(a.y), r1(a.z)] : [0, r1(a.x), r1(a.y), r1(a.z), r1(b.x), r1(b.y), r1(b.z), col]); }
+function netWallSig(){ let s = built.length; for(const b of built) s += b.id*7919 + Math.round(b.hp); return s; }
+function netSendWalls(){ NET.wSig = netWallSig(); netSend({t:'walls', w:built.map(b => [b.id, b.t, b.x, r2(b.y), b.z, b.r, Math.round(b.hp)])}); }
+
+function netApplyWalls(list){
+  const want = new Set(list.map(w => w[0]));
+  for(const b of built.slice()) if(!want.has(b.id)){ burst(b.x, b.y + WT[b.t].H*.5, b.z, 30, 0x9a958a, 6, 1.2); sfxAt('break', b); if(aimWall === b) aimWall = null; dropWall(b); }
+  const have = new Map(built.map(b => [b.id, b]));
+  for(const w of list){
+    let b = have.get(w[0]);
+    if(!b){ b = addWall(w[1], w[2], w[3], w[4], w[5], w[6]); b.id = w[0]; }
+    else if(Math.round(b.hp) !== w[6]){ b.hp = w[6]; tintWall(b); }
+  }
+  updateCount();
+}
+function netSetState(u, st){
+  if(u.state === st) return;
+  for(const list of [enemies, allies, wrecks]){ const i = list.indexOf(u); if(i >= 0) list.splice(i, 1); }
+  const h = hitTargets.indexOf(u.hit); if(h >= 0) hitTargets.splice(h, 1);
+  const prev = u.state; u.state = st;
+  if(st === 'enemy'){ enemies.push(u); hitTargets.push(u.hit); setGlow(u, 'enemy'); tintRig(u.R, 1); u.dead = false; }
+  else if(st === 'ally'){ allies.push(u); setGlow(u, 'ally'); tintRig(u.R, 1); u.dead = false; if(prev === 'wreck'){ emit(SPARK, u.p.x, 1, u.p.z, 40, 0x6fe0ff, 5, .7); sfxAt('place', u.p); } }
+  else { wrecks.push(u); setGlow(u, 'wreck'); tintRig(u.R, .42); u.dead = true;
+    if(prev){ _c.set(u.p.x, u.R.h*.5, u.p.z); emit(SPARK, _c.x, _c.y, _c.z, 30, 0xffa040, 6, .8); emit(PUFF, _c.x, _c.y, _c.z, 10, 0x34322f, 1.5, 2.5, -0.8, 1); sfxAt('crash', _c); } }
+}
+function netApplySnap(m){
+  const [phase, timer, wave, res, parts, hq, kills, best] = m.g;
+  const wasOver = G.phase === 'over';
+  Object.assign(G, {timer, wave, res, parts, hq, kills, best});
+  if(phase === 'over' && !wasOver) gameOver(); else G.phase = phase;
+  if(wasOver && phase !== 'over' && state === 'menu' && !$('pOver').hidden) startPlay();
+  const seen = new Set();
+  for(const a of m.u){
+    const [id, type, st, x, z, face, hp, max, fall, punch] = a;
+    seen.add(id);
+    let u = NET.units.get(id);
+    if(!u){
+      if(!ETYPES[type]) continue;
+      u = makeUnit(type); u.id = id; u.state = '';
+      u.p.set(x, 0, z); u.face = face; u.walk = 0; u.fall = fall; u.punch = 0;
+      u.R.root.rotation.set(0, 0, 0); u.R.root.position.y = 0; u.bg.visible = u.fill.visible = false;
+      scene.add(u.g, u.bg, u.fill); NET.units.set(id, u);
+    }
+    Object.assign(u, {tx:x, tz:z, tface:face, hp, max, tfall:fall}); u.punch = Math.max(u.punch, punch);
+    netSetState(u, st === 0 ? 'enemy' : st === 1 ? 'ally' : 'wreck');
+  }
+  for(const [id, u] of NET.units) if(!seen.has(id)){ removeUnit(u); NET.units.delete(id); }
+  for(const f of m.fx || []){
+    if(f[0] === 0){ _a.set(f[1], f[2], f[3]); _b.set(f[4], f[5], f[6]); tracer(_a, _b, f[7]); sfxAt('eshot', _a); }
+    else { _a.set(f[1], f[2], f[3]); burst(_a.x, _a.y, _a.z, 30, 0xff9a3a, 9, 1.0); emit(PUFF, _a.x, _a.y, _a.z, 14, 0x55524c, 3, 2.2, -0.6, 1); boomLight.position.copy(_a); boomLight.intensity = 3; sfxAt('boom', _a); }
+  }
+}
+// the guest moves the host's robots smoothly between snapshots
+function netUpdateUnits(dt){
+  const k = Math.min(1, 10*dt);
+  for(const u of NET.units.values()){
+    const ox = u.p.x, oz = u.p.z;
+    if(Math.hypot(u.tx - u.p.x, u.tz - u.p.z) > 6){ u.p.x = u.tx; u.p.z = u.tz; } else { u.p.x += (u.tx - u.p.x)*k; u.p.z += (u.tz - u.p.z)*k; }
+    let d = u.tface - u.face; d = Math.atan2(Math.sin(d), Math.cos(d)); u.face += d*k;
+    u.punch = Math.max(0, u.punch - dt*3);
+    if(u.state === 'wreck' || u.tfall > 0 || u.fall > 0.01){ u.fall += (u.tfall - u.fall)*Math.min(1, 6*dt); if(u.tfall === 0 && u.fall < .02) u.fall = 0; poseFall(u); }
+    else { const hs = Math.hypot(u.p.x - ox, u.p.z - oz)/Math.max(dt, 1e-3); u.walk += dt*hs*u.R.stride; animateRig(u.R, u.walk, Math.min(1, hs/u.T.speed), 0, u.punch, false, 0); }
+    u.g.position.set(u.p.x, 0, u.p.z); u.g.rotation.y = u.face;
+  }
+}
+function netTick(dt){
+  if(!NET.ws || NET.ws.readyState !== 1) return;
+  NET.pT -= dt;
+  if(NET.pT <= 0){
+    NET.pT = 1/15;
+    netSend({t:'p', x:r2(P.pos.x), y:r2(P.pos.y), z:r2(P.pos.z), f:r2(P.face), w:r2(P.walk), a:r2(Math.min(1, P.speed/rig.walk)), air:P.onGround ? 0 : 1,
+      b:build ? 1 : 0, pi:r2(pitch), pl:r2(P.place), c:cur, d:P.dead > 0 ? 1 : 0, s:NET.shots.splice(0)});
+  }
+  if(!NET.host) return;
+  NET.sT -= dt; if(NET.sT <= 0){ NET.sT = 0.1; netSendSnap(); }
+  NET.wT -= dt; if(NET.wT <= 0){ NET.wT = 0.25; if(netWallSig() !== NET.wSig) netSendWalls(); }
+}
+
+// ---- the «Вдвоём по сети» panel in the menu
+let netInfo = null;
+function renderNetPanel(){
+  const txt = $('netText'), link = $('netLink'), go = $('bNetGo'), off = $('bNetOff');
+  if(location.protocol === 'file:'){
+    txt.textContent = 'Игра открыта как файл, а для игры вдвоём нужен сервер. Закройте вкладку и запустите игру ярлыком «Играть — Бункер.command» или «Играть — База.command» в папке forpost.';
+    link.hidden = true; go.hidden = true; off.hidden = true; return;
+  }
+  go.hidden = !!NET.ws; off.hidden = !NET.ws;
+  const addr = netInfo && netInfo.ips.length ? netInfo.ips.map(ip => `http://${ip}:${netInfo.port}/?map=${MAP}&net=1`) : [];
+  if(!NET.ws) txt.textContent = 'Оба компьютера должны быть в одной сети Wi‑Fi. Нажмите «Подключиться». Напарник открывает ссылку ниже в браузере на своём компьютере и сразу попадает к вам.';
+  else if(!NET.role) txt.textContent = 'Подключаюсь к серверу игры…';
+  else if(!NET.peer) txt.textContent = 'Ждём напарника. Пусть он откроет у себя эту ссылку:';
+  else txt.textContent = NET.host ? 'Напарник в игре. Вы ведёте игру: роботы, волны и стены считаются на вашем компьютере. Ресурсы общие.'
+    : 'Вы в игре у напарника. Стены, ресурсы и волны общие. Ремонтный дрон и команды союзникам есть только у первого игрока.';
+  link.hidden = !addr.length || NET.guest; link.innerHTML = addr.map(a => `<code>${a}</code>`).join('');
+}
+fetch('/api/info').then(r => r.json()).then(j => { netInfo = j; renderNetPanel(); }).catch(() => {});
 
 // ---------- frame ----------
 const fwd = new THREE.Vector3(), right = new THREE.Vector3(), move = new THREE.Vector3(), tgt = new THREE.Vector3(), camWant = new THREE.Vector3();
@@ -2127,7 +2749,9 @@ function updatePlayer(dt){
 function updateCamera(dt){
   if(state === 'menu' && !started){
     const a = time*0.05;
-    camera.position.set(Math.sin(a)*115, 46, Math.cos(a)*115); camera.lookAt(0, 4, 0); return;
+    if(MAP === 'base'){ camera.position.set(Math.sin(a)*115, 46, Math.cos(a)*115); camera.lookAt(0, 4, 0); }
+    else { camera.position.set(Math.sin(a)*62, 30, 20 + Math.cos(a)*62); camera.lookAt(0, 3, 6); }
+    return;
   }
   dist += (distWant - dist)*Math.min(1, 8*dt);
   const shoulder = (build ? 0.75 : 0.55)*Math.max(1, rig.h/2.6);
@@ -2140,6 +2764,8 @@ function updateCamera(dt){
   camera.lookAt(tgt);
 }
 function updateWorld(dt){
+  if(MAP !== 'base') updateBunkerWorld(dt);
+  else {
   rotor.rotation.y += dt*1.2;
   radarHead.rotation.y += dt*0.6;
   const a = flagGeo.attributes.position.array;
@@ -2147,11 +2773,15 @@ function updateWorld(dt){
   flagGeo.attributes.position.needsUpdate = true; flagGeo.computeVertexNormals();
   const near = (Math.hypot(P.pos.x, P.pos.z - PER) < 14 && started) || enemies.some(e => Math.hypot(e.p.x, e.p.z - PER) < 16);
   barrier.rotation.z += ((near ? 1.35 : 0) - barrier.rotation.z)*Math.min(1, 3*dt);
+  }
   for(const m of rig.glow) m.emissiveIntensity = m.userData.base*(0.9 + 0.15*Math.sin(time*2.5));
 }
 function frame(now){
   const dt = Math.min(0.05, (now - last)/1000); last = now; time += dt;
-  if(state === 'play'){ updatePlayer(dt); updateGame(dt); updateEnemies(dt); updateAllies(dt); updateWrecks(dt); updateDrone(dt); }
+  if(state === 'play') updatePlayer(dt);
+  if(NET.guest){ if(state === 'play') updateGame(dt); netUpdateUnits(dt); }
+  else if(state === 'play' || NET.host){ updateGame(dt); updateEnemies(dt); updateAllies(dt); updateWrecks(dt); updateDrone(dt); }
+  netTick(dt); updatePeer(dt);
   updateWorld(dt);
   updateCamera(dt);
   updateGhost();
@@ -2166,7 +2796,8 @@ function frame(now){
 
 loadGame();
 { const c = store.get('forpost.char'); setCharacter(Number.isInteger(c) && RIGS[c] ? c : 0); }
-loadWalls(); setBuild(false); syncSettings(); openMenu();
+loadWalls(); setBuild(false); syncSettings(); openMenu(); netUpdateFlags();
+try { if(new URLSearchParams(location.search).get('net') === '1') netConnect(); } catch(e){}
 requestAnimationFrame(frame);
 </script>
 </body>
