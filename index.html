@@ -199,6 +199,11 @@ input[type=checkbox]{width:18px;height:18px;accent-color:var(--accent)}
 .dtx b{font:400 36px/1 var(--f-head);color:#7dff6a;font-variant-numeric:tabular-nums}
 .dtx span{font:600 13px var(--f-body);margin-bottom:4px}
 .dtx small{font:500 12px var(--f-body);color:var(--muted);white-space:nowrap}
+.cardacts{display:grid;gap:8px}
+.cardacts .btn{justify-content:center}
+.pbtn{font:500 12px var(--f-body);color:var(--fg);background:rgba(255,255,255,.07);border:1px solid var(--line);border-radius:999px;padding:3px 10px;cursor:pointer}
+.pbtn:hover{border-color:var(--accent);color:var(--accent)}
+.peerhint{position:absolute;left:50%;top:calc(50% + 44px);transform:translateX(-50%);background:rgba(10,30,40,.85);border:1px solid #3fd6ff;border-radius:999px;padding:4px 12px;font:600 12px var(--f-body);white-space:nowrap}
 .frb.hot{color:#1a1606 !important;background:var(--accent);border-radius:999px;padding:1px 8px}
 .mini{font:600 12px var(--f-body);color:var(--fg);background:rgba(255,255,255,.08);border:1px solid var(--line);border-radius:7px;padding:4px 9px;cursor:pointer;white-space:nowrap}
 .mini:hover{background:rgba(255,255,255,.14)}
@@ -322,6 +327,7 @@ input.txt:focus{outline:2px solid var(--accent);outline-offset:1px}
 .tb.bf{width:60px;height:60px;right:calc(var(--r) + 178px);bottom:calc(var(--b) + 172px)}
 .touch .bar.show{left:max(12px,env(safe-area-inset-left));bottom:auto;top:calc(max(8px,env(safe-area-inset-top)) + 92px);transform:none}
 .touch .slot b{font-size:9px;white-space:nowrap}
+.tb.who{width:64px;height:64px;right:calc(var(--r) + 110px);bottom:calc(var(--b) + 168px)}
 .tb.ctx{background:rgba(217,185,62,.3);border-color:var(--accent);animation:ctxin .25s ease-out}
 @keyframes ctxin{from{transform:scale(.6);opacity:0}}
 .tb.bx,.tb.bf{display:none}
@@ -362,6 +368,7 @@ input.txt:focus{outline:2px solid var(--accent);outline-offset:1px}
   <div class="banner" id="banner"><b id="bannerT"></b><span id="bannerS"></span></div>
   <div class="cross" id="cross"></div>
   <div class="tip" id="tip"></div>
+  <div class="peerhint" id="peerHint" hidden></div>
   <div class="bar dim" id="bar"></div>
   <div class="hint" id="hint"></div>
   <div class="inv" id="inv">
@@ -385,6 +392,7 @@ input.txt:focus{outline:2px solid var(--accent);outline-offset:1px}
     <button class="tb bld" data-a="KeyB" id="tBld"><b>Строить</b><small></small></button>
     <button class="tb use ctx" data-a="KeyE" id="tUse" hidden><b>Залезть</b></button>
     <button class="tb fix ctx" data-a="KeyF" id="tFix" hidden><b>Починить</b></button>
+    <button class="tb who ctx" data-a="KeyY" id="tWho" hidden><b>👤</b><small id="tWhoN"></small></button>
     <button class="tb bx" data-a="KeyX"><b>Убрать</b></button>
     <button class="tb bf" data-a="KeyF"><b>Чинить</b><small>стену</small></button>
     <div class="lside" id="lside"><button class="tb" data-a="chat" aria-label="Чат">💬</button><button class="tb" data-a="mic" id="tMic" aria-label="Микрофон: держать и говорить">🎤</button></div>
@@ -546,6 +554,13 @@ input.txt:focus{outline:2px solid var(--accent);outline-offset:1px}
           </div>
         </div>
       </div>
+      <button class="btn back">Назад</button>
+    </section>
+
+    <section class="panel" id="pCard" hidden>
+      <h2 id="cardName">Игрок</h2>
+      <p class="note" id="cardInfo"></p>
+      <div class="cardacts" id="cardActs"></div>
       <button class="btn back">Назад</button>
     </section>
 
@@ -1936,6 +1951,7 @@ function keyAction(code){
   else if(e.code === 'KeyQ') toggleDrone();
   else if(e.code === 'KeyI'){ $('inv').classList.toggle('min'); sfx('tick'); }
   else if(e.code === 'KeyV') setView(!S.fp);
+  else if(e.code === 'KeyY'){ const q = aimedPeer(); if(q) peerCard(q); }
 }
 addEventListener('keyup', e => { keys[e.code] = false; if(e.code === 'KeyC' && !VOICE.latch) voiceStop(); });
 addEventListener('blur', () => { for(const k in keys) keys[k] = false; });
@@ -1946,6 +1962,7 @@ document.addEventListener('mousemove', e => {
 });
 document.addEventListener('mousedown', e => {
   if(state !== 'play' || !locked) return;
+  if(NET.hub && e.button === 0){ const q = aimedPeer(); if(q){ peerCard(q); return; } }
   if(e.button === 0){ if(build) placeWall(); else firing = true; }
   if(e.button === 2 && build) removeAim();
 });
@@ -3075,7 +3092,7 @@ $('bNet').onclick = () => { sfx('ui'); if(NET.on || NET.joining){ renderNetPanel
 $('bNetOff').onclick = () => { sfx('ui'); if(NET.hub) netLeave(); else enterHub(); };
 $('mapList').onclick = e => { const b = e.target.closest('.chr'); if(!b) return; if(b.dataset.map === MAP){ sfx('ui'); showPanel('pMain'); return; } pickMap(b.dataset.map); };
 if(BUNKER_ON) $('lede').textContent = 'У вас 5 минут, чтобы укрепить базу и бункер стенами и колючей проволокой. Потом роботы пойдут с юга на базу и по радиоактивной улице к бункеру: ворота на восток ведут к нему. Не наступайте в зелёные лужи — там радиация.';
-function showPanel(id){ if(id !== 'pNet' && !NET.hub) lobbyClose(); document.querySelector('.card').classList.toggle('wide', (id === 'pNet' && !NET.on) || id === 'pFriends'); for(const p of ['pMain', 'pControls', 'pSettings', 'pConfirm', 'pChar', 'pOver', 'pMap', 'pNet', 'pAll', 'pFriends']) $(p).hidden = p !== id; const b = id === 'pMain' ? $('bPlay') : $(id).querySelector('button'); if(b) b.focus({preventScroll:true}); }
+function showPanel(id){ if(id !== 'pNet' && !NET.hub) lobbyClose(); document.querySelector('.card').classList.toggle('wide', (id === 'pNet' && !NET.on) || id === 'pFriends'); for(const p of ['pMain', 'pControls', 'pSettings', 'pConfirm', 'pChar', 'pOver', 'pMap', 'pNet', 'pAll', 'pFriends', 'pCard']) $(p).hidden = p !== id; const b = id === 'pMain' ? $('bPlay') : $(id).querySelector('button'); if(b) b.focus({preventScroll:true}); }
 function openMenu(){
   state = 'menu'; $('menu').hidden = false; $('hud').classList.add('off'); $('lock').hidden = true; ghost.visible = false;
   $('menu').classList.toggle('paused', started);
@@ -3328,7 +3345,7 @@ function netOnRaw(topic, text, c){
     if(!text){ if(old){ old.b.delete(c.bi); if(!old.b.size){ NET.pres.delete(id); peerGone(id); if(NET.on) electLeader(); } } return; }
     let p; try { p = JSON.parse(text); } catch(e){ return; }
     const fresh = !old;
-    NET.pres.set(id, {n:String(p.n || 'Игрок').slice(0, 18), t:+p.t || 0, h:+p.h || 0, b:new Set([...(old ? old.b : []), c.bi])});
+    NET.pres.set(id, {n:String(p.n || 'Игрок').slice(0, 18), t:+p.t || 0, h:+p.h || 0, d:typeof p.d === 'string' ? p.d : '', b:new Set([...(old ? old.b : []), c.bi])});
     if(NET.on){ if(fresh && id !== NET.myId){ chatLine('', `${pName(id)} зашёл на сервер`); sfx('ui'); if(NET.role === 'host') NET.wSig = -1; } electLeader(); }
     return;
   }
@@ -3733,6 +3750,7 @@ function renderLobby(){
       const info = document.createElement('div'), nm = document.createElement('b'), sm = document.createElement('small'), dot = document.createElement('i');
       dot.className = 'dot'; nm.append(dot, document.createTextNode(p.n)); sm.textContent = w; info.append(nm, sm); el.append(info, document.createElement('span'));
       const go = document.createElement('span'); go.className = 'go';
+      if(p.d){ info.style.cursor = 'pointer'; info.onclick = e => { e.stopPropagation(); sfx('ui'); openCard(p.d, p.n); }; }
       if(room.startsWith('hub')){ go.textContent = 'в лобби'; go.style.background = 'var(--muted)'; }
       else { go.textContent = 'К нему'; el.style.cursor = 'pointer'; el.onclick = () => { sfx('ui'); goRoom(room, w); }; }
       if(p.d && p.d !== DEV && !FR.friends[p.d] && !FR.out[p.d]) el.children[1].appendChild(smallBtn('+ друг', () => askFriend(p.d)));
@@ -3948,8 +3966,9 @@ function renderNetPanel(){
   const list = $('netPlayers'); list.hidden = !NET.on || NET.hub;
   if(NET.on && !NET.hub){
     const now = Date.now(), names = [];
-    for(const [id, p] of NET.pres) if(now - p.h < 180000) names.push((id === NET.leader ? '★ ' : '') + (id === NET.myId ? p.n + ' (вы)' : p.n));
-    list.textContent = ''; for(const n of names){ const s = document.createElement('span'); s.textContent = n; list.appendChild(s); }
+    list.textContent = '';
+    for(const [id, p] of NET.pres){ if(now - p.h > 180000) continue; const s_ = document.createElement(id === NET.myId ? 'span' : 'button'); s_.textContent = (id === NET.leader ? '★ ' : '') + (id === NET.myId ? p.n + ' (вы)' : p.n);
+      if(id !== NET.myId){ s_.className = 'pbtn'; s_.onclick = () => { sfx('ui'); openCard(p.d, p.n); }; } list.appendChild(s_); }
   }
   $('netTitle').textContent = NET.on && !NET.hub ? NET.label : 'Лобби';
   document.querySelector('.card').classList.toggle('wide', !$('pNet').hidden && (!NET.on || NET.hub));
@@ -4088,7 +4107,7 @@ function frame(now){
   if(NET.hub){}
   else if(NET.guest){ if(state === 'play') updateGame(dt); netUpdateUnits(dt); }
   else if(state === 'play' || NET.host){ updateGame(dt); updateEnemies(dt); updateAllies(dt); updateWrecks(dt); updateDrone(dt); }
-  netTick(dt); updatePeer(dt); updateHub(dt);
+  netTick(dt); updatePeer(dt); updateHub(dt); updatePeerHint();
   updateWorld(dt);
   updateCamera(dt);
   updateGhost();
@@ -4172,6 +4191,7 @@ function renderAll(){
     const w = document.createElement('span'); w.className = 'when'; w.textContent = here.has(d) ? 'в сети' : ago(u.l);
     const act = document.createElement('span');
     if(d !== DEV) act.appendChild(FR.friends[d] ? Object.assign(document.createElement('span'), {className:'when', textContent:'друг ✓'}) : FR.out[d] ? Object.assign(document.createElement('span'), {className:'when', textContent:'запрос отправлен'}) : u.k ? smallBtn('В друзья', () => askFriend(d), 'ok') : Object.assign(document.createElement('span'), {className:'when', textContent:''}));
+    if(d !== DEV){ el.style.cursor = 'pointer'; el.onclick = () => { sfx('ui'); openCard(d, u.n); }; }
     el.append(info, act, w); box.appendChild(el);
   }
   $('allText').textContent = `Все, кто когда-либо заходил в игру: ${SITE.users.size}. Зелёная точка — сейчас на сайте.` + (SITE.users.size > 500 ? ' Показаны последние 500.' : '');
@@ -4446,6 +4466,51 @@ function friendRow(d, title, sub, live, extra){
   return el;
 }
 function smallBtn(text, fn, cls = ''){ const b = document.createElement('button'); b.className = 'mini ' + cls; b.textContent = text; b.onclick = e => { e.stopPropagation(); sfx('ui'); fn(); }; return b; }
+// ---- a player's card: add as a friend, write, call
+function openCard(d, name){
+  if(state === 'play') openMenu();
+  CARD.d = d; CARD.n = name || frName(d);
+  renderCard(); showPanel('pCard');
+}
+const CARD = {d:'', n:''};
+function renderCard(){
+  const d = CARD.d, box = $('cardActs'); box.textContent = '';
+  $('cardName').textContent = CARD.n;
+  const btn = (text, fn, cls = '') => { const b = document.createElement('button'); b.className = 'btn ' + cls; b.textContent = text; b.onclick = () => { sfx('ui'); fn(); }; box.appendChild(b); };
+  if(!d){ $('cardInfo').textContent = 'Этот игрок пока не обновил игру, поэтому добавить его в друзья нельзя.'; return; }
+  if(d === DEV){ $('cardInfo').textContent = 'Это вы.'; return; }
+  const w = whereIs(d), u = userOf(d);
+  $('cardInfo').textContent = (w.label ? w.label[0].toUpperCase() + w.label.slice(1) : '') + (u.f ? ` · в игре с ${new Date(u.f).toLocaleDateString('ru-RU')}` : '');
+  if(FR.friends[d]){
+    btn('💬 Написать', () => { FR.open = d; showPanel('pFriends'); renderFriends(); }, 'primary');
+    btn('📞 Позвонить', () => callStart(d));
+    if(w.room && !w.room.startsWith('hub') && !w.room.startsWith('r') && w.room !== NET.room) btn('Зайти к нему на сервер', () => goRoom(w.room, w.label.replace(/^.*«|»$/g, '') || 'Сервер'));
+  } else if(FR.inc[d]){ btn('✓ Принять запрос в друзья', () => { acceptFriend(d); renderCard(); }, 'primary'); btn('Отклонить', () => { declineFriend(d); renderCard(); }); }
+  else if(FR.out[d]) btn('Запрос отправлен — ждём ответа', () => {});
+  else if(!u.k && !(FR.friends[d] || {}).k) $('cardInfo').textContent += ' · Добавить в друзья можно, когда он обновит игру.';
+  else btn('➕ Добавить в друзья', async () => { await askFriend(d); renderCard(); }, 'primary');
+}
+// the other player under the crosshair (a ray from the camera through the middle of the screen)
+function aimedPeer(){
+  if(!NET.on || state !== 'play') return null;
+  camera.getWorldDirection(_d); let best = null, bt = 30;
+  for(const q of PEERS.values()){
+    if(!q.on || !q.R) continue;
+    _a.set(q.p.x, q.p.y + q.R.h*0.55, q.p.z).sub(camera.position);
+    const t = _a.dot(_d); if(t < 0.5 || t > bt) continue;
+    const miss = Math.sqrt(Math.max(0, _a.lengthSq() - t*t));
+    if(miss < Math.max(0.7, q.R.r*1.3)){ bt = t; best = q; }
+  }
+  return best;
+}
+function peerCard(q){ if(!q) return; const p = NET.pres.get(q.id) || {}; openCard(p.d || '', q.name || p.n); }
+let peerHintKey = '';
+function updatePeerHint(){
+  const q = aimedPeer(), key = q ? q.id : '';
+  if(key === peerHintKey) return; peerHintKey = key;
+  $('peerHint').hidden = !q; if(q) $('peerHint').textContent = TOUCH ? '👤 ' + q.name : (NET.hub ? 'Клик или Y — профиль: ' : 'Y — профиль: ') + q.name;
+  if(TOUCH){ $('tWho').hidden = !q; $('tWhoN').textContent = q ? q.name.slice(0, 8) : ''; }
+}
 function renderFriends(){
   if(FR.open && FR.unread[FR.open] && !$('pFriends').hidden){ delete FR.unread[FR.open]; frSave(); }     // the open chat is read
   const unread = Object.values(FR.unread).reduce((a, b) => a + b, 0), inc = Object.keys(FR.inc).length;
