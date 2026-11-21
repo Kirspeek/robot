@@ -180,6 +180,27 @@ input[type=checkbox]{width:18px;height:18px;accent-color:var(--accent)}
 .mp.on b::before{content:"● ";color:var(--accent)}
 
 .netlink{display:grid;gap:6px}
+.chat{position:absolute;left:16px;bottom:186px;width:min(420px,60vw);display:grid;gap:6px;pointer-events:none}
+.chatlog{display:grid;gap:3px;max-height:34vh;overflow:hidden;align-content:end;font:500 13px/1.35 var(--f-body);text-shadow:0 1px 3px #000}
+.chatlog div{background:rgba(10,12,8,.55);border-radius:6px;padding:3px 8px;justify-self:start;max-width:100%;overflow-wrap:anywhere;transition:opacity .6s}
+.chatlog b{color:#8fe3ff;font-weight:600}
+.chatlog .sys{color:var(--muted);font-style:italic}
+.chatlog .old{opacity:0}
+.chat.open .chatlog .old{opacity:.85}
+.chat.open .chatlog{overflow-y:auto;pointer-events:auto}
+#chatIn{pointer-events:auto;font:500 15px var(--f-body);color:var(--fg);background:rgba(10,12,8,.85);border:1px solid var(--accent);border-radius:8px;padding:8px 10px;outline:none;user-select:text;-webkit-user-select:text}
+.mic{position:absolute;left:50%;top:132px;transform:translateX(-50%);background:rgba(30,90,40,.8);border:1px solid #7dff6a;border-radius:999px;padding:5px 14px;font:600 13px var(--f-body)}
+.netplayers{display:flex;flex-wrap:wrap;gap:6px}
+.netplayers span{font:500 12px var(--f-body);background:rgba(255,255,255,.07);border:1px solid var(--line);border-radius:999px;padding:3px 10px}
+input.txt{font:500 15px var(--f-body);color:var(--fg);background:rgba(255,255,255,.06);border:1px solid var(--line);border-radius:10px;padding:9px 12px;user-select:text;-webkit-user-select:text}
+input.txt:focus{outline:2px solid var(--accent);outline-offset:1px}
+.lside{position:absolute;left:max(10px,env(safe-area-inset-left));top:calc(max(8px,env(safe-area-inset-top)) + 48px);display:grid;gap:8px}
+.lside .tb{position:static;width:46px;height:46px;border-radius:12px;font-size:20px}
+.touch .chat{left:calc(max(10px,env(safe-area-inset-left)) + 56px);top:calc(max(8px,env(safe-area-inset-top)) + 48px);bottom:auto;width:min(340px,42vw)}
+.touch .chatlog{max-height:30vh;font-size:12px}
+.lside{display:none !important}
+.touch.net .lside{display:grid !important}
+.touch .mic{top:auto;bottom:calc(max(12px,env(safe-area-inset-bottom)) + 150px)}
 .netcode{display:flex;justify-content:space-between;align-items:center;background:rgba(217,185,62,.1);border:1px solid var(--accent);border-radius:10px;padding:10px 14px}
 .netcode span{font:500 12px var(--f-mono);color:var(--muted);text-transform:uppercase;letter-spacing:.12em}
 .netcode b{font:400 32px/1 var(--f-head);letter-spacing:.18em;color:var(--accent);user-select:all;-webkit-user-select:all}
@@ -291,6 +312,8 @@ input[type=checkbox]{width:18px;height:18px;accent-color:var(--accent)}
   </div>
   <div class="feed" id="feed"></div>
   <div class="toast" id="toast" role="status"></div>
+  <div class="chat" id="chat"><div class="chatlog" id="chatLog" aria-live="polite"></div><input id="chatIn" maxlength="160" hidden placeholder="Сообщение — Enter отправить, Esc отмена" autocomplete="off" aria-label="Сообщение в чат"></div>
+  <div class="mic" id="micHud" hidden></div>
   <div class="tc" id="tc">
     <div class="joy" id="joy"><i id="joyKnob"></i></div>
     <div class="joyhint">палец сюда —<br>идти</div>
@@ -302,6 +325,7 @@ input[type=checkbox]{width:18px;height:18px;accent-color:var(--accent)}
     <button class="tb fix ctx" data-a="KeyF" id="tFix" hidden><b>Починить</b></button>
     <button class="tb bx" data-a="KeyX"><b>Убрать</b></button>
     <button class="tb bf" data-a="KeyF"><b>Чинить</b><small>стену</small></button>
+    <div class="lside" id="lside"><button class="tb" data-a="chat" aria-label="Чат">💬</button><button class="tb" data-a="mic" id="tMic" aria-label="Микрофон: держать и говорить">🎤</button></div>
     <div class="side">
       <button class="tb" data-a="menu" aria-label="Пауза">❚❚</button>
       <button class="tb" data-a="more" id="tMore" aria-label="Ещё">⋯</button>
@@ -338,7 +362,7 @@ input[type=checkbox]{width:18px;height:18px;accent-color:var(--accent)}
       </div>
       <button class="btn primary" id="bPlay">Играть <small>Enter</small></button>
       <button class="btn" id="bNew">Новая игра <small>с начала</small></button>
-      <button class="btn" id="bNet">Вдвоём по сети <small id="netState">выкл</small></button>
+      <button class="btn" id="bNet">Сервер · по сети <small id="netState">выкл</small></button>
       <button class="btn" id="bChar">Персонаж <small id="charName">Солдат</small></button>
       <button class="btn" id="bControls">Управление</button>
       <button class="btn" id="bSettings">Настройки</button>
@@ -394,18 +418,20 @@ input[type=checkbox]{width:18px;height:18px;accent-color:var(--accent)}
     </section>
 
     <section class="panel" id="pNet" hidden>
-      <h2>Вдвоём по сети</h2>
+      <h2>Сервер · по сети</h2>
       <p class="note" id="netText"></p>
+      <label class="set"><span class="top">Ваше имя в игре</span><input class="txt" id="netName" maxlength="18" autocomplete="nickname" spellcheck="false"></label>
       <div class="netcode" id="netCodeBox" hidden><span>Код игры</span><b id="netCodeShow"></b></div>
-      <div class="netlink" id="netLink" hidden></div>
-      <button class="btn" id="bNetShare" hidden>Отправить ссылку напарнику</button>
-      <button class="btn primary" id="bNetPlay" hidden>В игру <small>ждать напарника там</small></button>
+      <button class="btn" id="bNetShare" hidden>Отправить ссылку друзьям</button>
+      <div class="netplayers" id="netPlayers" hidden></div>
       <div class="netstart" id="netStart">
-        <button class="btn primary" id="bNetHost">Создать игру <small>получить код</small></button>
-        <div class="joinrow"><input id="netCode" placeholder="КОД" maxlength="5" autocomplete="off" autocapitalize="characters" spellcheck="false" aria-label="Код игры напарника"><button class="btn" id="bNetJoin">Войти по коду</button></div>
-        <button class="btn" id="bNetGo" hidden>По Wi‑Fi через этот компьютер</button>
+        <button class="btn primary" id="bWorld">Играть на общем сервере <small>все игроки мира</small></button>
+        <p class="note">или своя игра с друзьями:</p>
+        <button class="btn" id="bNetHost">Создать игру <small>получить код</small></button>
+        <div class="joinrow"><input id="netCode" placeholder="КОД" maxlength="5" autocomplete="off" autocapitalize="characters" spellcheck="false" aria-label="Код игры друга"><button class="btn" id="bNetJoin">Войти по коду</button></div>
       </div>
-      <button class="btn danger" id="bNetOff" hidden>Отключиться</button>
+      <button class="btn primary" id="bNetPlay" hidden>В игру</button>
+      <button class="btn danger" id="bNetOff" hidden>Выйти с сервера</button>
       <button class="btn back">Назад</button>
     </section>
 
@@ -1218,7 +1244,7 @@ WOX = 0;
 function updateBunkerWorld(dt){
   if(DOOR.L){   // the blast door opens for a player (either of the two) standing at it or inside
     const near = q => Math.hypot(q.x - BX, q.z + 45.4) < 7 || inBunker(q);
-    const want = (started && P.dead <= 0 && near(P.pos)) || (PEER.on && !PEER.dead && near(PEER.p)) ? 1 : 0;
+    const want = (started && P.dead <= 0 && near(P.pos)) || peerList().some(q => !q.dead && near(q.p)) ? 1 : 0;
     if(want !== DOOR.want){ DOOR.want = want; sfxAt('door', {x:BX, z:-45.4}); }
     DOOR.o += clamp(want - DOOR.o, -dt*.7, dt*.7);
     DOOR.L.position.x = BX - 1.525 - DOOR.o*3.05; DOOR.R.position.x = BX + 1.525 + DOOR.o*3.05;
@@ -1761,6 +1787,8 @@ function setView(fp){ S.fp = !!fp; if(!S.fp) pitch = clamp(pitch, -0.45, 1.25); 
 let build = false, sel = 0, rot = 0;
 addEventListener('keydown', e => {
   if(state !== 'play'){ if(e.code === 'Escape'){ if($('pMain').hidden) showPanel('pMain'); else if(started) startPlay(); } return; }
+  if(e.code === 'Enter' && NET.on){ e.preventDefault(); openChat(); return; }
+  if(e.code === 'KeyC'){ if(!e.repeat) voiceStart(); return; }
   keys[e.code] = true;
   keyAction(e.code);
   if(e.code === 'Escape' && !locked) openMenu();
@@ -1786,7 +1814,7 @@ function keyAction(code){
   else if(e.code === 'KeyI'){ $('inv').classList.toggle('min'); sfx('tick'); }
   else if(e.code === 'KeyV') setView(!S.fp);
 }
-addEventListener('keyup', e => { keys[e.code] = false; });
+addEventListener('keyup', e => { keys[e.code] = false; if(e.code === 'KeyC') voiceStop(); });
 addEventListener('blur', () => { for(const k in keys) keys[k] = false; });
 document.addEventListener('mousemove', e => {
   if(state !== 'play' || !locked) return;
@@ -1833,7 +1861,8 @@ if(TOUCH){
     const b = hold.get(id);
     if(b){ hold.delete(id); b.classList.remove('down');
       if(b.dataset.a === 'fire') firing = false;
-      if(b.dataset.a === 'Space') keys.Space = false; }
+      if(b.dataset.a === 'Space') keys.Space = false;
+      if(b.dataset.a === 'mic') voiceStop(); }
   };
   // drop every finger we track that is no longer on the screen
   const reconcile = list => {
@@ -1847,6 +1876,8 @@ if(TOUCH){
     if(a !== 'more' && !b.closest('.more')) more.hidden = true;
     if(a === 'fire'){ if(build) placeWall(); else if(P.dead <= 0) firing = true; LOOK.set(t.identifier, [t.clientX, t.clientY]); }   // dragging the fire button also turns the camera
     else if(a === 'menu') openMenu();
+    else if(a === 'chat') openChat();
+    else if(a === 'mic') voiceStart();
     else if(a === 'more'){ more.hidden = !more.hidden; sfx('tick'); }
     else if(a === 'Space') keys.Space = true;
     else { keyAction(a); if(b.closest('.more')) more.hidden = true; }
@@ -2030,7 +2061,7 @@ function tintWall(b){
   b.mesh.material.color.setScalar(0.35 + 0.65*Math.max(0, b.hp/b.max));
 }
 let saveT;
-function saveWalls(now){ if(NET.guest) return; clearTimeout(saveT); const f = () => store.set(KEY + '.walls', built.map(b => [b.t, b.x, +b.y.toFixed(2), b.z, b.r, Math.round(b.hp)])); if(now) f(); else saveT = setTimeout(f, 300); updateCount(); }
+function saveWalls(now){ if(NET.on) return; clearTimeout(saveT); const f = () => store.set(KEY + '.walls', built.map(b => [b.t, b.x, +b.y.toFixed(2), b.z, b.r, Math.round(b.hp)])); if(now) f(); else saveT = setTimeout(f, 300); updateCount(); }
 function loadWalls(){ const list = store.get(KEY + '.walls'); if(Array.isArray(list)) for(const w of list){ if(Array.isArray(w) && WT[w[0]]) addWall(w[0], w[1], w[2], w[3], (w[4] | 0) & (WT[w[0]].cell ? 3 : 1), w[5]); } updateCount(); }
 
 function computeAim(){
@@ -2085,7 +2116,7 @@ function removeAim(){
 // ---- doors open by themselves for friends; hatches are opened and closed with E
 function friendNear(x, y, z, rad){
   if(started && P.dead <= 0 && Math.hypot(P.pos.x - x, P.pos.z - z) < rad && Math.abs(P.pos.y - y) < 3) return true;
-  if(PEER.on && !PEER.dead && Math.hypot(PEER.p.x - x, PEER.p.z - z) < rad && Math.abs(PEER.p.y - y) < 3) return true;
+  for(const q of PEERS.values()) if(q.on && !q.dead && Math.hypot(q.p.x - x, q.p.z - z) < rad && Math.abs(q.p.y - y) < 3) return true;
   for(const a of allies) if(!a.dead && a.fall <= 0 && Math.hypot(a.p.x - x, a.p.z - z) < rad + a.R.r && y < 1) return true;
   return false;
 }
@@ -2149,7 +2180,7 @@ function updateGhost(){
 const START_RES = 1500, START_PARTS = 30, BUILD_FIRST = 300, BUILD_NEXT = 90;
 const G = {phase:'build', timer:BUILD_FIRST, wave:0, res:START_RES, parts:START_PARTS, hq:3000, hqMax:3000, kills:0, best:0, queue:[], spawnT:0};
 const HQ = {x0:-10, x1:10, z0:-58, z1:-46}, BHQ = {x0:BX - 10, x1:BX + 10, z0:-58, z1:-46};
-function saveGame(){ if(NET.guest) return; store.set(KEY + '.game', {wave:G.wave, res:Math.floor(G.res), parts:Math.floor(G.parts), hq:Math.round(G.hq), best:G.best, kills:G.kills}); }
+function saveGame(){ if(NET.on) return; store.set(KEY + '.game', {wave:G.wave, res:Math.floor(G.res), parts:Math.floor(G.parts), hq:Math.round(G.hq), best:G.best, kills:G.kills}); }
 function loadGame(){
   const s = store.get(KEY + '.game');
   if(s && typeof s === 'object'){ G.wave = s.wave | 0; G.res = Number.isFinite(s.res) ? s.res : START_RES; G.hq = clamp(Number.isFinite(s.hq) ? s.hq : G.hqMax, 1, G.hqMax); G.best = s.best | 0; G.kills = s.kills | 0; G.parts = Number.isFinite(s.parts) ? s.parts : START_PARTS; }
@@ -2346,7 +2377,7 @@ function updateEnemies(dt){
     // target: the nearest of the player and the repaired robots, when close; otherwise the headquarters
     let foe = null, fd = 34;
     if(P.dead <= 0){ const d = Math.hypot(P.pos.x - p.x, P.pos.z - p.z); if(d < fd){ fd = d; foe = 'player'; } }
-    for(const a of NET.host ? allies.concat(PEER) : allies){ if(a.fall > 0) continue; const d = Math.hypot(a.p.x - p.x, a.p.z - p.z); if(d < fd - 2){ fd = d; foe = a; } }
+    for(const a of NET.host ? allies.concat(peerList()) : allies){ if(a.fall > 0) continue; const d = Math.hypot(a.p.x - p.x, a.p.z - p.z); if(d < fd - 2){ fd = d; foe = a; } }
     let tx, tz, dT;
     if(foe === 'player'){ tx = P.pos.x; tz = P.pos.z; dT = fd - P.r; }
     else if(foe){ tx = foe.p.x; tz = foe.p.z; dT = fd - foe.R.r; }
@@ -2459,7 +2490,7 @@ function explode(pt, rad, dmg, src){
   if(src !== 'enemy'){ for(const e of enemies.slice()){ const d = Math.max(0, Math.hypot(e.p.x - pt.x, e.p.z - pt.z) - e.R.r); if(d < rad) damageEnemy(e, dmg*(1 - d/rad), src); } }
   else {
     const d = Math.hypot(P.pos.x - pt.x, P.pos.z - pt.z); if(d < rad) damagePlayer(dmg*(1 - d/rad));
-    for(const a of NET.host ? allies.concat(PEER) : allies.slice()){ const da = Math.max(0, Math.hypot(a.p.x - pt.x, a.p.z - pt.z) - a.R.r); if(da < rad) damageAlly(a, dmg*(1 - da/rad)); }
+    for(const a of NET.host ? allies.concat(peerList()) : allies.slice()){ const da = Math.max(0, Math.hypot(a.p.x - pt.x, a.p.z - pt.z) - a.R.r); if(da < rad) damageAlly(a, dmg*(1 - da/rad)); }
   }
 }
 // a destroyed robot does not blow up: it falls and stays as a wreck that can be repaired
@@ -2474,18 +2505,19 @@ function killReward(e, by){
   const T = e.T, parts = by === 'wire' ? Math.ceil(T.parts/2) : T.parts;
   G.res += T.reward; G.parts += parts; G.kills++;
   if(by === 'player') hitMark(true);
-  const text = `${CHARS[T.c].name}: +${T.reward} ◆ +${parts} ⚙`, who = {player:'вы', peer:'напарник', ally:'союзник', wire:'проволока'};
-  feed(text, who[by] || 'взрыв', by === 'peer' ? 'ally' : by);
-  if(NET.host) netSend({t:'feed', x:text, w:by === 'peer' ? 'вы' : by === 'player' ? 'напарник' : who[by] || 'взрыв', c:by === 'peer' ? 'player' : by === 'player' ? 'ally' : by, k:by === 'peer' ? 1 : 0});
+  const text = `${CHARS[T.c].name}: +${T.reward} ◆ +${parts} ⚙`, who = {player:'вы', ally:'союзник', wire:'проволока'};
+  const pid = String(by).startsWith('peer:') ? by.slice(5) : by === 'player' ? NET.myId : '';
+  feed(text, by === 'player' ? 'вы' : pid ? pName(pid) : who[by] || 'взрыв', pid && by !== 'player' ? 'ally' : by);
+  if(NET.host && NET.peer) netSend({t:'feed', x:text, w:pid ? pName(pid) : who[by] || 'взрыв', k:pid});
 }
 function feed(text, who, cls){
   const box = $('feed'), d = document.createElement('div');
-  d.className = 'fi ' + cls; d.innerHTML = `<span>${who}</span>${text}`;
+  d.className = 'fi ' + cls; const sp = document.createElement('span'); sp.textContent = who; d.append(sp, document.createTextNode(text));
   box.prepend(d); while(box.children.length > 5) box.lastChild.remove();
   setTimeout(() => d.classList.add('out'), 3000); setTimeout(() => d.remove(), 3600);
 }
 function damageAlly(a, d){
-  if(a === PEER){ if(!PEER.dead) netSend({t:'hurt', d}); return; }
+  if(a && a.isPeer){ if(!a.dead) netSendTo(a.id, {t:'hurt', d}); return; }
   if(!a || a.dead || a.fall > 0) return;
   a.hp -= d;
   if(a.hp <= 0){ toast(`${CHARS[a.T.c].name} выведен из строя. Его можно починить снова`, true); makeWreck(a); }
@@ -2915,8 +2947,7 @@ function pickMap(m){
   location.href = location.pathname + '?map=' + m;
 }
 $('bNet').onclick = () => { sfx('ui'); renderNetPanel(); showPanel('pNet'); };
-$('bNetGo').onclick = () => { sfx('ui'); netConnect(); };
-$('bNetOff').onclick = () => { sfx('ui'); netDisconnect(); };
+$('bNetOff').onclick = () => { sfx('ui'); netLeave(); };
 $('mapList').onclick = e => { const b = e.target.closest('.chr'); if(!b) return; if(b.dataset.map === MAP){ sfx('ui'); showPanel('pMain'); return; } pickMap(b.dataset.map); };
 if(BUNKER_ON) $('lede').textContent = 'У вас 5 минут, чтобы укрепить базу и бункер стенами и колючей проволокой. Потом роботы пойдут с юга на базу и по радиоактивной улице к бункеру: ворота на восток ведут к нему. Не наступайте в зелёные лужи — там радиация.';
 function showPanel(id){ for(const p of ['pMain', 'pControls', 'pSettings', 'pConfirm', 'pChar', 'pOver', 'pMap', 'pNet']) $(p).hidden = p !== id; const b = id === 'pMain' ? $('bPlay') : $(id).querySelector('button'); if(b) b.focus({preventScroll:true}); }
@@ -2928,7 +2959,7 @@ function openMenu(){
   $('bPlay').firstChild.textContent = over ? 'Новая игра ' : started ? 'Продолжить ' : 'Играть ';
   $('lede').hidden = started;
   for(const k in keys) keys[k] = false;
-  firing = false; updateCount(); touchReset();
+  firing = false; updateCount(); touchReset(); voiceStop(); closeChat();
   if(document.pointerLockElement) document.exitPointerLock();
   showPanel('pMain');
 }
@@ -2952,7 +2983,7 @@ function newGame(){
   startPlay(); banner('Подготовка', `5 минут, чтобы укрепить ${BUNKER_ON ? 'базу и бункер' : 'базу'}. Потом пойдут роботы`);
 }
 $('bPlay').onclick = startPlay;
-$('bNew').onclick = () => { sfx('ui'); if(NET.guest){ toast('Новую игру начинает первый игрок', true); return; } if(built.length || G.wave) showPanel('pConfirm'); else newGame(); };
+$('bNew').onclick = () => { sfx('ui'); if(NET.on && NET.room.startsWith('w')){ toast('На общем сервере мир общий: начать заново нельзя', true); return; } if(NET.guest){ toast('Новую игру начинает первый игрок', true); return; } if(built.length || G.wave) showPanel('pConfirm'); else newGame(); };
 $('bAgain').onclick = newGame;
 $('bYes').onclick = newGame;
 $('bControls').onclick = () => { sfx('ui'); showPanel('pControls'); };
@@ -2977,244 +3008,230 @@ $('sSharp').oninput = e => { S.sharp = +e.target.value; applySettings(); };
 $('sSound').onchange = e => { S.sound = e.target.checked; applySettings(); };
 $('bDefaults').onclick = () => { Object.assign(S, DEF); applySettings(); sfx('ui'); };
 
-// ---------- playing together over the network ----------
-// The first player to connect hosts: robots, waves, walls, resources and the headquarters live on their computer.
-// The second player (the guest) moves and shoots on their own and asks the host for everything else.
-// Two ways to connect: over the internet from any devices (WebRTC through the free PeerJS service, with a room code),
-// or through server.py on a computer in the same Wi‑Fi. Either way the same messages go back and forth.
-const NET = {kind:'', code:'', p2p:null, conn:null, ws:null, mq:null, relay:null, rsid:'', relayTried:false, role:'', peer:false, host:false, guest:false, pT:0, sT:0, wT:0, wSig:-1, shots:[], fx:[], units:new Map(), status:'off'};
-const PEER = {on:false, i:-1, R:null, g:new THREE.Group(), p:new THREE.Vector3(), t:new THREE.Vector3(), face:0, tface:0, walk:0, amt:0, air:0, build:false,
-  pitch:0, place:0, dead:true, fall:1, label:null};
-scene.add(PEER.g); PEER.g.visible = false;
-{
-  const draw = (c, w, h) => { c.fillStyle = 'rgba(8,30,40,.8)'; c.fillRect(0, 0, w, h); c.strokeStyle = '#3fd6ff'; c.lineWidth = 3; c.strokeRect(1.5, 1.5, w - 3, h - 3);
-    c.fillStyle = '#bff3ff'; c.font = '400 34px "Russo One", Impact, sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText('Напарник', w/2, h/2 + 2); };
-  const tex = canvasTex(256, 64, draw); redrawOnFonts(tex, draw);
-  PEER.label = new THREE.Sprite(new THREE.SpriteMaterial({map:tex, depthWrite:false, transparent:true})); PEER.label.scale.set(2.2, .55, 1); PEER.label.visible = false; scene.add(PEER.label);
-}
+// ---------- playing over the internet: a common server for everyone, or a private game with a friend ----------
+// There is no game server of our own. Everybody connects to a public MQTT broker over secure WebSocket and joins a «room»:
+// the common worlds («w1», «w2», … up to WORLD_MAX players each) or a private room by code. Each player announces
+// themselves with a retained presence message (the broker removes it when they drop off). The player who has been in
+// the room longest runs the robots, the waves and the walls (the leader); everyone else mirrors them and sends requests.
+// When the leader leaves, the next one takes over from the world they already see. The leader also keeps a retained
+// copy of the world in the room, so walls, resources and waves stay there even when nobody is playing.
+const NET_ROOT = 'robot-vs-people-v2/', WORLD_MAX = 16, FRIEND_MAX = 6, CODE_ABC = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+const RELAY_URLS = ['wss://broker.hivemq.com:8884/mqtt', 'wss://test.mosquitto.org:8081/mqtt'];
+const NET = {on:false, room:'', label:'', max:WORLD_MAX, c:null, myId:'', joinT:0, role:'', leader:'', host:false, guest:false, peer:false,
+  pres:new Map(), st:null, lastSnap:0, pT:0, sT:0, wT:0, stT:0, presT:0, wSig:-1, shots:[], fx:[], units:new Map(), status:'выкл', code:''};
+const PEERS = new Map();           // the other players: id -> their soldier (or robot) on our screen
 const PEER_RIGS = {};
 let UNIT_ID = 0, WALL_ID = 0;
 const r1 = v => Math.round(v*10)/10, r2 = v => Math.round(v*100)/100;
+const myName = () => (store.get('forpost.name') || '').trim().slice(0, 18) || ('Игрок ' + (store.get('forpost.nameNo') || (() => { const n = 100 + Math.floor(Math.random()*900); store.set('forpost.nameNo', n); return n; })()));
+const pName = id => id === NET.myId ? myName() : (NET.pres.get(id) || {}).n || 'Игрок';
+const T = (box) => NET_ROOT + NET.room + '/' + box;
 
-function netSend(m){ if(NET.ws && NET.ws.readyState === 1) NET.ws.send(JSON.stringify(m)); }
-function netUpdateFlags(){
-  NET.host = NET.role === 'host' && NET.peer; NET.guest = NET.role === 'guest' && NET.peer;
-  if(!NET.peer){ PEER.on = false; PEER.fall = 1; }
-  const s = !NET.ws ? 'выкл' : NET.peer ? (NET.host ? 'вы ведёте игру' : 'в игре у напарника') : NET.role === 'host' && NET.code ? 'код ' + NET.code : NET.role ? 'ждём напарника' : 'подключаюсь…';
-  NET.status = s; $('netState').textContent = s; $('netHud').textContent = NET.peer ? 'вдвоём' : NET.role === 'host' && NET.code ? `код ${NET.code} · ждём напарника` : '';
-  renderNetPanel();
-}
-// ---- over the internet: PeerJS. The host's id is ROOM + code, the guest connects to it
-const ROOM = 'robot-vs-people-v1-', CODE_ABC = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-let peerLib = null;
-function loadPeer(){
-  if(window.Peer) return Promise.resolve();
-  return peerLib || (peerLib = new Promise((ok, bad) => { const sc = document.createElement('script');
-    sc.src = 'vendor/peerjs.min.js'; sc.onload = ok; sc.onerror = () => { peerLib = null; bad(); }; document.head.appendChild(sc); }));
-}
-// a WebSocket-like wrapper, so netSend and the rest do not care which way we are connected
-const direct = () => !!(NET.conn && NET.conn.open);
-function p2pTransport(){ return {get readyState(){ return direct() || (NET.relay && NET.relay.connected) ? 1 : 0; },
-  send(t){ if(direct()){ try { NET.conn.send(t); } catch(e){} } else relaySend(t); }, close(){ netP2PClose(); }}; }
-
-// ---- when a direct connection cannot be made (different providers, mobile internet, strict routers),
-// the messages go through public MQTT brokers over secure WebSocket instead. Both brokers are used at once,
-// so the game still works if one of them is down. Every message carries a session id: «sid|json».
-const RELAY_URLS = ['wss://broker.hivemq.com:8884/mqtt', 'wss://test.mosquitto.org:8081/mqtt'];
 let mqttLib = null;
 function loadMqtt(){
   if(window.mqtt) return Promise.resolve();
   return mqttLib || (mqttLib = new Promise((ok, bad) => { const sc = document.createElement('script');
     sc.src = 'vendor/mqtt.min.js'; sc.onload = ok; sc.onerror = () => { mqttLib = null; bad(); }; document.head.appendChild(sc); }));
 }
-const RT = (code, box) => 'robot-vs-people-v1/' + code + '/' + box;     // «h» — to the host, «g» — to the guest
-function relayOpen(code, inbox, will, onMsg){
-  relayClose();
-  NET.mq = RELAY_URLS.map(url => {
-    const c = mqtt.connect(url, {clientId:'rvp' + Math.random().toString(16).slice(2, 12), keepalive:20, reconnectPeriod:3000, connectTimeout:9000, clean:true,
-      will:{topic:RT(code, inbox === 'h' ? 'g' : 'h'), payload:will, qos:0, retain:false}});
-    c.on('connect', () => { c.subscribe(RT(code, inbox), {qos:0}); onMsg(null, c); });
-    c.on('message', (topic, buf) => { const t = buf.toString(), i = t.indexOf('|'); if(i < 0) return; let m; try { m = JSON.parse(t.slice(i + 1)); } catch(e){ return; } onMsg({sid:t.slice(0, i), m}, c); });
-    c.on('error', () => {});
-    return c;
+// connect to the first broker that answers
+function brokerConnect(will){
+  return new Promise((ok, bad) => {
+    let i = 0;
+    const next = () => {
+      if(i >= RELAY_URLS.length){ bad(); return; }
+      const url = RELAY_URLS[i++];
+      const c = mqtt.connect(url, {clientId:'rvp' + Math.random().toString(16).slice(2, 12), keepalive:20, reconnectPeriod:3000, connectTimeout:7000, clean:true, will});
+      const fail = setTimeout(() => { try { c.end(true); } catch(e){} next(); }, 8000);
+      c.once('connect', () => { clearTimeout(fail); ok(c); });
+      c.on('error', () => {});
+    };
+    next();
   });
 }
-function relayClose(){ for(const c of NET.mq || []) try { c.end(true); } catch(e){} NET.mq = null; NET.relay = null; }
-function relayPub(c, box, sid, m){ if(c && c.connected) c.publish(RT(NET.code, box), sid + '|' + (typeof m === 'string' ? m : JSON.stringify(m)), {qos:0}); }
-function relaySend(t){ relayPub(NET.relay, NET.role === 'host' ? 'g' : 'h', NET.rsid, t); }
-// the host listens on the relay all the time, next to the direct connection
-async function hostRelay(code){
-  try { await loadMqtt(); } catch(e){ return; }
-  if(NET.code !== code) return;
-  relayOpen(code, 'h', '*|{"t":"bye"}', (r, c) => {
-    if(!r) return;                                  // connected to a broker
-    const {sid, m} = r;
-    if(m.t === 'hello'){
-      if(direct() || (NET.peer && NET.rsid !== sid)){ relayPub(c, 'g', sid, {t:'full'}); return; }
-      const again = NET.peer && NET.rsid === sid;
-      NET.rsid = sid; if(!again || !NET.relay || !NET.relay.connected) NET.relay = c; relayPub(c, 'g', sid, {t:'relayok'});   // keep talking through the first broker
-      if(!again) netOnMessage({t:'joined'});
-      return;
-    }
-    if(sid !== NET.rsid) return;
-    if(m.t === 'bye'){ if(NET.peer && !direct()){ NET.relay = null; NET.rsid = ''; netOnMessage({t:'left'}); } return; }
-    netOnMessage(m);
+function pub(box, m, retain){ if(NET.c && NET.c.connected) NET.c.publish(T(box), typeof m === 'string' ? m : JSON.stringify({...m, i:NET.myId}), {qos:0, retain:!!retain}); }
+// what the rest of the game calls: the leader tells everyone, everybody else asks the leader
+function netSend(m){ if(!NET.on) return; pub(NET.role === 'host' ? 's' : 'h', m); }
+function netSendTo(id, m){ if(!NET.on) return; if(id === NET.myId){ netOnMessage({...m, i:NET.myId}); return; } pub('to/' + id, m); }
+
+// ---- joining and leaving
+async function netJoinRoom(room, label, max){
+  if(NET.on || NET.joining) return;
+  NET.joining = true; NET.status = 'подключаюсь…'; renderNetPanel(); netUpdateFlags();
+  try { await loadMqtt(); } catch(e){ NET.joining = false; netFail('Не удалось загрузить сетевой модуль. Проверьте интернет.'); return; }
+  NET.myId = Math.random().toString(36).slice(2, 10);
+  NET.room = room; NET.label = label; NET.max = max;
+  let c;
+  try { c = await brokerConnect({topic:T('pr/' + NET.myId), payload:'', qos:0, retain:true}); }
+  catch(e){ NET.joining = false; netFail('Нет связи с сервером. Проверьте интернет и попробуйте ещё раз.'); return; }
+  NET.c = c;
+  c.on('message', (topic, buf) => netOnRaw(topic, buf));
+  // look who is already in the room; the common world sends you on to the next one when it is full
+  NET.pres.clear(); NET.st = null;
+  c.subscribe([T('pr/+'), T('st')], {qos:0});
+  await new Promise(r => setTimeout(r, 1800));
+  if(room.startsWith('w') && livePlayers() >= max){
+    const n = +room.slice(1);
+    c.end(true); NET.c = null; NET.joining = false;
+    if(n < 20){ toast(`${label} заполнен, захожу в Мир ${n + 1}`); netJoinRoom('w' + (n + 1), 'Мир ' + (n + 1), max); }
+    else netFail('Все миры заполнены, попробуйте позже');
+    return;
+  }
+  if(!room.startsWith('w') && livePlayers() >= max){ c.end(true); NET.c = null; NET.joining = false; netFail(`В этой игре уже ${max} игроков`); return; }
+  if(room.startsWith('r') && !NET.creating && livePlayers() === 0){ c.end(true); NET.c = null; NET.joining = false; netFail(`Игра с кодом ${NET.code} не найдена. Проверьте код: друг должен держать игру открытой.`); return; }
+  NET.creating = false;
+  c.subscribe([T('p/+'), T('s'), T('to/' + NET.myId), T('c'), T('v')], {qos:0});
+  // our own world gives way to the room's world
+  resetForRoom();
+  NET.on = true; NET.joining = false; NET.joinT = Date.now();
+  announce();
+  c.on('connect', () => {           // the connection came back after a drop: queue up again as a newcomer
+    if(!NET.on) return;
+    NET.joinT = Date.now();
+    c.subscribe([T('pr/+'), T('st'), T('p/+'), T('s'), T('to/' + NET.myId), T('c'), T('v')], {qos:0}); NET.role = '';
+    announce(); electLeader();
   });
+  c.on('close', () => { if(NET.on){ NET.status = 'связь прервалась, переподключаюсь…'; netUpdateFlags(); } });
+  electLeader();
+  if(state !== 'play') startPlay();
+  toast(`Вы на сервере: ${label}`); sfx('ui');
+  chatLine('', `Вы на сервере «${label}». Enter — написать в чат${TOUCH ? '' : ', C (держать) — говорить в микрофон'}.`);
 }
-// the guest: after a few seconds without a direct connection, or if it is refused, go through the relay
-async function guestRelay(code, done, fail){
-  if(NET.relayTried) return; NET.relayTried = true;
-  try { await loadMqtt(); } catch(e){ fail('Не удалось загрузить сетевой модуль. Проверьте интернет.'); return; }
-  if(NET.code !== code || !NET.ws) return;
-  const sid = Math.random().toString(36).slice(2, 10); NET.rsid = sid;
-  let answered = false;
-  const noAnswer = setTimeout(() => { if(!answered && NET.ws) fail(`Игра с кодом ${code} не найдена. Проверьте код: напарник должен держать игру открытой.`); }, 15000);
-  relayOpen(code, 'g', sid + '|{"t":"bye"}', (r, c) => {
-    if(!r){ if(!answered) relayPub(c, 'h', sid, {t:'hello'}); return; }   // connected: knock
-    if(r.sid !== sid && !(r.sid === '*' && r.m.t === 'bye')) return;
-    const m = r.m;
-    if(m.t === 'relayok'){ if(answered) return; answered = true; clearTimeout(noAnswer); NET.relay = c; done(); return; }
-    if(m.t === 'full'){ clearTimeout(noAnswer); fail('В этой игре уже двое'); return; }
-    if(m.t === 'bye'){ if(answered) netP2PClose(true); return; }
-    if(answered) netOnMessage(m);     // from whichever broker the host uses
-  });
+function announce(){ pub('pr/' + NET.myId, JSON.stringify({n:myName(), t:NET.joinT, h:Date.now()}), true); NET.presT = 60; }
+function livePlayers(){ const now = Date.now(); let n = 0; for(const p of NET.pres.values()) if(now - p.h < 180000) n++; return n; }
+function resetForRoom(){
+  P.repair = null; droneHome(); if(PILOT) pilotOut(false);
+  for(const u of [...enemies, ...allies, ...wrecks]) removeUnit(u);
+  for(const b of built.slice()) dropWall(b);
+  NET.units.clear();
+  Object.assign(G, {phase:'build', timer:BUILD_FIRST, wave:0, res:START_RES, parts:START_PARTS, hq:G.hqMax, kills:0, queue:[]});
+  updateCount();
 }
-function netP2PWire(conn){
-  NET.conn = conn;
-  conn.on('data', d => { let m; try { m = typeof d === 'string' ? JSON.parse(d) : d; } catch(e){ return; } netOnMessage(m); });
-  conn.on('close', () => { if(NET.conn !== conn) return; NET.conn = null; if(NET.role === 'host') netOnMessage({t:'left'}); else netP2PClose(true); });
-  conn.on('error', () => {});
+function netLeave(){
+  if(!NET.on && !NET.joining) return;
+  if(NET.role === 'host') saveRoom();
+  pub('pr/' + NET.myId, '', true);
+  const c = NET.c; NET.on = false;
+  setTimeout(() => { try { c && c.end(true); } catch(e){} location.href = location.pathname; }, 400);
+  toast('Вы вышли с сервера');
 }
-function netP2PFail(msg){ netP2PClose(); $('netText').textContent = msg; toast(msg, true); sfx('err'); }
-function netP2PClose(lost){
-  const wasGuest = NET.guest, p = NET.p2p;
-  if(NET.relay && !lost) relaySend('{"t":"bye"}');
-  setTimeout(relayClose, 300);
-  NET.p2p = null; NET.conn = null; NET.ws = null; NET.kind = ''; NET.role = ''; NET.peer = false; NET.code = ''; NET.relayTried = false;
-  try { if(p) p.destroy(); } catch(e){}
+function netFail(msg){ NET.status = 'выкл'; netUpdateFlags(); $('netText').textContent = msg; toast(msg, true); sfx('err'); }
+
+// ---- the leader: whoever has been in the room longest
+function electLeader(){
+  const now = Date.now();
+  let best = null;
+  for(const [id, p] of NET.pres){ if(now - p.h > 180000) continue; if(!best || p.t < best.t || (p.t === best.t && id < best.id)) best = {id, t:p.t}; }
+  const leader = best ? best.id : NET.myId;
+  if(leader === NET.leader && NET.role) { netUpdateFlags(); return; }
+  NET.leader = leader;
+  if(leader === NET.myId){ if(NET.role !== 'host') becomeHost(); }
+  else if(NET.role !== 'guest') becomeGuest();
   netUpdateFlags();
-  if(wasGuest){ toast(lost ? 'Связь с напарником потеряна' : 'Вы вышли из игры напарника', !!lost); setTimeout(() => { location.href = location.pathname; }, 1500); }
 }
-async function netHost(){
-  if(NET.ws) return;
-  NET.kind = 'p2p'; NET.ws = p2pTransport(); NET.status = 'подключаюсь…'; renderNetPanel();
-  try { await loadPeer(); } catch(e){ const code = Array.from({length:5}, () => CODE_ABC[Math.floor(Math.random()*CODE_ABC.length)]).join(''); NET.code = code; NET.role = 'host'; netUpdateFlags(); hostRelay(code); return; }
-  const tryCode = (left) => {
-    const code = Array.from({length:5}, () => CODE_ABC[Math.floor(Math.random()*CODE_ABC.length)]).join('');
-    const peer = new Peer(ROOM + code); NET.p2p = peer;
-    peer.on('open', () => { if(NET.code === code) return; NET.code = code; NET.role = 'host'; netUpdateFlags(); hostRelay(code); });
-    peer.on('connection', conn => {
-      if(direct() || NET.peer){ conn.on('open', () => { conn.send(JSON.stringify({t:'full'})); setTimeout(() => conn.close(), 500); }); return; }
-      netP2PWire(conn); conn.on('open', () => netOnMessage({t:'joined'}));
-    });
-    peer.on('disconnected', () => { try { peer.reconnect(); } catch(e){} });   // lost the code service: keep the game going, get the code back
-    peer.on('error', err => {
-      if(err.type === 'unavailable-id' && left > 0){ try { peer.destroy(); } catch(e){} tryCode(left - 1); return; }
-      if((err.type === 'network' || err.type === 'server-error' || err.type === 'socket-error') && !NET.code){   // the code service is down: work through the relay alone
-        NET.code = code; NET.role = 'host'; netUpdateFlags(); hostRelay(code); return; }
-      if(err.type === 'network' || err.type === 'server-error' || err.type === 'socket-error') { if(!NET.peer && !NET.code) netP2PFail('Нет связи с сервисом кодов. Проверьте интернет и попробуйте ещё раз.'); return; }
-      if(err.type === 'peer-unavailable') return;
-      if(!NET.peer) netP2PFail('Не получилось создать игру: ' + err.type);
-    });
-  };
-  tryCode(3);
+function becomeHost(){
+  const wasGuest = NET.role === 'guest';
+  NET.role = 'host'; NET.c.subscribe(T('h'), {qos:0});     // only the leader listens to the requests
+  if(wasGuest){
+    // the robots we were only watching are now ours to run
+    for(const u of NET.units.values()){
+      Object.assign(u, {cd:1, chkT:1.2, cx:u.p.x, cz:u.p.z, sideT:0, side:1, punch:0, smokeT:0, hx:u.p.x, hz:u.p.z, hq:HQ, fall:u.tfall || 0});
+      u.v.set(0, 0, 0); UNIT_ID = Math.max(UNIT_ID, u.id);
+    }
+    NET.units.clear();
+    for(const b of built) WALL_ID = Math.max(WALL_ID, b.id);
+    if(G.phase === 'wave' && !G.queue.length && !enemies.length) G.timer = 0;
+    toast('Теперь роботами управляет ваше устройство');
+  } else if(NET.st){
+    // the first one in: the world the room kept
+    netApplyWalls(NET.st.w || []); for(const b of built) WALL_ID = Math.max(WALL_ID, b.id);
+    const [wave, res, parts, hq, kills, best] = NET.st.g || [];
+    Object.assign(G, {phase:'build', timer:BUILD_NEXT, wave:wave | 0, res:res ?? START_RES, parts:parts ?? START_PARTS, hq:hq > 0 ? hq : G.hqMax, kills:kills | 0, best:best | 0, queue:[]});
+    updateCount();
+  }
+  NET.wSig = -1; NET.stT = 2;
 }
-async function netJoin(code){
-  code = (code || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
-  if(code.length !== 5){ toast('Код — 5 букв и цифр', true); sfx('err'); return; }
-  if(NET.ws) return;
-  NET.kind = 'p2p'; NET.ws = p2pTransport(); NET.code = code; NET.status = 'подключаюсь…'; renderNetPanel();
-  let opened = false;
-  const giveUp = setTimeout(() => { if(!opened && NET.ws && NET.code === code) netP2PFail('Не удалось соединиться. Проверьте код и интернет на обоих устройствах.'); }, 45000);
-  const done = how => { if(opened) return; opened = true; clearTimeout(giveUp); NET.role = 'guest'; netUpdateFlags();
-    if(how === 'relay'){ try { if(NET.p2p) NET.p2p.destroy(); } catch(e){} NET.p2p = null; NET.conn = null; toast('Соединение через интернет-ретранслятор'); } };
-  const fail = msg => { if(opened) return; clearTimeout(giveUp); netP2PFail(msg); };
-  const toRelay = () => { if(!opened) guestRelay(code, () => done('relay'), fail); };
-  setTimeout(toRelay, 7000);          // no direct connection within 7 s: use the relay
-  try { await loadPeer(); } catch(e){ toRelay(); return; }
-  if(opened || !NET.ws) return;
-  const peer = new Peer(); NET.p2p = peer;
-  peer.on('open', () => {
-    if(opened) return;
-    const conn = peer.connect(ROOM + code, {reliable:true, serialization:'raw'});
-    netP2PWire(conn);
-    conn.on('open', () => { if(NET.relay){ try { conn.close(); } catch(e){} return; } done('direct'); });
-  });
-  peer.on('error', () => toRelay());   // code not found on the code service, or the service is down: try the relay
+function becomeGuest(){
+  if(NET.role === 'host') NET.c.unsubscribe(T('h'));
+  NET.role = 'guest'; NET.lastSnap = performance.now();
+  for(const u of [...enemies, ...allies, ...wrecks]) removeUnit(u);
+  NET.units.clear();
+}
+// the room keeps a copy of the world: walls, resources and the wave number
+function saveRoom(){
+  if(!NET.on || NET.role !== 'host') return;
+  pub('st', JSON.stringify({g:[G.wave, Math.floor(G.res), Math.floor(G.parts), Math.round(G.hq), G.kills, G.best], w:built.map(b => [b.id, b.t, b.x, r2(b.y), b.z, b.r, Math.round(b.hp)]), h:Date.now()}), true);
 }
 
-function netConnect(){
-  if(NET.ws) return;
-  if(noServer){ renderNetPanel(); return; }
-  NET.kind = 'ws';
-  const ws = new WebSocket((location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/ws');
-  NET.ws = ws; NET.status = 'подключаюсь…'; renderNetPanel();
-  ws.onmessage = e => { let m; try { m = JSON.parse(e.data); } catch(err){ return; } netOnMessage(m); };
-  ws.onclose = () => {
-    const wasGuest = NET.guest; NET.ws = null; NET.role = ''; NET.peer = false; netUpdateFlags();
-    if(wasGuest){ toast('Связь с напарником потеряна', true); setTimeout(() => { location.href = location.pathname; }, 1500); }
-  };
-  ws.onerror = () => { $('netText').textContent = 'Не удалось подключиться к серверу игры. Запустите игру ярлыком «Играть — ….command».'; };
+function netUpdateFlags(){
+  document.documentElement.classList.toggle('net', NET.on);
+  const others = livePlayers() - (NET.pres.has(NET.myId) ? 1 : 0);
+  NET.peer = NET.on && others > 0;
+  NET.host = NET.on && NET.role === 'host';
+  NET.guest = NET.on && NET.role === 'guest';
+  const n = Math.max(1, livePlayers());
+  const s = NET.joining ? 'подключаюсь…' : !NET.on ? 'выкл' : `${NET.label} · игроков: ${n}`;
+  NET.status = s; $('netState').textContent = s;
+  $('netHud').textContent = NET.on ? `${NET.label} · ${n} ${n % 10 === 1 && n % 100 !== 11 ? 'игрок' : n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 10 || n % 100 >= 20) ? 'игрока' : 'игроков'}` : '';
+  renderNetPanel();
 }
-function netDisconnect(){ if(!NET.ws) return; if(NET.kind === 'p2p'){ netP2PClose(); return; } const g = NET.guest; NET.ws.close(); if(g) location.href = location.pathname; }
 
-function netOnMessage(m){
+// ---- incoming
+function netOnRaw(topic, buf){
+  const box = topic.slice(NET_ROOT.length + NET.room.length + 1), text = buf.toString();
+  if(box.startsWith('pr/')){
+    const id = box.slice(3);
+    if(!text){ if(NET.pres.delete(id)){ peerGone(id); if(NET.on) electLeader(); } return; }
+    let p; try { p = JSON.parse(text); } catch(e){ return; }
+    const fresh = !NET.pres.has(id);
+    NET.pres.set(id, {n:String(p.n || 'Игрок').slice(0, 18), t:+p.t || 0, h:+p.h || 0});
+    if(NET.on){ if(fresh && id !== NET.myId){ chatLine('', `${pName(id)} зашёл на сервер`); sfx('ui'); if(NET.role === 'host') NET.wSig = -1; } electLeader(); }
+    return;
+  }
+  if(box === 'st'){ if(text) try { NET.st = JSON.parse(text); } catch(e){} return; }
+  if(!NET.on) return;
+  let m; try { m = JSON.parse(text); } catch(e){ return; }
+  const from = m.i; if(!from || from === NET.myId) return;
+  if(box.startsWith('p/')){ netOnPeer(from, m); return; }
+  if(box === 'c'){ chatLine(pName(from), String(m.x || '').slice(0, 200)); sfx('tick'); return; }
+  if(box === 'v'){ voicePlay(from, m.d); return; }
+  if(box === 's'){ if(from !== NET.leader) return; NET.lastSnap = performance.now(); netOnMessage(m, from); return; }
+  if(box === 'h'){ if(NET.role === 'host') netOnMessage(m, from); return; }
+  if(box.startsWith('to/')) netOnMessage(m, from);
+}
+function netOnMessage(m, from){
   switch(m.t){
-    case 'full': NET.ws && NET.ws.close(); toast('В этой игре уже двое', true); break;
-    case 'role': NET.role = m.role; netUpdateFlags(); break;
-    case 'joined':                       // a guest came in: tell them the map and send the whole world
-      NET.peer = true; netUpdateFlags(); NET.wSig = -1;
-      netSend({t:'welcome', map:MAP}); netSendWalls(); netSendSnap();
-      if(state !== 'play') startPlay();
-      toast('Напарник подключился'); sfx('ui'); banner('Вдвоём', 'Напарник в игре'); break;
-    case 'welcome':
-      if(m.map !== MAP){ store.set('forpost.map', m.map); location.href = location.pathname + '?map=' + m.map + '&net=1'; return; }
-      NET.peer = true;
-      // the guest drops their own world and takes the host's
-      P.repair = null; droneHome();
-      for(const u of [...enemies, ...allies, ...wrecks]) removeUnit(u);
-      for(const b of built.slice()) dropWall(b);
-      netUpdateFlags(); updateCount(); toast('Вы в игре у напарника'); sfx('ui');
-      if(state !== 'play') startPlay();
-      break;
-    case 'left':
-      NET.peer = false; PEER.g.visible = PEER.label.visible = false;
-      if(NET.role === 'guest'){ netUpdateFlags(); toast('Напарник вышел из игры', true); setTimeout(() => { location.href = location.pathname; }, 1500); }
-      else { NET.units.clear(); netUpdateFlags(); toast('Напарник вышел из игры', true); }
-      break;
-    case 'p': netOnPeer(m); break;
-    case 'hatch': { const b = built.find(w => w.id === m.id); if(b) b.open = !!m.o; } break;
+    case 'hatch': { const b = built.find(w => w.id === m.id); if(b){ b.open = !!m.o; if(NET.host && from !== NET.myId) netSend({t:'hatch', id:b.id, o:m.o}); } } break;
     case 's': if(NET.guest) netApplySnap(m); break;
     case 'walls': if(NET.guest) netApplyWalls(m.w); break;
     case 'banner': banner(m.a, m.b); if(m.s) sfx(m.s); break;
     case 'toast': toast(m.m, !!m.bad); if(m.bad) sfx('err'); break;
-    case 'feed': feed(m.x, m.w, m.c); if(m.k) hitMark(true); break;
+    case 'feed': if(m.k === NET.myId){ feed(m.x, 'вы', 'player'); hitMark(true); } else feed(m.x, m.w, 'ally'); break;
     case 'hurt': damagePlayer(m.d); break;
-    // requests from the guest, carried out by the host
-    case 'pilot': if(NET.host){ const a = allies.find(u => u.id === m.id) || wrecks.find(u => u.id === m.id);
-      const d = a && Math.hypot(a.p.x - PEER.p.x, a.p.z - PEER.p.z) < a.R.r + 6 ? takeRobot(a) : null;
-      netSend(d ? {t:'pilotok', ...d} : {t:'toast', m:'Этот робот уже занят или далеко', bad:1}); } break;
     case 'pilotok': if(NET.guest && !pilotStart(m)) netSend({...m, t:'unpilot', d:0}); break;
+    // requests to the leader
+    case 'pilot': if(NET.host){ const a = allies.find(u => u.id === m.id) || wrecks.find(u => u.id === m.id), q = PEERS.get(from);
+      const d = a && q && Math.hypot(a.p.x - q.p.x, a.p.z - q.p.z) < a.R.r + 6 ? takeRobot(a) : null;
+      netSendTo(from, d ? {t:'pilotok', ...d} : {t:'toast', m:'Этот робот уже занят или далеко', bad:1}); } break;
     case 'unpilot': if(NET.host) dropRobot(m); break;
-    case 'hit': if(NET.host){ const e = enemies.find(u => u.id === m.id); if(e) damageEnemy(e, m.d, 'peer'); } break;
+    case 'hit': if(NET.host){ const e = enemies.find(u => u.id === m.id); if(e) damageEnemy(e, m.d, 'peer:' + from); } break;
     case 'wallhit': if(NET.host){ const b = built.find(w => w.id === m.id); if(b) hitWall(b, m.d, null); } break;
     case 'place': if(NET.host){
       const [tt, x, y, z, r] = m.a, w = WT[tt];
       if(!w) break;
-      if(G.res < w.cost){ netSend({t:'toast', m:`Не хватает ресурсов: нужно ${w.cost}`, bad:1}); break; }
-      if(built.some(b => b.x === x && b.z === z && b.r === r && Math.abs(b.y - y) < .01)){ netSend({t:'toast', m:'Место занято', bad:1}); break; }
-      addWall(tt, x, y, z, r); G.res -= w.cost; saveWalls(); saveGame(); sfxAt('place', {x, z}); } break;
+      if(G.res < w.cost){ netSendTo(from, {t:'toast', m:`Не хватает ресурсов: нужно ${w.cost}`, bad:1}); break; }
+      if(built.some(b => b.x === x && b.z === z && b.r === r && Math.abs(b.y - y) < .01)){ netSendTo(from, {t:'toast', m:'Место занято', bad:1}); break; }
+      addWall(tt, x, y, z, r); G.res -= w.cost; sfxAt('place', {x, z}); } break;
     case 'unbuild': if(NET.host){ const b = built.find(w => w.id === m.id); if(!b) break;
-      const back = Math.floor(WT[b.t].cost*0.5*b.hp/b.max); dropWall(b); G.res += back; collapse(); saveWalls(); saveGame();
-      netSend({t:'toast', m:`Разобрано, +${back}`}); } break;
+      const back = Math.floor(WT[b.t].cost*0.5*b.hp/b.max); dropWall(b); G.res += back; collapse();
+      netSendTo(from, {t:'toast', m:`Разобрано, +${back}`}); } break;
     case 'fixwall': if(NET.host){ const b = built.find(w => w.id === m.id); if(!b || b.hp >= b.max) break;
       const cost = Math.ceil(WT[b.t].cost*(1 - b.hp/b.max));
-      if(G.res < cost){ netSend({t:'toast', m:`Нужно ${cost} ресурсов`, bad:1}); break; }
-      G.res -= cost; b.hp = b.max; tintWall(b); saveWalls(); saveGame(); netSend({t:'toast', m:`Починено за ${cost}`}); } break;
+      if(G.res < cost){ netSendTo(from, {t:'toast', m:`Нужно ${cost} ресурсов`, bad:1}); break; }
+      G.res -= cost; b.hp = b.max; tintWall(b); netSendTo(from, {t:'toast', m:`Починено за ${cost}`}); } break;
     case 'fix': if(NET.host){ const w = wrecks.find(u => u.id === m.id); if(!w) break;
       const cost = repairCost(w);
-      if(allies.length >= ALLY_MAX){ netSend({t:'toast', m:`Союзников уже ${ALLY_MAX}`, bad:1}); break; }
-      if(G.parts < cost){ netSend({t:'toast', m:`Для ремонта нужно ${cost} ⚙ запчастей`, bad:1}); break; }
+      if(allies.length >= ALLY_MAX){ netSendTo(from, {t:'toast', m:`Союзников уже ${ALLY_MAX}`, bad:1}); break; }
+      if(G.parts < cost){ netSendTo(from, {t:'toast', m:`Для ремонта нужно ${cost} ⚙ запчастей`, bad:1}); break; }
       if(P.repair && P.repair.w === w) cancelRepair();
       G.parts -= cost; reviveAlly(w); } break;
     case 'wave': if(NET.host && G.phase === 'build') G.timer = 0; break;
@@ -3222,14 +3239,40 @@ function netOnMessage(m){
   }
 }
 
-// ---- the other player's soldier (or robot) on our screen
-function netOnPeer(m){
-  PEER.on = true; PEER.t.set(m.x, m.y, m.z); PEER.tface = m.f; PEER.walk = m.w; PEER.amt = m.a; PEER.air = m.air; PEER.build = !!m.b;
-  PEER.pitch = m.pi; PEER.place = m.pl; PEER.dead = !!m.d; PEER.fall = PEER.dead ? 1 : 0;
-  if(m.c !== PEER.i && CHARS[m.c]){
-    if(PEER.R) PEER.g.remove(PEER.R.root);
-    PEER.i = m.c; PEER.R = PEER_RIGS[m.c] || (PEER_RIGS[m.c] = CHARS[m.c].make()); PEER.g.add(PEER.R.root);
-    PEER.p.copy(PEER.t); PEER.face = PEER.tface;
+// ---- the other players on our screen
+function nameTex(name){
+  const draw = (c, w, h) => { c.clearRect(0, 0, w, h); c.fillStyle = 'rgba(8,30,40,.8)'; c.fillRect(0, 0, w, h); c.strokeStyle = '#3fd6ff'; c.lineWidth = 3; c.strokeRect(1.5, 1.5, w - 3, h - 3);
+    c.fillStyle = '#bff3ff'; c.font = '400 30px "Russo One", Impact, sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText(name, w/2, h/2 + 2, w - 16); };
+  const tex = canvasTex(256, 64, draw); redrawOnFonts(tex, draw); return tex;
+}
+function getPeer(id){
+  let q = PEERS.get(id);
+  if(!q){
+    q = {id, isPeer:true, on:false, i:-1, R:null, g:new THREE.Group(), p:new THREE.Vector3(), t:new THREE.Vector3(), face:0, tface:0, walk:0, amt:0, air:0, build:false,
+      pitch:0, place:0, dead:true, fall:1, name:'', label:null, seen:0};
+    q.label = new THREE.Sprite(new THREE.SpriteMaterial({depthWrite:false, transparent:true})); q.label.scale.set(2.2, .55, 1);
+    scene.add(q.g, q.label); PEERS.set(id, q);
+  }
+  const n = pName(id);
+  if(q.name !== n){ q.name = n; if(q.label.material.map) q.label.material.map.dispose(); q.label.material.map = nameTex(n); q.label.material.needsUpdate = true; }
+  return q;
+}
+function peerGone(id){
+  const q = PEERS.get(id); if(!q) return;
+  scene.remove(q.g, q.label); if(q.R) q.g.remove(q.R.root);
+  PEERS.delete(id);
+  if(NET.on) chatLine('', `${q.name || 'Игрок'} вышел`);
+}
+const peerList = () => { const out = []; for(const q of PEERS.values()) if(q.on && q.R) out.push(q); return out; };
+function netOnPeer(id, m){
+  const q = getPeer(id);
+  q.on = true; q.seen = performance.now(); q.t.set(m.x, m.y, m.z); q.tface = m.f; q.walk = m.w; q.amt = m.a; q.air = m.air; q.build = !!m.b;
+  q.pitch = m.pi; q.place = m.pl; q.dead = !!m.d; q.fall = q.dead ? 1 : 0; q.talk = m.v ? performance.now() : q.talk;
+  if(m.c !== q.i && CHARS[m.c]){
+    if(q.R) q.g.remove(q.R.root);
+    // every player gets their own copy of the model (several players can pick the same robot)
+    q.i = m.c; q.R = CHARS[m.c].make(); q.g.add(q.R.root);
+    q.p.copy(q.t); q.face = q.tface;
   }
   for(const s of m.s || []){   // their shots: [from xyz, to xyz, colour, sound, splash]
     _a.set(s[0], s[1], s[2]); _b.set(s[3], s[4], s[5]); tracer(_a, _b, s[6]); sfxAt(s[7], _a);
@@ -3237,15 +3280,20 @@ function netOnPeer(m){
   }
 }
 function updatePeer(dt){
-  const show = NET.peer && PEER.on && !!PEER.R;
-  PEER.g.visible = PEER.label.visible = show; if(!show) return;
-  if(PEER.p.distanceTo(PEER.t) > 8) PEER.p.copy(PEER.t); else PEER.p.lerp(PEER.t, Math.min(1, 12*dt));
-  let d = PEER.tface - PEER.face; d = Math.atan2(Math.sin(d), Math.cos(d)); PEER.face += d*Math.min(1, 12*dt);
-  const R = PEER.R;
-  animateRig(R, PEER.walk, PEER.amt, PEER.air, PEER.place, PEER.build, PEER.pitch);
-  if(PEER.dead){ R.root.rotation.x = -HALF_PI*0.92; R.root.position.y = R.r*0.5; } else { R.root.rotation.x = R.lean || 0; R.root.position.y = 0; }
-  PEER.g.position.copy(PEER.p); PEER.g.rotation.y = PEER.face;
-  PEER.label.position.set(PEER.p.x, PEER.p.y + R.h + 0.9, PEER.p.z);
+  const now = performance.now();
+  for(const q of PEERS.values()){
+    if(now - q.seen > 15000 && q.on){ q.on = false; }          // nothing from them for a while: hide
+    const show = NET.on && q.on && !!q.R;
+    q.g.visible = q.label.visible = show; if(!show) continue;
+    if(q.p.distanceTo(q.t) > 8) q.p.copy(q.t); else q.p.lerp(q.t, Math.min(1, 10*dt));
+    let d = q.tface - q.face; d = Math.atan2(Math.sin(d), Math.cos(d)); q.face += d*Math.min(1, 10*dt);
+    const R = q.R;
+    animateRig(R, q.walk, q.amt, q.air, q.place, q.build, q.pitch);
+    if(q.dead){ R.root.rotation.x = -HALF_PI*0.92; R.root.position.y = R.r*0.5; } else { R.root.rotation.x = R.lean || 0; R.root.position.y = 0; }
+    q.g.position.copy(q.p); q.g.rotation.y = q.face;
+    q.label.position.set(q.p.x, q.p.y + R.h + 0.9, q.p.z);
+    q.label.material.color.setHex(q.talk && now - q.talk < 600 ? 0x9fffa0 : 0xffffff);      // green while they talk
+  }
 }
 
 // ---- the host's world, sent to the guest
@@ -3321,43 +3369,151 @@ function netUpdateUnits(dt){
   }
 }
 function netTick(dt){
-  if(!NET.ws || NET.ws.readyState !== 1) return;
+  if(!NET.on || !NET.c || !NET.c.connected) return;
   NET.pT -= dt;
   if(NET.pT <= 0){
-    NET.pT = direct() || NET.kind !== 'p2p' ? 1/15 : 1/10;
-    netSend({t:'p', x:r2(P.pos.x), y:r2(P.pos.y), z:r2(P.pos.z), f:r2(P.face), w:r2(P.walk), a:r2(Math.min(1, P.speed/rig.walk)), air:P.onGround ? 0 : 1,
-      b:build ? 1 : 0, pi:r2(pitch), pl:r2(P.place), c:cur, d:P.dead > 0 ? 1 : 0, s:NET.shots.splice(0)});
+    NET.pT = 1/8;
+    pub('p/' + NET.myId, {t:'p', x:r2(P.pos.x), y:r2(P.pos.y), z:r2(P.pos.z), f:r2(P.face), w:r2(P.walk), a:r2(Math.min(1, P.speed/rig.walk)), air:P.onGround ? 0 : 1,
+      b:build ? 1 : 0, pi:r2(pitch), pl:r2(P.place), c:cur, d:P.dead > 0 ? 1 : 0, s:NET.shots.splice(0), v:VOICE.on ? 1 : 0});
   }
-  if(!NET.host) return;
-  NET.sT -= dt; if(NET.sT <= 0){ NET.sT = direct() || NET.kind !== 'p2p' ? 0.1 : 0.15; netSendSnap(); }
-  NET.wT -= dt; if(NET.wT <= 0){ NET.wT = 0.25; if(netWallSig() !== NET.wSig) netSendWalls(); }
+  NET.presT -= dt; if(NET.presT <= 0) announce();
+  if(NET.role !== 'host'){
+    // the leader has gone silent (frozen tab, lost connection): count them out and pick the next one
+    if(NET.peer && performance.now() - NET.lastSnap > 15000){ const p = NET.pres.get(NET.leader); if(p) p.h = 0; NET.lastSnap = performance.now(); electLeader(); }
+    return;
+  }
+  NET.sT -= dt; if(NET.sT <= 0){ NET.sT = 1/6; if(NET.peer) netSendSnap(); else NET.fx.length = 0; }
+  NET.wT -= dt; if(NET.wT <= 0){ NET.wT = 0.3; if(netWallSig() !== NET.wSig){ if(NET.peer) netSendWalls(); else NET.wSig = netWallSig(); NET.stT = Math.min(NET.stT, 1.5); } }
+  NET.stT -= dt; if(NET.stT <= 0){ NET.stT = 8; saveRoom(); }
 }
 
-// ---- the «Вдвоём по сети» panel in the menu
-let netInfo = null;
-let noServer = location.protocol === 'file:';     // e.g. GitHub Pages: no game server, so only single play
-function joinLink(){ return location.origin + location.pathname + '?join=' + NET.code; }
-function renderNetPanel(){
-  const txt = $('netText'), link = $('netLink'), off = $('bNetOff'), start = $('netStart'), box = $('netCodeBox'), share = $('bNetShare');
-  start.hidden = !!NET.ws; off.hidden = !NET.ws;
-  $('bNetGo').hidden = noServer;
-  const hostWaiting = NET.kind === 'p2p' && NET.role === 'host' && !NET.peer && NET.code;
-  box.hidden = !hostWaiting; share.hidden = !hostWaiting; $('bNetPlay').hidden = !hostWaiting; $('netCodeShow').textContent = NET.code;
-  let addr = [];
-  if(hostWaiting) addr = [joinLink()];
-  else if(NET.kind === 'ws' && !NET.peer && NET.role === 'host' && netInfo && netInfo.ips.length) addr = netInfo.ips.map(ip => `http://${ip}:${netInfo.port}/?net=1`);
-  link.hidden = !addr.length; link.innerHTML = addr.map(a => `<code>${a}</code>`).join('');
-  if(!NET.ws) txt.textContent = location.protocol === 'file:'
-    ? 'Игра открыта как файл. Для игры вдвоём откройте её по ссылке https://kirspeek.github.io/robot/ или ярлыком «Играть.command».'
-    : 'Играйте вдвоём через интернет с любых устройств: телефон с телефоном, ноутбук с ноутбуком, телефон с компьютером. Один нажимает «Создать игру» и сообщает напарнику код. Напарник открывает игру у себя, вводит код и нажимает «Войти по коду».';
-  else if(!NET.role) txt.textContent = NET.kind === 'p2p' && NET.code ? `Подключаюсь к игре ${NET.code}…` : 'Подключаюсь…';
-  else if(!NET.peer) txt.textContent = NET.kind === 'p2p'
-    ? 'Скажите напарнику этот код: он вводит его в меню «Вдвоём по сети» на своём устройстве. Или отправьте ему ссылку — по ней он попадёт сразу к вам. Не закрывайте игру, пока ждёте.'
-    : 'Ждём напарника. Пусть он откроет у себя эту ссылку (вы оба в одной сети Wi‑Fi):';
-  else txt.textContent = NET.host ? 'Напарник в игре. Вы ведёте игру: роботы, волны и стены считаются на вашем устройстве. Ресурсы общие.'
-    : 'Вы в игре у напарника. Стены, ресурсы и волны общие. Ремонтный дрон и команды союзникам есть только у первого игрока.';
+// ---------- chat ----------
+function chatLine(name, text){
+  const log = $('chatLog'), d = document.createElement('div');
+  if(name){ const b = document.createElement('b'); b.textContent = name + ': '; d.appendChild(b); } else d.className = 'sys';
+  d.appendChild(document.createTextNode(text));
+  log.appendChild(d); while(log.children.length > 30) log.firstChild.remove();
+  setTimeout(() => d.classList.add('old'), 15000);
+  log.scrollTop = log.scrollHeight;
 }
-$('bNetHost').onclick = () => { sfx('ui'); netHost(); };
+function openChat(){
+  if(!NET.on){ toast('Чат работает на сервере или в игре с друзьями', true); return; }
+  const inp = $('chatIn'); $('chat').classList.add('open'); inp.hidden = false; inp.value = ''; inp.focus();
+  for(const k in keys) keys[k] = false; firing = false;
+}
+function closeChat(){ const inp = $('chatIn'); inp.blur(); inp.hidden = true; $('chat').classList.remove('open'); }
+function sendChat(){
+  const text = $('chatIn').value.replace(/\s+/g, ' ').trim().slice(0, 160);
+  closeChat(); if(!text || !NET.on) return;
+  pub('c', {x:text}); chatLine(myName(), text); sfx('tick');
+}
+$('chatIn').addEventListener('keydown', e => {
+  e.stopPropagation();
+  if(e.key === 'Enter'){ e.preventDefault(); sendChat(); }
+  else if(e.key === 'Escape'){ e.preventDefault(); closeChat(); }
+});
+$('chatIn').addEventListener('blur', () => { if(TOUCH) setTimeout(() => { if(document.activeElement !== $('chatIn')) closeChat(); }, 200); });
+
+// ---------- voice: a walkie-talkie. Hold the button (or C) and speak; everyone in the room hears you ----------
+// Sound is taken at 8 kHz, packed with μ-law into one byte per sample (8 KB a second) and sent in quarter-second pieces,
+// through the same connection as the game, so it works on any network.
+const VOICE = {on:false, stream:null, src:null, proc:null, sink:null, acc:[], t:0, ratio:6, next:new Map(), offT:0};
+function mulawEnc(x){ let s = Math.max(-1, Math.min(1, x))*32635, sign = s < 0 ? 0x80 : 0; if(sign) s = -s; s += 132;
+  let e = 7; for(let m = 0x4000; (s & m) === 0 && e > 0; m >>= 1) e--; const man = (s >> (e + 3)) & 0x0f; return ~(sign | (e << 4) | man) & 0xff; }
+function mulawDec(u){ u = ~u & 0xff; const sign = u & 0x80, e = (u >> 4) & 7, man = u & 0x0f; let s = ((man << 3) + 132) << e; s -= 132; return (sign ? -s : s)/32768; }
+function audioCtx(){ AC = AC || new (window.AudioContext || window.webkitAudioContext)(); if(AC.state === 'suspended') AC.resume(); return AC; }
+function voiceSend(){
+  const n = VOICE.acc.length; if(!n) return;
+  let bin = ''; for(let i = 0; i < n; i++) bin += String.fromCharCode(mulawEnc(VOICE.acc[i]));
+  VOICE.acc = []; pub('v', {d:btoa(bin)});
+}
+async function voiceStart(){
+  if(VOICE.on) return;
+  if(!NET.on){ toast('Микрофон работает на сервере или в игре с друзьями', true); return; }
+  if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){ toast('Этот браузер не даёт доступ к микрофону', true); return; }
+  const ctx = audioCtx();
+  VOICE.want = true;
+  if(!VOICE.stream){
+    try { VOICE.stream = await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true, noiseSuppression:true, autoGainControl:true}}); }
+    catch(e){ VOICE.want = false; toast('Нет доступа к микрофону: разрешите его в настройках браузера', true); sfx('err'); return; }
+  }
+  if(!VOICE.want) return;           // the button was released while the browser was asking
+  VOICE.on = true; VOICE.acc = []; VOICE.t = 0; VOICE.ratio = ctx.sampleRate/8000; clearTimeout(VOICE.offT);
+  VOICE.src = ctx.createMediaStreamSource(VOICE.stream);
+  VOICE.proc = ctx.createScriptProcessor(4096, 1, 1);
+  VOICE.sink = ctx.createGain(); VOICE.sink.gain.value = 0;
+  VOICE.proc.onaudioprocess = e => {
+    if(!VOICE.on) return;
+    const inp = e.inputBuffer.getChannelData(0), r = VOICE.ratio;
+    let t = VOICE.t;
+    while(t + r <= inp.length){ let s = 0, k = 0; for(let j = Math.floor(t); j < Math.floor(t + r); j++){ s += inp[j]; k++; } VOICE.acc.push(k ? s/k : 0); t += r; }
+    VOICE.t = t - inp.length;
+    if(VOICE.acc.length >= 2000) voiceSend();
+  };
+  VOICE.src.connect(VOICE.proc); VOICE.proc.connect(VOICE.sink); VOICE.sink.connect(ctx.destination);
+  $('micHud').hidden = false; $('micHud').textContent = '🎤 Вас слышат все на сервере';
+  if(TOUCH) $('tMic').classList.add('down');
+}
+function voiceStop(){
+  VOICE.want = false;
+  if(!VOICE.on) return;
+  VOICE.on = false; voiceSend();
+  try { VOICE.src.disconnect(); VOICE.proc.disconnect(); VOICE.sink.disconnect(); } catch(e){}
+  $('micHud').hidden = true; if(TOUCH) $('tMic').classList.remove('down');
+  // let the microphone go after a while, so the browser's «recording» sign does not stay on
+  clearTimeout(VOICE.offT);
+  VOICE.offT = setTimeout(() => { if(!VOICE.on && VOICE.stream){ VOICE.stream.getTracks().forEach(t => t.stop()); VOICE.stream = null; } }, 20000);
+}
+function voicePlay(from, b64){
+  if(!S.sound || typeof b64 !== 'string' || b64.length > 20000) return;
+  const ctx = audioCtx(); let bin; try { bin = atob(b64); } catch(e){ return; }
+  const n = bin.length, rate = ctx.sampleRate, up = rate/8000, out = Math.floor(n*up);
+  if(!n) return;
+  const buf = ctx.createBuffer(1, out, rate), d = buf.getChannelData(0);
+  const pcm = new Float32Array(n); for(let i = 0; i < n; i++) pcm[i] = mulawDec(bin.charCodeAt(i));
+  for(let i = 0; i < out; i++){ const x = i/up, j = Math.floor(x), f = x - j; d[i] = pcm[j]*(1 - f) + (pcm[Math.min(n - 1, j + 1)])*f; }
+  const src = ctx.createBufferSource(); src.buffer = buf;
+  const g = ctx.createGain(); g.gain.value = 1.6; src.connect(g); g.connect(ctx.destination);
+  const at = Math.max(ctx.currentTime + 0.08, VOICE.next.get(from) || 0);
+  src.start(at); VOICE.next.set(from, at + buf.duration);
+  const q = PEERS.get(from); if(q) q.talk = performance.now();
+  $('micHud').hidden = false; $('micHud').textContent = '🎤 Говорит: ' + pName(from);
+  clearTimeout(VOICE.hudT); VOICE.hudT = setTimeout(() => { if(!VOICE.on) $('micHud').hidden = true; }, (at - ctx.currentTime + buf.duration)*1000 + 300);
+}
+
+// ---------- the «Сервер · по сети» panel ----------
+function joinLink(){ return location.origin + location.pathname + '?join=' + NET.code; }
+function netPlayWorld(){ netJoinRoom('w1', 'Мир 1', WORLD_MAX); }
+function netCreate(){
+  const code = Array.from({length:5}, () => CODE_ABC[Math.floor(Math.random()*CODE_ABC.length)]).join('');
+  NET.code = code; NET.creating = true; netJoinRoom('r' + code, 'Игра ' + code, FRIEND_MAX);
+}
+function netJoin(code){
+  code = (code || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+  if(code.length !== 5){ toast('Код — 5 букв и цифр', true); sfx('err'); return; }
+  NET.code = code; NET.creating = false; netJoinRoom('r' + code, 'Игра ' + code, FRIEND_MAX);
+}
+function renderNetPanel(){
+  const busy = NET.on || NET.joining, priv = NET.room.startsWith('r');
+  $('netStart').hidden = busy; $('bNetOff').hidden = !NET.on; $('bNetPlay').hidden = !NET.on;
+  $('netCodeBox').hidden = !(NET.on && priv); $('bNetShare').hidden = !(NET.on && priv); $('netCodeShow').textContent = NET.code;
+  const list = $('netPlayers'); list.hidden = !NET.on;
+  if(NET.on){
+    const now = Date.now(), names = [];
+    for(const [id, p] of NET.pres) if(now - p.h < 180000) names.push((id === NET.leader ? '★ ' : '') + (id === NET.myId ? p.n + ' (вы)' : p.n));
+    list.textContent = ''; for(const n of names){ const s = document.createElement('span'); s.textContent = n; list.appendChild(s); }
+  }
+  $('netText').textContent = NET.joining ? 'Подключаюсь к серверу…'
+    : !NET.on ? 'Общий сервер — одна карта для всех игроков со всего мира, с любых устройств. Ничего создавать не нужно: нажмите и играйте. На карту помещается до 16 человек, дальше открывается следующий мир. Или создайте свою игру и позовите друзей по коду.'
+    : priv ? 'Скажите друзьям этот код: они вводят его в этом же меню на своих устройствах. Или отправьте ссылку. Enter — чат, C (держать) — микрофон.'
+    : `Вы на общем сервере «${NET.label}». Стены, ресурсы и волны общие для всех и сохраняются на сервере. Enter — чат, C (держать) — микрофон. ★ — чьё устройство сейчас ведёт роботов.`;
+  const nm = $('netName'); if(document.activeElement !== nm) nm.value = store.get('forpost.name') || '';
+  nm.placeholder = myName();
+}
+$('netName').addEventListener('keydown', e => e.stopPropagation());
+$('netName').addEventListener('change', e => { store.set('forpost.name', e.target.value.trim().slice(0, 18)); if(NET.on) announce(); renderNetPanel(); });
+$('bWorld').onclick = () => { sfx('ui'); netPlayWorld(); };
+$('bNetHost').onclick = () => { sfx('ui'); netCreate(); };
 $('bNetPlay').onclick = () => startPlay();
 $('bNetJoin').onclick = () => { sfx('ui'); netJoin($('netCode').value); };
 $('netCode').addEventListener('keydown', e => { e.stopPropagation(); if(e.key === 'Enter') netJoin($('netCode').value); });
@@ -3365,9 +3521,9 @@ $('netCode').addEventListener('input', e => { const v = e.target.value.toUpperCa
 $('bNetShare').onclick = async () => {
   sfx('ui'); const url = joinLink();
   try { if(navigator.share){ await navigator.share({title:'Робот против людей', text:`Заходи ко мне в игру! Код: ${NET.code}`, url}); return; } } catch(e){ if(e && e.name === 'AbortError') return; }
-  try { await navigator.clipboard.writeText(url); toast('Ссылка скопирована'); } catch(e){ toast('Скопируйте ссылку выше', true); }
+  try { await navigator.clipboard.writeText(url); toast('Ссылка скопирована'); } catch(e){ toast('Код игры: ' + NET.code); }
 };
-fetch('/api/info').then(r => r.json()).then(j => { netInfo = j; renderNetPanel(); }).catch(() => { noServer = true; renderNetPanel(); });
+addEventListener('pagehide', () => { if(NET.on){ if(NET.role === 'host') saveRoom(); pub('pr/' + NET.myId, '', true); } });
 
 // ---------- frame ----------
 const fwd = new THREE.Vector3(), right = new THREE.Vector3(), move = new THREE.Vector3(), tgt = new THREE.Vector3(), camWant = new THREE.Vector3();
@@ -3490,7 +3646,7 @@ function frame(now){
 loadGame();
 { const c = store.get('forpost.char'); setCharacter(Number.isInteger(c) && RIGS[c] ? c : 0); }
 loadWalls(); setBuild(false); syncSettings(); openMenu(); netUpdateFlags();
-try { const q = new URLSearchParams(location.search); if(q.get('join')) netJoin(q.get('join')); else if(q.get('net') === '1') netConnect(); } catch(e){}
+try { const q = new URLSearchParams(location.search); if(q.get('join')) netJoin(q.get('join')); else if(q.get('server')) netPlayWorld(); } catch(e){}
 requestAnimationFrame(frame);
 </script>
 </body>

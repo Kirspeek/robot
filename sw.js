@@ -1,6 +1,6 @@
 // Робот против людей: keeps the game on the device, so single play works without internet.
 // The page itself is fetched fresh when there is a connection (to get updates) and taken from the cache when there is not.
-const CACHE = 'robot-v1';
+const CACHE = 'robot-v2';
 const CORE = ['./', 'index.html', 'manifest.webmanifest', 'vendor/three.min.js', 'vendor/peerjs.min.js', 'vendor/mqtt.min.js',
   'icons/icon-192.png', 'icons/icon-512.png', 'icons/apple-touch-icon.png'];
 
