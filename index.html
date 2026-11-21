@@ -237,6 +237,24 @@ input[type=checkbox]{width:18px;height:18px;accent-color:var(--accent)}
 .namerow b{font:600 16px var(--f-body)}
 .upd{position:fixed;left:50%;bottom:max(14px,env(safe-area-inset-bottom));transform:translateX(-50%);z-index:70;display:flex;gap:12px;align-items:center;background:rgba(40,36,14,.95);border:1px solid var(--accent);border-radius:999px;padding:8px 10px 8px 18px;font:600 14px var(--f-body);box-shadow:0 6px 24px rgba(0,0,0,.45)}
 .codes .btn{width:auto}
+.vfeed{position:fixed;inset:0;z-index:70;background:#050605;display:grid;grid-template-rows:auto 1fr}
+.vtop{display:flex;justify-content:space-between;align-items:center;padding:max(10px,env(safe-area-inset-top)) 14px 10px;background:rgba(0,0,0,.6)}
+.vtop b{font:400 18px var(--f-head);letter-spacing:.06em}
+.vlist{overflow-y:auto;scroll-snap-type:y mandatory;overscroll-behavior:contain;scrollbar-width:none}
+.vslide{height:100%;scroll-snap-align:start;scroll-snap-stop:always;display:grid;place-items:center;position:relative}
+.vbox{height:calc(100% - 16px);aspect-ratio:9/16;max-width:100%;background:#111;border-radius:14px;overflow:hidden;position:relative}
+.vbox iframe{width:100%;height:100%;border:0;display:block}
+.vbox .ph{position:absolute;inset:0;display:grid;place-items:center;color:var(--muted);font:500 14px var(--f-body)}
+.vinfo{position:absolute;left:max(16px,calc(50% - min(28vh,46vw)));bottom:22px;max-width:min(56vh,80vw);text-shadow:0 1px 4px #000;pointer-events:none}
+.vinfo b{font:600 15px var(--f-body)}
+.vinfo p{margin:4px 0 0;font:500 14px/1.35 var(--f-body);overflow-wrap:anywhere}
+.vinfo small{display:block;color:var(--muted);font:500 11px var(--f-body);margin-top:3px}
+.vside{position:absolute;right:max(14px,calc(50% - min(28vh,46vw) - 70px));bottom:90px;display:grid;gap:14px;justify-items:center}
+.vside button{display:grid;justify-items:center;gap:2px;background:rgba(0,0,0,.45);border:1px solid var(--line);border-radius:999px;width:54px;height:54px;place-content:center;color:var(--fg);font:600 18px var(--f-body);cursor:pointer}
+.vside button small{font:600 11px var(--f-body)}
+.vside button.on{color:#ff5a7a;border-color:#ff5a7a}
+.vempty{height:100%;display:grid;place-items:center;text-align:center;color:var(--muted);padding:20px}
+.vadd{position:fixed;inset:0;z-index:75;display:grid;place-items:center;background:rgba(0,0,0,.75);padding:16px}
 .allbtn{justify-self:start;margin-top:5px;font:600 12px var(--f-body);color:var(--accent);background:none;border:1px solid rgba(217,185,62,.45);border-radius:999px;padding:3px 10px;cursor:pointer}
 .allbtn:hover{background:rgba(217,185,62,.12)}
 .alllist{max-height:min(55vh,460px)}
@@ -355,7 +373,7 @@ input.txt:focus{outline:2px solid var(--accent);outline-offset:1px}
 .touch .bar{display:none}
 .touch .tc.build ~ .bar,.touch .bar.show{display:flex}
 @media (orientation:portrait){
-  .touch .rotate{display:grid;position:fixed;inset:0;z-index:50;place-items:center;background:rgba(10,12,8,.92);text-align:center;padding:24px;font-weight:600}
+  .touch.playing .rotate{display:grid;position:fixed;inset:0;z-index:50;place-items:center;background:rgba(10,12,8,.92);text-align:center;padding:24px;font-weight:600}
   .touch .rotate b{display:block;font:400 54px/1 var(--f-head);margin-bottom:14px;color:var(--accent)}
   .touch .menu{padding:0 16px}
 }
@@ -434,6 +452,20 @@ input.txt:focus{outline:2px solid var(--accent);outline-offset:1px}
   </div>
 </div>
 <div class="upd" id="updBar" hidden role="status"><span>Вышло обновление игры</span><button class="mini ok" id="bUpd">Обновить</button></div>
+<div class="vfeed" id="vfeed" hidden role="dialog" aria-label="Лента видео">
+  <div class="vtop"><button class="mini" id="bVClose">✕ Закрыть</button><b>Видео</b><button class="mini ok" id="bVAdd">+ Добавить</button></div>
+  <div class="vlist" id="vlist"></div>
+  <div class="vadd" id="vadd" hidden>
+    <div class="nickcard">
+      <h2>Добавить видео</h2>
+      <p class="note">Загрузите ролик на YouTube (можно Shorts) или в TikTok и вставьте сюда ссылку. Видео увидят все игроки. Не выкладывайте ничего личного и чужого.</p>
+      <input class="txt" id="vUrl" placeholder="https://www.tiktok.com/@ник/video/… или https://youtube.com/shorts/…" autocomplete="off" spellcheck="false" aria-label="Ссылка на видео">
+      <input class="txt" id="vCap" maxlength="150" placeholder="Подпись (по желанию)" autocomplete="off" aria-label="Подпись к видео">
+      <p class="nickmsg" id="vMsg" aria-live="polite"></p>
+      <div class="row"><button class="btn primary" id="bVPost">Опубликовать</button><button class="btn" id="bVCancel">Отмена</button></div>
+    </div>
+  </div>
+</div>
 <div class="rotate"><div><b>⟲</b>Поверните телефон горизонтально</div></div>
 
 <div class="lock" id="lock" hidden><div>Кликните, чтобы управлять персонажем</div></div>
@@ -470,6 +502,7 @@ input.txt:focus{outline:2px solid var(--accent);outline-offset:1px}
       </div>
       <button class="btn primary" id="bPlay">Играть <small>Enter</small></button>
       <button class="btn" id="bNew">Новая игра <small>с начала</small></button>
+      <button class="btn" id="bVideos">Видео <small id="vidCount">лента</small></button>
       <button class="btn" id="bFriends">Друзья и чаты <small id="frBadge" class="frb">0</small></button>
       <button class="btn" id="bNet">Сервер · по сети <small id="netState">выкл</small></button>
       <button class="btn" id="bChar">Персонаж <small id="charName">Солдат</small></button>
@@ -3224,6 +3257,7 @@ $('mapList').onclick = e => { const b = e.target.closest('.chr'); if(!b) return;
 if(BUNKER_ON) $('lede').textContent = 'У вас 5 минут, чтобы укрепить базу и бункер стенами и колючей проволокой. Потом роботы пойдут с юга на базу и по радиоактивной улице к бункеру: ворота на восток ведут к нему. Не наступайте в зелёные лужи — там радиация.';
 function showPanel(id){ if(id !== 'pNet' && !NET.hub) lobbyClose(); document.querySelector('.card').classList.toggle('wide', (id === 'pNet' && !NET.on) || id === 'pFriends'); for(const p of ['pMain', 'pControls', 'pSettings', 'pConfirm', 'pChar', 'pOver', 'pMap', 'pNet', 'pAll', 'pFriends', 'pCard']) $(p).hidden = p !== id; const b = id === 'pMain' ? $('bPlay') : $(id).querySelector('button'); if(b) b.focus({preventScroll:true}); }
 function openMenu(){
+  document.documentElement.classList.remove('playing');
   state = 'menu'; $('menu').hidden = false; $('hud').classList.add('off'); $('lock').hidden = true; ghost.visible = false;
   $('menu').classList.toggle('paused', started);
   const over = G.phase === 'over';
@@ -3236,6 +3270,7 @@ function openMenu(){
   showPanel('pMain');
 }
 function startPlay(){
+  document.documentElement.classList.add('playing');     // «turn the phone» only while playing; the menu and the video feed work upright
   if(!$('nickDlg').hidden){ $('nickIn').focus(); return; }
   if(document.activeElement && document.activeElement.tagName === 'INPUT') document.activeElement.blur();     // keys go to the game, not to a field left in the menu
   if(G.phase === 'over'){ if(NET.guest) netSend({t:'again'}); else { newGame(); return; } }
@@ -4262,7 +4297,7 @@ function frame(now){
   const focus = started ? P.pos : tgt.set(0, 0, 0);
   sun.position.copy(focus).addScaledVector(SUN_DIR, 120); sun.target.position.copy(focus);
   sky.position.copy(camera.position);
-  if(state !== 'menu' || !started || (SKIP = !SKIP)) renderer.render(scene, camera);
+  if(!VID.open && (state !== 'menu' || !started || (SKIP = !SKIP))) renderer.render(scene, camera);
   requestAnimationFrame(frame);
 }
 
@@ -4279,6 +4314,7 @@ const DEV = store.get('forpost.dev') || (() => { const d = rid(12); store.set('f
 function siteRaw(topic, text, c){
   const parts = topic.slice(NET_ROOT.length).split('/'), room = parts[0];
   if(room === 'dm'){ dmReceive(topic, text, c); return; }
+  if(room === 'videos' || room === 'vlike' || room === 'vrep'){ vidRaw(parts, text); return; }
   if(room === 'site' && parts[1] === 'nick'){ if(!text) NICK.claims.delete(parts[2]); else try { NICK.claims.set(parts[2], JSON.parse(text).d); } catch(e){} return; }
   if(room === 'ca'){ callAudio(text); return; }
   if(room === 'site' && parts[1] === 'total'){ const n = parseInt(text, 10); if(n > 0) SITE.total.set(c.bi, n); renderDial(); return; }
@@ -4360,7 +4396,7 @@ async function siteCount(){
   await keysReady();
   SITE.id = rid(8);
   const me = NET_ROOT + 'site/pr/' + SITE.id, hi = c => { if(!c.connected) return; c.publish(me, JSON.stringify({h:Date.now(), d:DEV}), {qos:0, retain:true}); siteHello(c); };
-  try { SITE.cs = await brokersConnect({topic:me, payload:'', qos:0, retain:true}, siteRaw, c => { c.subscribe([NET_ROOT + '+/pr/+', NET_ROOT + 'site/total', NET_ROOT + 'site/u/+', NET_ROOT + 'site/nick/+', NET_ROOT + 'dm/' + DEV + '/+', NET_ROOT + 'ca/' + DEV], {qos:0}); hi(c); }); }
+  try { SITE.cs = await brokersConnect({topic:me, payload:'', qos:0, retain:true}, siteRaw, c => { c.subscribe([NET_ROOT + '+/pr/+', NET_ROOT + 'site/total', NET_ROOT + 'site/u/+', NET_ROOT + 'site/nick/+', NET_ROOT + 'videos/+', NET_ROOT + 'vlike/+/+', NET_ROOT + 'vrep/+/+', NET_ROOT + 'dm/' + DEV + '/+', NET_ROOT + 'ca/' + DEV], {qos:0}); hi(c); }); }
   catch(e){ renderDial(); setTimeout(siteCount, 20000); return; }     // no answer: try again a bit later
   renderDial();
   setInterval(() => { for(const c of SITE.cs) hi(c); }, 60000);
@@ -4703,13 +4739,14 @@ function renderChat(){
 
 // ---------- codes ----------
 // The game keeps only a SHA-256 fingerprint of each code, so the code itself is nowhere in the page or on GitHub.
-const CODES = {'ec5ae6d529e3846d92561137d74abc3098650d9915d30d0ce3df2d415a6d0760':'suit'};
+const CODES = {'d44ab7456ac52b903c438a0d49d3f8b27b6e9d0a0da7a69c1624c3dcdc483960':'admin', 'ec5ae6d529e3846d92561137d74abc3098650d9915d30d0ce3df2d415a6d0760':'suit'};
 async function codeTry(){
   const inp = $('codeIn'), v = inp.value.trim(); inp.value = '';
   if(!v) return;
   let h = '';
   try { const d = new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode('robot-vs-people:' + v))); h = Array.from(d, b => b.toString(16).padStart(2, '0')).join(''); } catch(e){}
   const what = CODES[h];
+  if(what === 'admin'){ store.set('forpost.admin', 1); toast('Режим модератора включён: в ленте видео можно удалять любые ролики'); sfx('ui'); return; }
   if(what === 'suit'){
     store.set('forpost.suit', 1); updateCharUI();
     const i = CHARS.findIndex(c => c.secret); if(i >= 0) setCharacter(i);
@@ -4719,6 +4756,100 @@ async function codeTry(){
 }
 $('bCode').onclick = () => codeTry();
 $('codeIn').addEventListener('keydown', e => { e.stopPropagation(); if(e.key === 'Enter') codeTry(); });
+
+// ---------- videos: a TikTok-like feed of YouTube / TikTok links shared by players ----------
+// Only the links travel (retained «videos/<id>»); the videos themselves play from YouTube or TikTok, which also check them.
+// Likes are retained «vlike/<video>/<device>», reports «vrep/<video>/<device>»; three reports hide a video.
+const VID = {list:new Map(), likes:new Map(), reps:new Map(), open:false, cur:-1, obs:null};
+function vidParse(url){
+  let u; try { u = new URL(url.trim()); } catch(e){ return null; }
+  const h = u.hostname.replace(/^www\.|^m\./, '');
+  if(h === 'youtu.be'){ const id = u.pathname.slice(1).split('/')[0]; return /^[\w-]{6,15}$/.test(id) ? {p:'yt', v:id} : null; }
+  if(h === 'youtube.com' || h === 'music.youtube.com'){
+    const sh = u.pathname.match(/^\/(shorts|embed|live)\/([\w-]{6,15})/); if(sh) return {p:'yt', v:sh[2]};
+    const id = u.searchParams.get('v'); return id && /^[\w-]{6,15}$/.test(id) ? {p:'yt', v:id} : null;
+  }
+  if(h === 'tiktok.com'){ const m = u.pathname.match(/\/video\/(\d{8,25})/); return m ? {p:'tt', v:m[1]} : {p:'tt?'}; }
+  if(/^(vm|vt)\.tiktok\.com$/.test(h)) return {p:'tt?'};
+  return null;
+}
+const vidSrc = x => x.p === 'yt' ? `https://www.youtube-nocookie.com/embed/${x.v}?playsinline=1&rel=0&modestbranding=1&loop=1&playlist=${x.v}` : `https://www.tiktok.com/embed/v2/${x.v}`;
+function vidRaw(parts, text){
+  const kind = parts[0];
+  if(kind === 'videos'){ const id = parts[1]; if(!text){ VID.list.delete(id); } else try { const v = JSON.parse(text); if((v.p === 'yt' || v.p === 'tt') && /^[\w-]{6,25}$/.test(v.v)) VID.list.set(id, {id, p:v.p, v:v.v, cap:String(v.cap || '').slice(0, 150), n:String(v.n || 'Игрок').slice(0, 18), d:String(v.d || ''), ts:+v.ts || 0}); } catch(e){} }
+  else { const map = kind === 'vlike' ? VID.likes : VID.reps, id = parts[1], d = parts[2]; let s = map.get(id); if(!s) map.set(id, s = new Set()); if(text) s.add(d); else s.delete(d); }
+  clearTimeout(VID.rt); VID.rt = setTimeout(vidMeta, 400);
+}
+const vidVisible = () => [...VID.list.values()].filter(v => (VID.reps.get(v.id) || new Set()).size < 3 || v.d === DEV).sort((a, b) => b.ts - a.ts);
+function vidMeta(){ const n = vidVisible().length; $('vidCount').textContent = n ? `${n} ${n % 10 === 1 && n % 100 !== 11 ? 'ролик' : n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 10 || n % 100 >= 20) ? 'ролика' : 'роликов'}` : 'лента'; if(VID.open) vidRender(true); }
+function vidPub(topic, val){ for(const c of SITE.cs || []) if(c.connected) c.publish(NET_ROOT + topic, val, {qos:0, retain:true}); }
+function vidRender(keep){
+  const box = $('vlist'), list = vidVisible(), at = keep ? box.scrollTop : 0;
+  box.textContent = '';
+  if(!list.length){ const e = document.createElement('div'); e.className = 'vempty'; e.textContent = anyUp(SITE.cs) ? 'Пока нет видео. Нажмите «+ Добавить», чтобы выложить первое.' : 'Подключаюсь к ленте…'; box.appendChild(e); return; }
+  for(const v of list){
+    const sl = document.createElement('div'); sl.className = 'vslide'; sl.dataset.id = v.id;
+    const vb = document.createElement('div'); vb.className = 'vbox'; const ph = document.createElement('div'); ph.className = 'ph'; ph.textContent = 'Загрузка…'; vb.appendChild(ph); sl.appendChild(vb);
+    const info = document.createElement('div'); info.className = 'vinfo';
+    const b = document.createElement('b'); b.textContent = '@' + v.n; info.appendChild(b);
+    if(v.cap){ const p = document.createElement('p'); p.textContent = v.cap; info.appendChild(p); }
+    const sm = document.createElement('small'); sm.textContent = (v.p === 'yt' ? 'YouTube · ' : 'TikTok · ') + ago(v.ts); info.appendChild(sm); sl.appendChild(info);
+    const side = document.createElement('div'); side.className = 'vside';
+    const likes = VID.likes.get(v.id) || new Set(), mine = likes.has(DEV);
+    const lk = document.createElement('button'); lk.className = mine ? 'on' : ''; lk.innerHTML = '❤<small></small>'; lk.lastChild.textContent = likes.size; lk.setAttribute('aria-label', 'Нравится');
+    lk.onclick = () => { vidPub(`vlike/${v.id}/${DEV}`, mine ? '' : '1'); sfx('tick'); };
+    side.appendChild(lk);
+    if(v.d !== DEV){ const rp = document.createElement('button'); rp.innerHTML = '⚑<small>жалоба</small>'; rp.setAttribute('aria-label', 'Пожаловаться');
+      rp.onclick = () => { if(confirm('Пожаловаться на это видео? После трёх жалоб оно скроется.')){ vidPub(`vrep/${v.id}/${DEV}`, '1'); toast('Жалоба отправлена'); } };
+      side.appendChild(rp); }
+    if(v.d === DEV || store.get('forpost.admin')){ const dl = document.createElement('button'); dl.innerHTML = '🗑<small>удалить</small>'; dl.setAttribute('aria-label', 'Удалить видео');
+      dl.onclick = () => { if(confirm('Удалить это видео из ленты?')){ vidPub('videos/' + v.id, ''); toast('Видео удалено'); } };
+      side.appendChild(dl); }
+    sl.appendChild(side); box.appendChild(sl);
+  }
+  box.scrollTop = at;
+  // only the video on screen gets a player (the others stay empty, so the feed stays light)
+  if(VID.obs) VID.obs.disconnect();
+  VID.obs = new IntersectionObserver(es => { for(const e of es){ const sl = e.target, vb = sl.firstChild, v = VID.list.get(sl.dataset.id); if(!v) continue;
+      if(e.isIntersecting && e.intersectionRatio > .6){ if(!vb.querySelector('iframe')){ const f = document.createElement('iframe'); f.src = vidSrc(v); f.allow = 'autoplay; encrypted-media; picture-in-picture; fullscreen'; f.allowFullscreen = true; f.title = 'Видео ' + v.n; f.loading = 'lazy'; vb.appendChild(f); } }
+      else { const f = vb.querySelector('iframe'); if(f) f.remove(); } } }, {root:box, threshold:[0, .6, 1]});
+  for(const sl of box.children) if(sl.classList.contains('vslide')) VID.obs.observe(sl);
+}
+function vidOpen(){
+  if(document.pointerLockElement) document.exitPointerLock();
+  if(state === 'play') openMenu();
+  VID.open = true; $('vfeed').hidden = false; vidRender(false); sfx('ui');
+}
+function vidClose(){ VID.open = false; $('vfeed').hidden = true; if(VID.obs) VID.obs.disconnect(); $('vlist').textContent = ''; }
+async function vidPost(){
+  const msg = $('vMsg'), say = (t, ok) => { msg.textContent = t; msg.className = 'nickmsg ' + (ok ? 'ok' : 'bad'); };
+  const x = vidParse($('vUrl').value);
+  if(!x){ say('Нужна ссылка на видео с YouTube или TikTok'); return; }
+  if(x.p === 'tt?'){ say('Для TikTok нужна полная ссылка вида tiktok.com/@ник/video/123… — откройте видео в браузере и скопируйте адрес'); return; }
+  if(!anyUp(SITE.cs)){ say('Нет связи с сервером, попробуйте позже'); return; }
+  const today = new Date().toDateString(), q = store.get('forpost.vq') || {};
+  if(q.day === today && q.n >= 5){ say('Не больше 5 видео в день'); return; }
+  if([...VID.list.values()].some(v => v.p === x.p && v.v === x.v)){ say('Это видео уже есть в ленте'); return; }
+  const id = rid(10);
+  vidPub('videos/' + id, JSON.stringify({p:x.p, v:x.v, cap:$('vCap').value.replace(/\s+/g, ' ').trim().slice(0, 150), n:myName(), d:DEV, ts:Date.now()}));
+  store.set('forpost.vq', {day:today, n:q.day === today ? q.n + 1 : 1});
+  $('vadd').hidden = true; $('vUrl').value = ''; $('vCap').value = ''; msg.textContent = '';
+  toast('Видео опубликовано'); sfx('ui');
+  setTimeout(() => { vidRender(false); }, 700);
+}
+$('bVideos').onclick = () => vidOpen();
+$('bVClose').onclick = () => { vidClose(); sfx('ui'); };
+$('bVAdd').onclick = () => { $('vadd').hidden = false; $('vMsg').textContent = ''; setTimeout(() => $('vUrl').focus(), 50); };
+$('bVCancel').onclick = () => { $('vadd').hidden = true; };
+$('bVPost').onclick = () => vidPost();
+for(const id of ['vUrl', 'vCap']) $(id).addEventListener('keydown', e => { e.stopPropagation(); if(e.key === 'Enter') vidPost(); else if(e.key === 'Escape') $('vadd').hidden = true; });
+addEventListener('keydown', e => {
+  if(!VID.open || !$('vadd').hidden) return;
+  const box = $('vlist');
+  if(e.code === 'Escape'){ vidClose(); e.stopImmediatePropagation(); }
+  else if(e.code === 'ArrowDown' || e.code === 'PageDown'){ box.scrollBy({top:box.clientHeight, behavior:'smooth'}); e.preventDefault(); e.stopImmediatePropagation(); }
+  else if(e.code === 'ArrowUp' || e.code === 'PageUp'){ box.scrollBy({top:-box.clientHeight, behavior:'smooth'}); e.preventDefault(); e.stopImmediatePropagation(); }
+}, true);
 
 // ---------- the nickname ----------
 // Letters of any language are required (at least one), digits and signs are allowed, 3–18 characters.
