@@ -181,7 +181,7 @@ input[type=checkbox]{width:18px;height:18px;accent-color:var(--accent)}
 
 .netlink{display:grid;gap:6px}
 .chat{position:absolute;left:16px;bottom:186px;width:min(420px,60vw);display:grid;gap:6px;pointer-events:none}
-.chatlog{display:grid;gap:3px;max-height:34vh;overflow:hidden;align-content:end;font:500 13px/1.35 var(--f-body);text-shadow:0 1px 3px #000}
+.chatlog{display:grid;gap:3px;max-height:34vh;overflow-y:auto;scrollbar-width:none;align-content:end;font:500 13px/1.35 var(--f-body);text-shadow:0 1px 3px #000}
 .chatlog div{background:rgba(10,12,8,.55);border-radius:6px;padding:3px 8px;justify-self:start;max-width:100%;overflow-wrap:anywhere;transition:opacity .6s}
 .chatlog b{color:#8fe3ff;font-weight:600}
 .chatlog .sys{color:var(--muted);font-style:italic}
@@ -223,6 +223,15 @@ input[type=checkbox]{width:18px;height:18px;accent-color:var(--accent)}
 .callbox{position:fixed;left:50%;top:max(14px,env(safe-area-inset-top));transform:translateX(-50%);z-index:60;display:grid;gap:10px;justify-items:center;background:rgba(16,40,22,.95);border:1px solid #7dff6a;border-radius:16px;padding:14px 18px;box-shadow:0 8px 30px rgba(0,0,0,.5);min-width:min(340px,92vw)}
 .callbox b{font:400 18px var(--f-head);letter-spacing:.03em}
 .callbox .btn{justify-content:center;padding:9px 14px}
+.nick{position:fixed;inset:0;z-index:80;display:grid;place-items:center;background:rgba(8,10,6,.82);backdrop-filter:blur(4px);padding:16px}
+.nickcard{width:min(420px,100%);display:grid;gap:12px;background:var(--panel);border:1px solid var(--accent);border-radius:16px;padding:22px}
+.nickcard h2{margin:0}
+.nickcard .txt{font-size:18px;padding:12px 14px}
+.nickmsg{margin:0;min-height:1.3em;font:600 13px var(--f-body)}
+.nickmsg.bad{color:#ff9a8a}
+.nickmsg.ok{color:var(--ok)}
+.namerow{display:flex;justify-content:space-between;align-items:center;gap:10px}
+.namerow b{font:600 16px var(--f-body)}
 .allbtn{justify-self:start;margin-top:5px;font:600 12px var(--f-body);color:var(--accent);background:none;border:1px solid rgba(217,185,62,.45);border-radius:999px;padding:3px 10px;cursor:pointer}
 .allbtn:hover{background:rgba(217,185,62,.12)}
 .alllist{max-height:min(55vh,460px)}
@@ -410,6 +419,15 @@ input.txt:focus{outline:2px solid var(--accent);outline-offset:1px}
 </div>
 <div class="callbox" id="callBox" hidden role="dialog" aria-label="Звонок"><b id="callText"></b>
   <div class="row"><button class="btn primary" id="bCallOk" hidden>Ответить</button><button class="btn" id="bCallMute" hidden></button><button class="btn danger" id="bCallEnd">Завершить</button></div></div>
+<div class="nick" id="nickDlg" hidden role="dialog" aria-modal="true" aria-labelledby="nickTitle">
+  <div class="nickcard">
+    <h2 id="nickTitle">Придумайте никнейм</h2>
+    <p class="note">Под этим именем вас увидят другие игроки. В нике должна быть хотя бы одна буква — на любом языке; цифры и знаки по желанию. От 3 до 18 символов. Ник должен быть свободен.</p>
+    <input class="txt" id="nickIn" maxlength="18" autocomplete="nickname" spellcheck="false" aria-label="Никнейм" placeholder="Например: Волк_77">
+    <p class="nickmsg" id="nickMsg" aria-live="polite"></p>
+    <div class="row"><button class="btn primary" id="bNickOk">Готово</button><button class="btn" id="bNickCancel" hidden>Отмена</button></div>
+  </div>
+</div>
 <div class="rotate"><div><b>⟲</b>Поверните телефон горизонтально</div></div>
 
 <div class="lock" id="lock" hidden><div>Кликните, чтобы управлять персонажем</div></div>
@@ -508,7 +526,7 @@ input.txt:focus{outline:2px solid var(--accent);outline-offset:1px}
     <section class="panel" id="pNet" hidden>
       <h2 id="netTitle">Лобби</h2>
       <p class="note" id="netText"></p>
-      <label class="set"><span class="top">Ваше имя в игре</span><input class="txt" id="netName" maxlength="18" autocomplete="nickname" spellcheck="false"></label>
+      <div class="namerow"><span>Ваш ник: <b id="netName"></b></span><button class="mini" id="bNick">Сменить</button></div>
       <div class="netcode" id="netCodeBox" hidden><span>Код игры</span><b id="netCodeShow"></b></div>
       <button class="btn" id="bNetShare" hidden>Отправить ссылку друзьям</button>
       <div class="netplayers" id="netPlayers" hidden></div>
@@ -1968,7 +1986,20 @@ document.addEventListener('mousedown', e => {
 });
 document.addEventListener('mouseup', e => { if(e.button === 0) firing = false; });
 document.addEventListener('contextmenu', e => e.preventDefault());
-addEventListener('wheel', e => { if(state === 'play') distWant = clamp(distWant + Math.sign(e.deltaY)*0.7*rig.camDist/5.5, rig.camDist*0.4, rig.camDist*2); }, {passive:true});
+// the wheel scrolls whatever list or panel is under the cursor; in the game (mouse captured) it zooms the camera
+function scrollable(el){
+  for(; el && el !== document.body; el = el.parentElement){ const cs = getComputedStyle(el); if(/(auto|scroll)/.test(cs.overflowY) && el.scrollHeight > el.clientHeight + 1) return el; }
+  return null;
+}
+addEventListener('wheel', e => {
+  if(state === 'play' && locked && !(document.activeElement && document.activeElement.id === 'chatIn')){
+    distWant = clamp(distWant + Math.sign(e.deltaY)*0.7*rig.camDist/5.5, rig.camDist*0.4, rig.camDist*2); return; }
+  let el = scrollable(e.target);
+  if(!el && state === 'play') el = $('chatLog');               // in the game without the mouse captured: the chat
+  if(!el) return;
+  const k = e.deltaMode === 1 ? 32 : e.deltaMode === 2 ? el.clientHeight : 1;
+  el.scrollTop += e.deltaY*k; e.preventDefault();
+}, {passive:false});
 canvas.addEventListener('click', () => { if(state === 'play' && !locked) lock(); });
 $('lock').addEventListener('click', () => lock());
 
@@ -3088,7 +3119,7 @@ function pickMap(m){
   saveWalls(true); saveGame(); store.set('forpost.map', m);
   location.href = location.pathname + '?map=' + m;
 }
-$('bNet').onclick = () => { sfx('ui'); if(NET.on || NET.joining){ renderNetPanel(); showPanel('pNet'); lobbyOpen(); } else enterHub(); };
+$('bNet').onclick = () => { sfx('ui'); if(!$('nickDlg').hidden) return; if(NET.on || NET.joining){ renderNetPanel(); showPanel('pNet'); lobbyOpen(); } else enterHub(); };
 $('bNetOff').onclick = () => { sfx('ui'); if(NET.hub) netLeave(); else enterHub(); };
 $('mapList').onclick = e => { const b = e.target.closest('.chr'); if(!b) return; if(b.dataset.map === MAP){ sfx('ui'); showPanel('pMain'); return; } pickMap(b.dataset.map); };
 if(BUNKER_ON) $('lede').textContent = 'У вас 5 минут, чтобы укрепить базу и бункер стенами и колючей проволокой. Потом роботы пойдут с юга на базу и по радиоактивной улице к бункеру: ворота на восток ведут к нему. Не наступайте в зелёные лужи — там радиация.';
@@ -3106,6 +3137,7 @@ function openMenu(){
   showPanel('pMain');
 }
 function startPlay(){
+  if(!$('nickDlg').hidden){ $('nickIn').focus(); return; }
   if(G.phase === 'over'){ if(NET.guest) netSend({t:'again'}); else { newGame(); return; } }
   const first = !started;
   if(!started){ started = true; yaw = 0; pitch = 0.32; }
@@ -3978,11 +4010,8 @@ function renderNetPanel(){
     : NET.room.startsWith('s') ? `Вы на сервере «${NET.label}». Он виден в лобби у всех игроков. Стены и волны сохраняются. Enter — чат, M — микрофон.`
     : priv ? 'Скажите друзьям этот код: они вводят его в этом же меню на своих устройствах. Или отправьте ссылку. Enter — чат, M — включить / выключить микрофон, C (держать) — говорить, пока держите.'
     : `Вы на общем сервере «${NET.label}». Стены, ресурсы и волны общие для всех и сохраняются на сервере. Enter — чат, M — включить / выключить микрофон, C (держать) — говорить, пока держите. ★ — чьё устройство сейчас ведёт роботов.`;
-  const nm = $('netName'); if(document.activeElement !== nm) nm.value = store.get('forpost.name') || '';
-  nm.placeholder = myName();
+  $('netName').textContent = myName();
 }
-$('netName').addEventListener('keydown', e => e.stopPropagation());
-$('netName').addEventListener('change', e => { store.set('forpost.name', e.target.value.trim().slice(0, 18)); if(NET.on) announce(); siteHello(); renderNetPanel(); });
 $('bWorld').onclick = () => { sfx('ui'); const q = hubPortals()[0]; goRoom(q.room, 'Мир ' + q.room.slice(1)); };
 $('bSrvMake').onclick = () => { sfx('ui'); netMakeServer(); };
 $('srvName').addEventListener('keydown', e => { e.stopPropagation(); if(e.key === 'Enter') netMakeServer(); });
@@ -4100,6 +4129,7 @@ function updateWorld(dt){
   }
   for(const m of rig.glow) m.emissiveIntensity = m.userData.base*(0.9 + 0.15*Math.sin(time*2.5));
 }
+let SKIP = false;
 function frame(now){
   const dt = Math.min(0.05, (now - last)/1000); last = now; time += dt;
   autoQuality(dt); touchCtx(); updateGates(dt);
@@ -4116,7 +4146,7 @@ function frame(now){
   const focus = started ? P.pos : tgt.set(0, 0, 0);
   sun.position.copy(focus).addScaledVector(SUN_DIR, 120); sun.target.position.copy(focus);
   sky.position.copy(camera.position);
-  renderer.render(scene, camera);
+  if(state !== 'menu' || !started || (SKIP = !SKIP)) renderer.render(scene, camera);
   requestAnimationFrame(frame);
 }
 
@@ -4133,6 +4163,7 @@ const DEV = store.get('forpost.dev') || (() => { const d = rid(12); store.set('f
 function siteRaw(topic, text, c){
   const parts = topic.slice(NET_ROOT.length).split('/'), room = parts[0];
   if(room === 'dm'){ dmReceive(topic, text, c); return; }
+  if(room === 'site' && parts[1] === 'nick'){ if(!text) NICK.claims.delete(parts[2]); else try { NICK.claims.set(parts[2], JSON.parse(text).d); } catch(e){} return; }
   if(room === 'ca'){ callAudio(text); return; }
   if(room === 'site' && parts[1] === 'total'){ const n = parseInt(text, 10); if(n > 0) SITE.total.set(c.bi, n); renderDial(); return; }
   if(room === 'site' && parts[1] === 'u'){
@@ -4213,7 +4244,7 @@ async function siteCount(){
   await keysReady();
   SITE.id = rid(8);
   const me = NET_ROOT + 'site/pr/' + SITE.id, hi = c => { if(!c.connected) return; c.publish(me, JSON.stringify({h:Date.now(), d:DEV}), {qos:0, retain:true}); siteHello(c); };
-  try { SITE.cs = await brokersConnect({topic:me, payload:'', qos:0, retain:true}, siteRaw, c => { c.subscribe([NET_ROOT + '+/pr/+', NET_ROOT + 'site/total', NET_ROOT + 'site/u/+', NET_ROOT + 'dm/' + DEV + '/+', NET_ROOT + 'ca/' + DEV], {qos:0}); hi(c); }); }
+  try { SITE.cs = await brokersConnect({topic:me, payload:'', qos:0, retain:true}, siteRaw, c => { c.subscribe([NET_ROOT + '+/pr/+', NET_ROOT + 'site/total', NET_ROOT + 'site/u/+', NET_ROOT + 'site/nick/+', NET_ROOT + 'dm/' + DEV + '/+', NET_ROOT + 'ca/' + DEV], {qos:0}); hi(c); }); }
   catch(e){ renderDial(); setTimeout(siteCount, 20000); return; }     // no answer: try again a bit later
   renderDial();
   setInterval(() => { for(const c of SITE.cs) hi(c); }, 60000);
@@ -4554,6 +4585,77 @@ function renderChat(){
   }
   log.scrollTop = log.scrollHeight;
 }
+
+// ---------- the nickname ----------
+// Letters of any language are required (at least one), digits and signs are allowed, 3–18 characters.
+// Free means: no other device in the list of players uses it, and no one has claimed it (retained «site/nick/<hash>»).
+const NICK = {claims:new Map(), busy:false, must:false};
+const nickNorm = s => s.normalize('NFKC').toLocaleLowerCase().replace(/\s+/g, ' ').trim();
+function nickCheck(raw){
+  const s = raw.normalize('NFKC').replace(/\s+/g, ' ').trim();
+  if(s.length < 3) return {s, err:'Слишком коротко: нужно хотя бы 3 символа'};
+  if(s.length > 18) return {s, err:'Слишком длинно: не больше 18 символов'};
+  if(!/\p{L}/u.test(s)) return {s, err:'В нике должна быть хотя бы одна буква'};
+  if(/[\p{C}]/u.test(s)) return {s, err:'В нике есть недопустимые символы'};
+  if(!/^[\p{L}\p{M}\p{N}\p{P}\p{S} ]+$/u.test(s)) return {s, err:'Можно только буквы, цифры, знаки и пробелы'};
+  if(/^игрок \d+$/iu.test(s)) return {s, err:'Придумайте своё имя'};
+  return {s, err:''};
+}
+async function nickKey(s){ const h = new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(nickNorm(s)))); return Array.from(h.slice(0, 12), b => b.toString(16).padStart(2, '0')).join(''); }
+function nickTakenByList(s){ const n = nickNorm(s); for(const [d, u] of SITE.users) if(d !== DEV && nickNorm(u.n || '') === n) return true; return false; }
+function nickOpen(must){
+  NICK.must = !!must; $('bNickCancel').hidden = NICK.must;
+  const cur = store.get('forpost.name') || ''; $('nickIn').value = cur;
+  $('nickMsg').textContent = ''; $('nickMsg').className = 'nickmsg';
+  $('nickDlg').hidden = false; setTimeout(() => $('nickIn').focus(), 50);
+  if(document.pointerLockElement) document.exitPointerLock();
+}
+async function nickSave(){
+  if(NICK.busy) return;
+  const msg = $('nickMsg'), {s, err} = nickCheck($('nickIn').value);
+  const say = (t, ok) => { msg.textContent = t; msg.className = 'nickmsg ' + (ok ? 'ok' : 'bad'); };
+  if(err){ say(err); sfx('err'); return; }
+  if(nickNorm(s) === nickNorm(store.get('forpost.name') || '') && store.get('forpost.nickOk')){ $('nickDlg').hidden = true; return; }
+  NICK.busy = true; say('Проверяю, свободен ли ник…', true);
+  try {
+    // wait a little for the list of players, if we have only just connected
+    for(let i = 0; i < 20 && !anyUp(SITE.cs); i++) await new Promise(r => setTimeout(r, 400));
+    const online = anyUp(SITE.cs), key = await nickKey(s);
+    if(online){
+      await new Promise(r => setTimeout(r, SITE.users.size ? 300 : 2000));
+      const owner = NICK.claims.get(key);
+      if((owner && owner !== DEV) || nickTakenByList(s)){ say(`Ник «${s}» уже занят. Придумайте другой.`); sfx('err'); return; }
+      // claim it, then make sure no one claimed the same name in the same moment
+      const old = store.get('forpost.nickKey');
+      for(const c of SITE.cs) if(c.connected){ c.publish(NET_ROOT + 'site/nick/' + key, JSON.stringify({d:DEV}), {qos:0, retain:true}); if(old && old !== key) c.publish(NET_ROOT + 'site/nick/' + old, '', {qos:0, retain:true}); }
+      await new Promise(r => setTimeout(r, 1500));
+      const now = NICK.claims.get(key);
+      if(now && now !== DEV){ say(`Ник «${s}» только что занял другой игрок. Придумайте другой.`); sfx('err'); return; }
+      store.set('forpost.nickKey', key);
+    }
+    store.set('forpost.name', s); store.set('forpost.nickOk', online ? 1 : 0);
+    siteHello(); if(NET.on) announce();
+    $('nickDlg').hidden = true; NICK.must = false;
+    toast(online ? `Ваш ник: ${s}` : `Ваш ник: ${s}. Проверим, что он свободен, когда появится интернет`); sfx('ui');
+    renderNetPanel(); renderDial();
+  } finally { NICK.busy = false; }
+}
+$('bNickOk').onclick = () => nickSave();
+$('bNickCancel').onclick = () => { if(!NICK.must) $('nickDlg').hidden = true; };
+$('nickIn').addEventListener('keydown', e => { e.stopPropagation(); if(e.key === 'Enter') nickSave(); else if(e.key === 'Escape' && !NICK.must) $('nickDlg').hidden = true; });
+$('nickIn').addEventListener('input', () => { const {err} = nickCheck($('nickIn').value); $('nickMsg').textContent = $('nickIn').value.trim() ? err : ''; $('nickMsg').className = 'nickmsg bad'; });
+$('bNick').onclick = () => { sfx('ui'); nickOpen(false); };
+// on the first visit (or with an old automatic name) the game asks for a nickname before anything else
+if(!store.get('forpost.name') || nickCheck(store.get('forpost.name')).err) nickOpen(true);
+// later, with internet: a name picked offline is checked, and a taken one has to be changed
+setTimeout(function recheck(){
+  if(!anyUp(SITE.cs)){ setTimeout(recheck, 15000); return; }
+  const n = store.get('forpost.name');
+  if(n && !store.get('forpost.nickOk') && $('nickDlg').hidden){
+    if(nickTakenByList(n)){ nickOpen(true); $('nickMsg').textContent = `Ник «${n}» уже занят. Придумайте другой.`; $('nickMsg').className = 'nickmsg bad'; }
+    else { $('nickIn').value = n; nickSave(); }
+  }
+}, 8000);
 
 if(navigator.onLine !== false) siteCount(); else renderDial();
 setTimeout(renderFriends, 0);
