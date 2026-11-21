@@ -236,6 +236,7 @@ input[type=checkbox]{width:18px;height:18px;accent-color:var(--accent)}
 .namerow{display:flex;justify-content:space-between;align-items:center;gap:10px}
 .namerow b{font:600 16px var(--f-body)}
 .upd{position:fixed;left:50%;bottom:max(14px,env(safe-area-inset-bottom));transform:translateX(-50%);z-index:70;display:flex;gap:12px;align-items:center;background:rgba(40,36,14,.95);border:1px solid var(--accent);border-radius:999px;padding:8px 10px 8px 18px;font:600 14px var(--f-body);box-shadow:0 6px 24px rgba(0,0,0,.45)}
+.codes .btn{width:auto}
 .allbtn{justify-self:start;margin-top:5px;font:600 12px var(--f-body);color:var(--accent);background:none;border:1px solid rgba(217,185,62,.45);border-radius:999px;padding:3px 10px;cursor:pointer}
 .allbtn:hover{background:rgba(217,185,62,.12)}
 .alllist{max-height:min(55vh,460px)}
@@ -462,6 +463,7 @@ input.txt:focus{outline:2px solid var(--accent);outline-offset:1px}
         <ol><li>В Safari нажмите «Поделиться» <span class="shr" aria-hidden="true"></span></li><li>Выберите «На экран „Домой“» и нажмите «Добавить»</li><li>Откройте игру с новой иконки «Робот» — без адресной строки, на весь экран</li></ol>
         <button class="btn" id="bIosHint">Понятно</button>
       </div>
+      <div class="joinrow codes"><input class="txt" id="codeIn" type="password" inputmode="text" autocomplete="off" spellcheck="false" maxlength="24" placeholder="Код" aria-label="Код"><button class="btn" id="bCode">Ввести код</button></div>
       <div class="row inst" id="instRow">
         <button class="btn" id="bInstall" hidden>Установить <small>на рабочий стол</small></button>
         <a class="btn" id="bDownload" href="https://github.com/Kirspeek/robot/archive/refs/heads/main.zip" download>Скачать <small>.zip</small></a>
@@ -1557,6 +1559,30 @@ function mkSoldier(){
   const s = makeSoldier();     // the red lenses glow on their own: no light per soldier, so big waves stay fast
   return finish(s, {h:1.85, r:.33, hipY:.98, legSwing:.75, kneeBend:1.1, armSwing:.6, elBase:-.25, armOut:.1, walk:4.4, run:8.5, jump:7.2, camH:1.65, camDist:5.5, step:.45, gunPose:true});
 }
+// «Сокол»: an armoured flying suit — jets in the boots, energy emitters in the palms
+function mkFalcon(){
+  const o = biped({hipX:.13, hipY:.98, thighL:.44, shinL:.44, shX:.27, shY:1.46, armL:.3, headY:1.58}), {root, k, legs, arms, head} = o, {B, C, S} = k;
+  const steel = pm(0x5d7088, {metalness:.75, roughness:.32}), dark = pm(0x232a33, {metalness:.6, roughness:.4}), trim = pm(0xc9d2dc, {metalness:.8, roughness:.25}), glow = glowM(0x6fe8ff, 1.8);
+  B(.42, .5, .26, steel, 0, 1.2, 0); B(.36, .18, .24, dark, 0, .92, 0); B(.3, .14, .02, trim, 0, 1.33, .14);
+  C(.07, .07, .03, glow, 0, 1.24, .135, root, HALF_PI);                     // the power core on the chest
+  for(const s of [-1, 1]) B(.16, .1, .28, steel, s*.2, 1.47, 0);             // shoulder plates
+  B(.18, .32, .1, dark, 0, 1.2, -.17); for(const s of [-1, 1]) C(.045, .055, .3, trim, s*.07, 1.12, -.22);   // back pack with two thrusters
+  S(.13, steel, 0, .12, 0, head, 1, 1.1, 1.05); B(.17, .05, .02, glow, 0, .13, .125, head);                   // helmet and visor
+  B(.2, .05, .2, trim, 0, .24, 0, head);
+  const jets = [], hands = [];
+  for(const L of legs){
+    B(.15, .44, .16, steel, 0, -.22, 0, L.hip); B(.13, .44, .15, dark, 0, -.22, 0, L.knee); B(.15, .07, .24, steel, 0, -.035, .04, L.foot);
+    const f = C(.0, .07, .4, new THREE.MeshBasicMaterial({color:0x8ff0ff, transparent:true, opacity:.8, blending:THREE.AdditiveBlending, depthWrite:false}), 0, -.27, 0, L.foot, Math.PI);
+    f.visible = false; jets.push(f);
+  }
+  for(const A of arms){
+    B(.12, .3, .12, steel, 0, -.15, 0, A.sh); B(.11, .28, .11, dark, 0, -.14, 0, A.el); B(.13, .06, .13, trim, 0, -.29, 0, A.el);
+    S(.04, glow, 0, -.33, .03, A.el); hands.push(A.el);
+  }
+  const muzzle = new THREE.Object3D(); muzzle.position.set(0, -.36, .05); arms[0].el.add(muzzle);
+  root.traverse(x => { if(x.isMesh) x.receiveShadow = true; });
+  return finish({root, legs, arms, head, muzzle, jets, hands}, {h:1.85, r:.33, hipY:.98, legSwing:.7, kneeBend:1, armSwing:.45, elBase:-.2, armOut:.08, walk:4.6, run:9, jump:7.5, camH:1.65, camDist:6, step:.45});
+}
 // camouflage walker with a twin cannon and a long rifle
 function mkGroza(){
   const R = biped({hipX:.55, hipY:2.3, thighL:1.1, shinL:1.0, shX:1.25, shY:3.75, armL:.55, headY:4.35});
@@ -1794,6 +1820,9 @@ const CHARS = [
   {name:'Титан', desc:'тяжёлые ракеты', make:mkTitan, hp:1300, w:{dmg:240, rate:.7, mag:4, reload:4, spread:.006, wallF:1, snd:'rocket', col:0xff9a40, splash:5.5}},
   {name:'Страж', desc:'плазменные пулемёты', make:mkGuard, hp:260, w:{dmg:20, rate:12, mag:80, reload:2.5, spread:.022, wallF:.2, snd:'gat', col:0x6fc0ff}},
   {name:'Разведчик', desc:'винтовка', make:mkScout, hp:130, w:{dmg:26, rate:7, mag:24, reload:1.8, spread:.01, wallF:.15, snd:'shot', col:0x9fe3ff}}
+,
+  // opened with a secret code: flies (hold Space) and shoots energy bolts from the palms
+  {name:'Сокол', desc:'летающий экзокостюм', make:mkFalcon, hp:450, secret:true, fly:true, w:{dmg:42, rate:6, mag:60, reload:1.4, spread:.006, wallF:.3, snd:'laser', col:0x6fe8ff, splash:1.2}}
 ];
 const RIGS = CHARS.map(c => c.make());
 const heroGroup = new THREE.Group(); scene.add(heroGroup);
@@ -1803,7 +1832,7 @@ function redrawOnFonts(tex, draw){ try { document.fonts.ready.then(() => { const
 slab(38, 28, 28, 49.5, texMat(TEX.concrete, 9, 7, {color:0xa5a296}), 0.027);
 const padTex = canvasTex(128, 128, (g, w, h) => { g.strokeStyle = '#d9b93e'; g.lineWidth = 6; g.strokeRect(5, 5, w - 10, h - 10); g.fillStyle = '#d9b93e'; for(const [x, y] of [[5, 5], [w - 25, 5], [5, h - 25], [w - 25, h - 25]]) g.fillRect(x, y, 20, 20); });
 const padMat = new THREE.MeshStandardMaterial({map:padTex, transparent:true, depthWrite:false, roughness:.9});
-const slots = RIGS.map((R, i) => {
+const slots = RIGS.map((R, i) => { if(CHARS[i].secret) return null;
   const row = i < 5 ? 0 : 1, base = true;
   const x = base ? (row ? 17.5 + (i - 5)*7 : 14 + i*7) : (row ? -15 - (i - 5)*7 : 15 + i*7), z = base ? (row ? 58 : 41) : -24, ry = base && row ? Math.PI : 0;
   slab(6, 6, x, z, padMat, 0.035);
@@ -1817,10 +1846,11 @@ const slots = RIGS.map((R, i) => {
 });
 function park(i){
   const s = slots[i], R = RIGS[i];
+  if(!s){ if(R.root.parent) R.root.parent.remove(R.root); return; }
   s.g.add(R.root); R.root.position.set(0, 0, 0); R.root.rotation.set(0, 0, 0); animateRig(R, 0, 0, 0, 0, false, 0);
   s.label.visible = true; if(!s.col) s.col = addCol(s.x - R.r, s.x + R.r, 0, R.h, s.z - R.r, s.z + R.r);
 }
-function unpark(i){ const s = slots[i]; s.label.visible = false; if(s.col){ COLS.splice(COLS.indexOf(s.col), 1); s.col = null; } }
+function unpark(i){ const s = slots[i]; if(!s) return; s.label.visible = false; if(s.col){ COLS.splice(COLS.indexOf(s.col), 1); s.col = null; } }
 RIGS.forEach((R, i) => park(i));
 let cur = -1, rig = null, PILOT = null;   // PILOT: the ally robot the player climbed into
 function setCharacter(i, board){
@@ -1837,7 +1867,7 @@ function setCharacter(i, board){
 }
 function nearSlot(){
   let best = null, bd = 2.5;
-  for(const s of slots){ if(s.i === cur) continue; const d = Math.hypot(P.pos.x - s.x, P.pos.z - s.z) - RIGS[s.i].r - P.r; if(d < bd){ bd = d; best = s; } }
+  for(const s of slots){ if(!s || s.i === cur) continue; const d = Math.hypot(P.pos.x - s.x, P.pos.z - s.z) - RIGS[s.i].r - P.r; if(d < bd){ bd = d; best = s; } }
   return best;
 }
 
@@ -1848,7 +1878,7 @@ function nearAlly(){
   for(const a of allies){ if(a.dead || a.fall > 0) continue; const d = Math.hypot(a.p.x - P.pos.x, a.p.z - P.pos.z) - a.R.r - P.r; if(d < bd){ bd = d; best = a; } }
   return best;
 }
-function hideBody(i, on){ const s = slots[i]; RIGS[i].root.visible = !on; if(on){ s.label.visible = false; if(s.col){ COLS.splice(COLS.indexOf(s.col), 1); s.col = null; } } }
+function hideBody(i, on){ const s = slots[i]; if(!s){ RIGS[i].root.visible = !on; return; } RIGS[i].root.visible = !on; if(on){ s.label.visible = false; if(s.col){ COLS.splice(COLS.indexOf(s.col), 1); s.col = null; } } }
 // take a robot out of the world for a pilot; returns what the pilot needs, or null
 function takeRobot(a){
   if(!a || a.dead && a.state !== 'wreck') return null;
@@ -3133,7 +3163,7 @@ function sfx(kind, vol = 1){
 // ---------- menu ----------
 function updateCharUI(){
   $('charName').textContent = CHARS[cur].name;
-  $('charList').innerHTML = CHARS.map((c, i) => `<button class="chr${i === cur ? ' on' : ''}" data-i="${i}"><b>${c.name}</b><small>${c.desc} · ${RIGS[i].h.toFixed(1).replace('.', ',')} м</small></button>`).join('');
+  $('charList').innerHTML = CHARS.map((c, i) => c.secret && !store.get('forpost.suit') ? '' : `<button class="chr${i === cur ? ' on' : ''}" data-i="${i}"><b>${c.name}</b><small>${c.desc} · ${RIGS[i].h.toFixed(1).replace('.', ',')} м</small></button>`).join('');
 }
 $('charList').onclick = e => { const b = e.target.closest('.chr'); if(!b) return; pilotOut(false); setCharacter(+b.dataset.i); sfx('ui'); };
 $('bChar').onclick = () => { sfx('ui'); showPanel('pChar'); };
@@ -3164,6 +3194,7 @@ function openMenu(){
 }
 function startPlay(){
   if(!$('nickDlg').hidden){ $('nickIn').focus(); return; }
+  if(document.activeElement && document.activeElement.tagName === 'INPUT') document.activeElement.blur();     // keys go to the game, not to a field left in the menu
   if(G.phase === 'over'){ if(NET.guest) netSend({t:'again'}); else { newGame(); return; } }
   const first = !started;
   if(!started){ started = true; yaw = 0; pitch = 0.32; }
@@ -3509,6 +3540,7 @@ function updatePeer(dt){
     let d = q.tface - q.face; d = Math.atan2(Math.sin(d), Math.cos(d)); q.face += d*Math.min(1, 10*dt);
     const R = q.R;
     animateRig(R, q.walk, q.amt, q.air, q.place, q.build, q.pitch);
+    if(R.jets) for(const j of R.jets){ j.visible = !!q.air; j.scale.set(1, .7 + .5*Math.random(), 1); }
     if(q.dead){ R.root.rotation.x = -HALF_PI*0.92; R.root.position.y = R.r*0.5; } else { R.root.rotation.x = R.lean || 0; R.root.position.y = 0; }
     q.g.position.copy(q.p); q.g.rotation.y = q.face;
     q.label.position.set(q.p.x, q.p.y + R.h + 0.9, q.p.z);
@@ -4076,8 +4108,16 @@ function updatePlayer(dt){
   const accel = P.onGround ? 14 : 4;
   P.vel.x += (move.x*speed - P.vel.x)*Math.min(1, accel*dt);
   P.vel.z += (move.z*speed - P.vel.z)*Math.min(1, accel*dt);
-  if(state === 'play' && P.dead <= 0 && keys.Space && P.onGround){ P.vel.y = rig.jump; P.onGround = false; }
+  const flyer = CHARS[cur].fly && state === 'play' && P.dead <= 0;
+  if(flyer){
+    // the suit: Space — thrust up, release — hover and glide down slowly, Shift in the air — drop fast
+    if(keys.Space){ P.vel.y = Math.min(9, P.vel.y + 34*dt); P.onGround = false; }
+    if(!P.onGround){ const mv = moving ? rig.run*(keys.ShiftLeft || keys.ShiftRight ? 1.2 : 1.7) : 0;
+      P.vel.x += (move.x*mv - P.vel.x)*Math.min(1, 3*dt); P.vel.z += (move.z*mv - P.vel.z)*Math.min(1, 3*dt); }
+  } else if(state === 'play' && P.dead <= 0 && keys.Space && P.onGround){ P.vel.y = rig.jump; P.onGround = false; }
   P.vel.y -= 22*dt;
+  if(flyer && !P.onGround && !keys.Space && !(keys.ShiftLeft || keys.ShiftRight) && P.vel.y < -3) P.vel.y = -3;   // hovering
+  if(flyer && P.pos.y > 60) P.vel.y = Math.min(P.vel.y, 0);
   { const lad = state === 'play' && P.dead <= 0 && rig.r < 0.7 ? onLadder(P.pos) : null;
     if(lad && (keys.Space || keys.KeyW || keys.ArrowUp || (JOY.on && JOY.m > 0.3))){
       P.vel.y = 3.4; P.onGround = false;
@@ -4111,6 +4151,8 @@ function updatePlayer(dt){
   const air = P.onGround ? 0 : 1;
   P.place = Math.max(0, P.place - dt*3);
   animateRig(rig, P.walk, amt, air, P.place, build, pitch);
+  if(rig.jets){ const on = !P.onGround; for(const j of rig.jets){ j.visible = on; j.scale.set(1, .7 + .5*Math.random(), 1); } }
+  if(rig.hands && (P.aimT > 0 || firing) && !build) for(const A of rig.arms){ A.sh.rotation.set(-1.45 - (pitch - .3)*.6, 0, 0); A.el.rotation.x = 0; }
   rig.root.rotation.x = rig.lean + (run && moving ? 0.12 : 0.02*amt)*(rig.h > 3 ? 0.35 : 1);
   if(P.dead > 0){ rig.root.rotation.x = -HALF_PI*0.92; rig.root.position.y = rig.r*0.5; return; }
   if(P.onGround && amt > 0.3 && Math.floor(P.walk/Math.PI) !== stepT){ stepT = Math.floor(P.walk/Math.PI); sfx(rig.h > 3 ? 'stomp' : 'step'); }
@@ -4177,7 +4219,7 @@ function frame(now){
 }
 
 loadGame();
-{ const c = store.get('forpost.char'); setCharacter(Number.isInteger(c) && RIGS[c] ? c : 0); }
+{ const c = store.get('forpost.char'); setCharacter(Number.isInteger(c) && RIGS[c] && (!CHARS[c].secret || store.get('forpost.suit')) ? c : 0); }
 loadWalls(); setBuild(false); syncSettings(); openMenu(); netUpdateFlags();
 // ---------- the dial on the main screen: playing now, on the site now, ever visited ----------
 // Every visitor says «I am here» with a retained message that the broker removes when they leave (topic «site/pr/…»);
@@ -4610,6 +4652,25 @@ function renderChat(){
   }
   log.scrollTop = log.scrollHeight;
 }
+
+// ---------- codes ----------
+// The game keeps only a SHA-256 fingerprint of each code, so the code itself is nowhere in the page or on GitHub.
+const CODES = {'ec5ae6d529e3846d92561137d74abc3098650d9915d30d0ce3df2d415a6d0760':'suit'};
+async function codeTry(){
+  const inp = $('codeIn'), v = inp.value.trim(); inp.value = '';
+  if(!v) return;
+  let h = '';
+  try { const d = new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode('robot-vs-people:' + v))); h = Array.from(d, b => b.toString(16).padStart(2, '0')).join(''); } catch(e){}
+  const what = CODES[h];
+  if(what === 'suit'){
+    store.set('forpost.suit', 1); updateCharUI();
+    const i = CHARS.findIndex(c => c.secret); if(i >= 0) setCharacter(i);
+    banner('Сокол', 'Экзокостюм открыт: пробел — лететь, ЛКМ — луч из ладоней'); sfx('ui');
+    toast('Код принят: открыт летающий экзокостюм «Сокол» (Персонаж → Сокол)');
+  } else { toast('Неверный код', true); sfx('err'); }
+}
+$('bCode').onclick = () => codeTry();
+$('codeIn').addEventListener('keydown', e => { e.stopPropagation(); if(e.key === 'Enter') codeTry(); });
 
 // ---------- the nickname ----------
 // Letters of any language are required (at least one), digits and signs are allowed, 3–18 characters.
