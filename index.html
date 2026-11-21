@@ -379,6 +379,10 @@ input.txt:focus{outline:2px solid var(--accent);outline-offset:1px}
         <kbd>Пробел</kbd><span>прыжок</span>
         <kbd>Колёсико</kbd><span>приблизить / отдалить камеру</span>
         <kbd>V</kbd><span>вид от первого / третьего лица</span>
+        <span class="sep">Сервер</span>
+        <kbd>Enter</kbd><span>чат</span>
+        <kbd>M</kbd><span>включить / выключить микрофон</span>
+        <kbd>C</kbd><span>держать — говорить, пока держите (как рация)</span>
         <span class="sep">Бой</span>
         <kbd>ЛКМ</kbd><span>стрелять (держать)</span>
         <kbd>R</kbd><span>перезарядка</span>
@@ -1788,7 +1792,8 @@ let build = false, sel = 0, rot = 0;
 addEventListener('keydown', e => {
   if(state !== 'play'){ if(e.code === 'Escape'){ if($('pMain').hidden) showPanel('pMain'); else if(started) startPlay(); } return; }
   if(e.code === 'Enter' && NET.on){ e.preventDefault(); openChat(); return; }
-  if(e.code === 'KeyC'){ if(!e.repeat) voiceStart(); return; }
+  if(e.code === 'KeyC'){ if(!e.repeat && !VOICE.latch) voiceStart(); return; }
+  if(e.code === 'KeyM'){ if(!e.repeat) micToggle(); return; }
   keys[e.code] = true;
   keyAction(e.code);
   if(e.code === 'Escape' && !locked) openMenu();
@@ -1814,7 +1819,7 @@ function keyAction(code){
   else if(e.code === 'KeyI'){ $('inv').classList.toggle('min'); sfx('tick'); }
   else if(e.code === 'KeyV') setView(!S.fp);
 }
-addEventListener('keyup', e => { keys[e.code] = false; if(e.code === 'KeyC') voiceStop(); });
+addEventListener('keyup', e => { keys[e.code] = false; if(e.code === 'KeyC' && !VOICE.latch) voiceStop(); });
 addEventListener('blur', () => { for(const k in keys) keys[k] = false; });
 document.addEventListener('mousemove', e => {
   if(state !== 'play' || !locked) return;
@@ -1862,7 +1867,7 @@ if(TOUCH){
     if(b){ hold.delete(id); b.classList.remove('down');
       if(b.dataset.a === 'fire') firing = false;
       if(b.dataset.a === 'Space') keys.Space = false;
-      if(b.dataset.a === 'mic') voiceStop(); }
+      if(b.dataset.a === 'mic' && !b.dataset.done){ if(performance.now() - VOICE.pressT < 350){ VOICE.latch = true; micHud(); } else voiceStop(); } }
   };
   // drop every finger we track that is no longer on the screen
   const reconcile = list => {
@@ -1877,7 +1882,7 @@ if(TOUCH){
     if(a === 'fire'){ if(build) placeWall(); else if(P.dead <= 0) firing = true; LOOK.set(t.identifier, [t.clientX, t.clientY]); }   // dragging the fire button also turns the camera
     else if(a === 'menu') openMenu();
     else if(a === 'chat') openChat();
-    else if(a === 'mic') voiceStart();
+    else if(a === 'mic'){ if(VOICE.latch){ micToggle(); b.dataset.done = 1; } else { b.dataset.done = ''; VOICE.pressT = performance.now(); voiceStart(); } }
     else if(a === 'more'){ more.hidden = !more.hidden; sfx('tick'); }
     else if(a === 'Space') keys.Space = true;
     else { keyAction(a); if(b.closest('.more')) more.hidden = true; }
@@ -3094,7 +3099,7 @@ async function netJoinRoom(room, label, max){
   electLeader();
   if(state !== 'play') startPlay();
   toast(`Вы на сервере: ${label}`); sfx('ui');
-  chatLine('', `Вы на сервере «${label}». Enter — написать в чат${TOUCH ? '' : ', C (держать) — говорить в микрофон'}.`);
+  chatLine('', `Вы на сервере «${label}». Enter — написать в чат${TOUCH ? ', 🎤 — микрофон' : ', M — включить микрофон'}.`);
 }
 function announce(){ pub('pr/' + NET.myId, JSON.stringify({n:myName(), t:NET.joinT, h:Date.now()}), true); NET.presT = 60; }
 function livePlayers(){ const now = Date.now(); let n = 0; for(const p of NET.pres.values()) if(now - p.h < 180000) n++; return n; }
@@ -3451,11 +3456,20 @@ async function voiceStart(){
     if(VOICE.acc.length >= 2000) voiceSend();
   };
   VOICE.src.connect(VOICE.proc); VOICE.proc.connect(VOICE.sink); VOICE.sink.connect(ctx.destination);
-  $('micHud').hidden = false; $('micHud').textContent = '🎤 Вас слышат все на сервере';
-  if(TOUCH) $('tMic').classList.add('down');
+  micHud();
+}
+// M (or a short tap on 🎤): the microphone stays on until switched off again
+function micToggle(){
+  if(VOICE.latch || VOICE.on){ VOICE.latch = false; voiceStop(); toast('Микрофон выключен'); }
+  else { VOICE.latch = true; voiceStart().then(() => { if(VOICE.on) toast(TOUCH ? 'Микрофон включён — нажмите 🎤, чтобы выключить' : 'Микрофон включён — M, чтобы выключить'); else VOICE.latch = false; }); }
+}
+function micHud(){
+  $('micHud').hidden = !VOICE.on;
+  $('micHud').textContent = VOICE.latch ? '🎤 Микрофон включён — вас слышат все' + (TOUCH ? '' : ' · M выключить') : '🎤 Вас слышат все на сервере';
+  if(TOUCH) $('tMic').classList.toggle('down', VOICE.on);
 }
 function voiceStop(){
-  VOICE.want = false;
+  VOICE.want = false; VOICE.latch = false;
   if(!VOICE.on) return;
   VOICE.on = false; voiceSend();
   try { VOICE.src.disconnect(); VOICE.proc.disconnect(); VOICE.sink.disconnect(); } catch(e){}
@@ -3478,7 +3492,7 @@ function voicePlay(from, b64){
   src.start(at); VOICE.next.set(from, at + buf.duration);
   const q = PEERS.get(from); if(q) q.talk = performance.now();
   $('micHud').hidden = false; $('micHud').textContent = '🎤 Говорит: ' + pName(from);
-  clearTimeout(VOICE.hudT); VOICE.hudT = setTimeout(() => { if(!VOICE.on) $('micHud').hidden = true; }, (at - ctx.currentTime + buf.duration)*1000 + 300);
+  clearTimeout(VOICE.hudT); VOICE.hudT = setTimeout(() => { if(VOICE.on) micHud(); else $('micHud').hidden = true; }, (at - ctx.currentTime + buf.duration)*1000 + 300);
 }
 
 // ---------- the «Сервер · по сети» panel ----------
@@ -3505,8 +3519,8 @@ function renderNetPanel(){
   }
   $('netText').textContent = NET.joining ? 'Подключаюсь к серверу…'
     : !NET.on ? 'Общий сервер — одна карта для всех игроков со всего мира, с любых устройств. Ничего создавать не нужно: нажмите и играйте. На карту помещается до 16 человек, дальше открывается следующий мир. Или создайте свою игру и позовите друзей по коду.'
-    : priv ? 'Скажите друзьям этот код: они вводят его в этом же меню на своих устройствах. Или отправьте ссылку. Enter — чат, C (держать) — микрофон.'
-    : `Вы на общем сервере «${NET.label}». Стены, ресурсы и волны общие для всех и сохраняются на сервере. Enter — чат, C (держать) — микрофон. ★ — чьё устройство сейчас ведёт роботов.`;
+    : priv ? 'Скажите друзьям этот код: они вводят его в этом же меню на своих устройствах. Или отправьте ссылку. Enter — чат, M — включить / выключить микрофон, C (держать) — говорить, пока держите.'
+    : `Вы на общем сервере «${NET.label}». Стены, ресурсы и волны общие для всех и сохраняются на сервере. Enter — чат, M — включить / выключить микрофон, C (держать) — говорить, пока держите. ★ — чьё устройство сейчас ведёт роботов.`;
   const nm = $('netName'); if(document.activeElement !== nm) nm.value = store.get('forpost.name') || '';
   nm.placeholder = myName();
 }
