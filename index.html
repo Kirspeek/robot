@@ -191,6 +191,21 @@ input[type=checkbox]{width:18px;height:18px;accent-color:var(--accent)}
 #chatIn{pointer-events:auto;font:500 15px var(--f-body);color:var(--fg);background:rgba(10,12,8,.85);border:1px solid var(--accent);border-radius:8px;padding:8px 10px;outline:none;user-select:text;-webkit-user-select:text}
 .mic{position:absolute;left:50%;top:132px;transform:translateX(-50%);background:rgba(30,90,40,.8);border:1px solid #7dff6a;border-radius:999px;padding:5px 14px;font:600 13px var(--f-body)}
 .netplayers{display:flex;flex-wrap:wrap;gap:6px}
+.dial{display:flex;align-items:center;gap:14px;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:10px 16px 10px 10px;width:max-content;max-width:100%}
+.dial svg{width:120px;height:84px;flex:none}
+#dialNeedle{transition:transform .8s cubic-bezier(.3,1.4,.5,1)}
+#dialArc{transition:stroke-dasharray .8s ease}
+.dtx{display:grid;gap:1px}
+.dtx b{font:400 36px/1 var(--f-head);color:#7dff6a;font-variant-numeric:tabular-nums}
+.dtx span{font:600 13px var(--f-body);margin-bottom:4px}
+.dtx small{font:500 12px var(--f-body);color:var(--muted);white-space:nowrap}
+@media (max-height:500px){.dial svg{width:84px;height:60px}.dtx b{font-size:26px}}
+.hubhint{display:none;position:absolute;left:50%;bottom:22px;transform:translateX(-50%);background:var(--panel);border:1px solid var(--line);border-radius:999px;padding:7px 16px;font:500 13px var(--f-body);color:var(--fg);white-space:nowrap}
+.hub .hubhint{display:block}
+.touch .hubhint .nt{display:none}
+.touch .hubhint{bottom:auto;top:calc(max(8px,env(safe-area-inset-top)) + 54px);font-size:12px}
+.hub .phase,.hub .bar,.hub .vitals,.hub .inv,.hub .hint,.hub .feed,.hub #wallCount,.hub #res,.hub .mode .dot,.hub #modeName{display:none !important}
+.hub .tb.fire,.hub .tb.rel,.hub .tb.bld,.hub .tb.bx,.hub .tb.bf,.hub #tMore{display:none !important}
 .card.wide{width:min(860px,100%)}
 .lobby{display:grid;grid-template-columns:1fr 1fr;gap:14px}
 @media (max-width:720px){.lobby{grid-template-columns:1fr}}
@@ -336,6 +351,7 @@ input.txt:focus{outline:2px solid var(--accent);outline-offset:1px}
   <div class="toast" id="toast" role="status"></div>
   <div class="chat" id="chat"><div class="chatlog" id="chatLog" aria-live="polite"></div><input id="chatIn" maxlength="160" hidden placeholder="Сообщение — Enter отправить, Esc отмена" autocomplete="off" aria-label="Сообщение в чат"></div>
   <div class="mic" id="micHud" hidden></div>
+  <div class="hubhint" id="hubHint">Лобби · войдите в светящийся портал, чтобы попасть на сервер<span class="nt"> · Enter — чат · M — микрофон · Esc — список серверов</span></div>
   <div class="tc" id="tc">
     <div class="joy" id="joy"><i id="joyKnob"></i></div>
     <div class="joyhint">палец сюда —<br>идти</div>
@@ -371,6 +387,17 @@ input.txt:focus{outline:2px solid var(--accent);outline-offset:1px}
     </div>
     <h1>РОБОТ<br>ПРОТИВ ЛЮДЕЙ</h1>
     <p class="lede" id="lede">У вас 5 минут, чтобы укрепить базу стенами и колючей проволокой. Потом с юга пойдут роботы: они ломают стены и рвутся к штабу. Отстреливайтесь и чините оборону.</p>
+    <div class="dial" id="dial" aria-live="polite">
+      <svg viewBox="0 0 120 84" aria-hidden="true">
+        <path d="M14 74 A48 48 0 1 1 106 74" fill="none" stroke="rgba(255,255,255,.12)" stroke-width="9" stroke-linecap="round"/>
+        <path id="dialArc" d="M14 74 A48 48 0 1 1 106 74" fill="none" stroke="#7dff6a" stroke-width="9" stroke-linecap="round" pathLength="100" stroke-dasharray="0 100"/>
+        <g id="dialTicks"></g>
+        <line id="dialNeedle" x1="60" y1="58" x2="60" y2="20" stroke="#ece6d2" stroke-width="3" stroke-linecap="round" transform="rotate(-125 60 58)"/>
+        <circle cx="60" cy="58" r="5" fill="#ece6d2"/>
+      </svg>
+      <div class="dtx"><b id="dialNow">…</b><span>играют сейчас</span>
+        <small id="dialSite">на сайте: …</small><small id="dialTotal">всего заходили: …</small></div>
+    </div>
 
     <nav id="pMain">
       <div class="ioshint" id="iosHint" hidden>
@@ -455,6 +482,8 @@ input.txt:focus{outline:2px solid var(--accent);outline-offset:1px}
           <button class="btn primary" id="bWorld">Быстрая игра <small>в свободный мир</small></button>
           <div class="lhead"><b>Серверы</b><span id="lobbyStat">ищу…</span></div>
           <div class="slist" id="lobbyList"></div>
+          <div class="lhead"><b>Игроки онлайн</b><span id="onlineStat"></span></div>
+          <div class="slist" id="onlineList"></div>
           <div class="joinrow"><input class="txt" id="srvName" maxlength="24" placeholder="Название своего сервера" spellcheck="false" aria-label="Название сервера"><button class="btn" id="bSrvMake">Создать</button></div>
           <p class="note">Своя игра с друзьями — по коду, в списке её не видно:</p>
           <button class="btn" id="bNetHost">Создать игру с друзьями <small>получить код</small></button>
@@ -1832,6 +1861,7 @@ addEventListener('keydown', e => {
   if(e.code === 'Space') e.preventDefault();
 });
 function keyAction(code){
+  if(NET.hub && /^(KeyB|KeyT|KeyQ|KeyG|KeyR|KeyX|KeyF|Digit\d)$/.test(code)) return;     // the lobby: just walking and talking
   const e = {code};
   if(e.code === 'KeyB'){ setBuild(!build); }
   else if(e.code === 'KeyR'){ if(build){ rot = WT[sel].kind === 'stairs' ? (rot + 1) & 3 : (rot & 1) ^ 1; sfx('tick'); } else startReload(); }
@@ -2582,6 +2612,7 @@ let firing = false;
 const curW = () => CHARS[cur].w;
 function startReload(){ if(P.reload > 0 || P.ammo >= curW().mag || P.dead > 0) return; P.reload = curW().reload; sfx('reload'); }
 function playerFire(){
+  if(NET.hub) return;
   const W = curW();
   if(P.dead > 0 || P.reload > 0 || P.fireCD > 0) return;
   if(P.ammo <= 0){ startReload(); return; }
@@ -2915,6 +2946,7 @@ function renderBar(){
   $('bar').innerHTML = WT.map((w, i) => `<div class="slot${i === sel ? ' on' : ''}"><i>${i + 1}</i><svg viewBox="0 0 56 34" aria-hidden="true">${ICONS[w.icon]}</svg><b>${w.name}</b><small>◆ ${w.cost} · ${w.hp}</small></div>`).join('');
 }
 function setBuild(on){
+  if(on && NET.hub) return;
   build = on; firing = false;
   $('mode').classList.toggle('build', on); $('modeName').textContent = on ? 'СТРОИТЕЛЬСТВО' : 'БОЙ';
   $('bar').classList.toggle('dim', !on);
@@ -2983,11 +3015,11 @@ function pickMap(m){
   saveWalls(true); saveGame(); store.set('forpost.map', m);
   location.href = location.pathname + '?map=' + m;
 }
-$('bNet').onclick = () => { sfx('ui'); renderNetPanel(); showPanel('pNet'); lobbyOpen(); };
-$('bNetOff').onclick = () => { sfx('ui'); netLeave(); };
+$('bNet').onclick = () => { sfx('ui'); if(NET.on || NET.joining){ renderNetPanel(); showPanel('pNet'); lobbyOpen(); } else enterHub(); };
+$('bNetOff').onclick = () => { sfx('ui'); if(NET.hub) netLeave(); else enterHub(); };
 $('mapList').onclick = e => { const b = e.target.closest('.chr'); if(!b) return; if(b.dataset.map === MAP){ sfx('ui'); showPanel('pMain'); return; } pickMap(b.dataset.map); };
 if(BUNKER_ON) $('lede').textContent = 'У вас 5 минут, чтобы укрепить базу и бункер стенами и колючей проволокой. Потом роботы пойдут с юга на базу и по радиоактивной улице к бункеру: ворота на восток ведут к нему. Не наступайте в зелёные лужи — там радиация.';
-function showPanel(id){ if(id !== 'pNet') lobbyClose(); document.querySelector('.card').classList.toggle('wide', id === 'pNet' && !NET.on); for(const p of ['pMain', 'pControls', 'pSettings', 'pConfirm', 'pChar', 'pOver', 'pMap', 'pNet']) $(p).hidden = p !== id; const b = id === 'pMain' ? $('bPlay') : $(id).querySelector('button'); if(b) b.focus({preventScroll:true}); }
+function showPanel(id){ if(id !== 'pNet' && !NET.hub) lobbyClose(); document.querySelector('.card').classList.toggle('wide', id === 'pNet' && !NET.on); for(const p of ['pMain', 'pControls', 'pSettings', 'pConfirm', 'pChar', 'pOver', 'pMap', 'pNet']) $(p).hidden = p !== id; const b = id === 'pMain' ? $('bPlay') : $(id).querySelector('button'); if(b) b.focus({preventScroll:true}); }
 function openMenu(){
   state = 'menu'; $('menu').hidden = false; $('hud').classList.add('off'); $('lock').hidden = true; ghost.visible = false;
   $('menu').classList.toggle('paused', started);
@@ -3104,7 +3136,8 @@ function netSendTo(id, m){ if(!NET.on) return; if(id === NET.myId){ netOnMessage
 // ---- joining and leaving
 const ROOM_SUBS = () => [T('pr/+'), T('st'), T('p/+'), T('s'), T('to/' + NET.myId), T('c'), T('v')].concat(NET.role === 'host' ? [T('h')] : []);
 async function netJoinRoom(room, label, max){
-  if(NET.on || NET.joining) return;
+  if(NET.joining) return;
+  if(NET.on) netQuiet();
   NET.joining = true; NET.status = 'подключаюсь…'; renderNetPanel(); netUpdateFlags();
   try { await loadMqtt(); } catch(e){ NET.joining = false; netFail('Не удалось загрузить сетевой модуль. Проверьте интернет.'); return; }
   NET.myId = rid(8); NET.seq = 0;
@@ -3125,25 +3158,28 @@ async function netJoinRoom(room, label, max){
   const quit = () => { for(const c of cs) try { c.end(true); } catch(e){} NET.cs = null; NET.joining = false; };
   // look who is already in the room; the common world sends you on to the next one when it is full
   await new Promise(r => setTimeout(r, 2200));
-  if(room.startsWith('w') && livePlayers() >= max){
-    const n = +room.slice(1); quit();
-    if(n < 20){ toast(`${label} заполнен, захожу в Мир ${n + 1}`); netJoinRoom('w' + (n + 1), 'Мир ' + (n + 1), max); }
+  if(/^(w|hub)\d+$/.test(room) && livePlayers() >= max){
+    const pre = room.replace(/\d+$/, ''), n = +room.slice(pre.length); quit();
+    const next = pre === 'hub' ? 'Лобби ' + (n + 1) : 'Мир ' + (n + 1);
+    if(n < 20){ toast(`${label} заполнен, захожу в «${next}»`); netJoinRoom(pre + (n + 1), next, max); }
     else netFail('Все миры заполнены, попробуйте позже');
     return;
   }
-  if(!room.startsWith('w') && livePlayers() >= max){ quit(); netFail(`На сервере уже ${max} игроков`); return; }
+  if(!/^(w|hub)\d+$/.test(room) && livePlayers() >= max){ quit(); netFail(`На сервере уже ${max} игроков`); return; }
   if(room.startsWith('r') && !NET.creating && livePlayers() === 0){ quit(); netFail(`Игра с кодом ${NET.code} не найдена. Проверьте код: друг должен держать игру открытой.`); return; }
   if(room.startsWith('s') && NET.creating) pub('meta', JSON.stringify({n:label, h:Date.now()}), true);
   NET.creating = false;
   // our own world gives way to the room's world
   resetForRoom();
+  if(NET.hub) hubSpawn(); else { P.pos.set(0, 0, START_Z); P.vel.set(0, 0, 0); P.face = Math.PI; yaw = 0; heroGroup.position.copy(P.pos); }
   NET.on = true; NET.joining = false; NET.joinT = Date.now();
   for(const c of cs) if(c.connected) c.subscribe(ROOM_SUBS(), {qos:0});
   announce();
   electLeader();
   if(state !== 'play') startPlay();
-  toast(`Вы на сервере: ${label}`); sfx('ui');
-  chatLine('', `Вы на сервере «${label}». Enter — написать в чат${TOUCH ? ', 🎤 — микрофон' : ', M — включить микрофон'}.`);
+  sfx('ui');
+  if(NET.hub){ banner('Лобби', 'Подойдите к светящемуся порталу, чтобы войти на сервер'); chatLine('', `Вы в лобби. ${TOUCH ? '💬 — чат, 🎤 — микрофон' : 'Enter — чат, M — микрофон, Esc — список серверов'}.`); }
+  else { toast(`Вы на сервере: ${label}`); chatLine('', `Вы на сервере «${label}». Enter — написать в чат${TOUCH ? ', 🎤 — микрофон' : ', M — включить микрофон'}. Esc → «В лобби» — вернуться в лобби.`); }
 }
 function announce(){ pub('pr/' + NET.myId, JSON.stringify({n:myName(), t:NET.joinT, h:Date.now()}), true); NET.presT = 60;
   if(NET.room.startsWith('s') && NET.role === 'host') pub('meta', JSON.stringify({n:NET.label, h:Date.now()}), true); }
@@ -3179,6 +3215,7 @@ function electLeader(){
   netUpdateFlags();
 }
 function becomeHost(){
+  if(NET.hub){ NET.role = 'host'; return; }
   const wasGuest = NET.role === 'guest';
   NET.role = 'host'; for(const c of NET.cs || []) if(c.connected) c.subscribe(T('h'), {qos:0});     // only the leader listens to the requests
   if(wasGuest){
@@ -3202,6 +3239,7 @@ function becomeHost(){
   if(NET.room.startsWith('s')) pub('meta', JSON.stringify({n:NET.label, h:Date.now()}), true);
 }
 function becomeGuest(){
+  if(NET.hub){ NET.role = 'guest'; return; }
   if(NET.role === 'host') for(const c of NET.cs || []) if(c.connected) c.unsubscribe(T('h'));
   NET.role = 'guest'; NET.lastSnap = performance.now();
   for(const u of [...enemies, ...allies, ...wrecks]) removeUnit(u);
@@ -3209,7 +3247,7 @@ function becomeGuest(){
 }
 // the room keeps a copy of the world: walls, resources and the wave number
 function saveRoom(){
-  if(!NET.on || NET.role !== 'host') return;
+  if(!NET.on || NET.role !== 'host' || NET.hub) return;
   pub('st', JSON.stringify({g:[G.wave, Math.floor(G.res), Math.floor(G.parts), Math.round(G.hq), G.kills, G.best], w:built.map(b => [b.id, b.t, b.x, r2(b.y), b.z, b.r, Math.round(b.hp)]), h:Date.now()}), true);
 }
 
@@ -3308,11 +3346,11 @@ function getPeer(id){
   if(q.name !== n){ q.name = n; if(q.label.material.map) q.label.material.map.dispose(); q.label.material.map = nameTex(n); q.label.material.needsUpdate = true; }
   return q;
 }
-function peerGone(id){
+function peerGone(id, silent){
   const q = PEERS.get(id); if(!q) return;
   scene.remove(q.g, q.label); if(q.R) q.g.remove(q.R.root);
   PEERS.delete(id);
-  if(NET.on) chatLine('', `${q.name || 'Игрок'} вышел`);
+  if(NET.on && !silent) chatLine('', `${q.name || 'Игрок'} вышел`);
 }
 const peerList = () => { const out = []; for(const q of PEERS.values()) if(q.on && q.R) out.push(q); return out; };
 function netOnPeer(id, m){
@@ -3428,6 +3466,7 @@ function netTick(dt){
       b:build ? 1 : 0, pi:r2(pitch), pl:r2(P.place), c:cur, d:P.dead > 0 ? 1 : 0, s:NET.shots.splice(0), v:VOICE.on ? 1 : 0});
   }
   NET.presT -= dt; if(NET.presT <= 0) announce();
+  if(NET.hub) return;
   if(NET.role !== 'host'){
     // the leader has gone silent (frozen tab, lost connection): count them out and pick the next one
     if(NET.peer && performance.now() - NET.lastSnap > 15000){ const p = NET.pres.get(NET.leader); if(p) p.h = 0; NET.lastSnap = performance.now(); electLeader(); }
@@ -3546,7 +3585,7 @@ function voicePlay(from, b64){
 // («+/meta») and the lobby chat. Private games by code (rooms «r…») are never listed.
 const LOBBY = {cs:null, seq:0, on:false, myId:'', rooms:new Map(), meta:new Map(), timer:0, lastSay:0};
 async function lobbyOpen(){
-  if(LOBBY.on || NET.on || NET.joining) return;
+  if(LOBBY.on) return;
   LOBBY.on = true; LOBBY.rooms.clear(); LOBBY.meta.clear(); renderLobby();
   try { await loadMqtt(); } catch(e){ $('lobbyStat').textContent = 'нет связи'; return; }
   LOBBY.myId = rid(8); LOBBY.seq = 0;
@@ -3624,9 +3663,26 @@ function renderLobby(){
     const cnt = document.createElement('span'); cnt.className = 'cnt'; cnt.textContent = `${r.n}/${WORLD_MAX}`;
     const go = document.createElement('span'); go.className = 'go'; go.textContent = full ? 'полон' : 'Войти';
     el.append(info, cnt, go);
-    if(!full) el.onclick = () => { sfx('ui'); lobbyClose(); netJoinRoom(r.room, r.name, WORLD_MAX); };
+    if(!full) el.onclick = () => { sfx('ui'); goRoom(r.room, r.name); };
     box.appendChild(el);
   }
+  // everyone who is playing now, and where: «К нему» takes you to the same server
+  const ob = $('onlineList'); ob.textContent = ''; let on = 0;
+  const where = room => /^w\d+$/.test(room) ? 'Мир ' + room.slice(1) : /^hub\d+$/.test(room) ? 'в лобби' : LOBBY.meta.has(room) ? LOBBY.meta.get(room).n : null;
+  for(const [room, m] of LOBBY.rooms){
+    const w = where(room); if(!w) continue;
+    for(const [id, p] of m){ if(now - p.h > 180000 || id === NET.myId) continue; on++;
+      if(on > 40) continue;
+      const el = document.createElement('div'); el.className = 'srv' + (room.startsWith('hub') ? '' : ' live');
+      const info = document.createElement('div'), nm = document.createElement('b'), sm = document.createElement('small'), dot = document.createElement('i');
+      dot.className = 'dot'; nm.append(dot, document.createTextNode(p.n)); sm.textContent = w; info.append(nm, sm); el.append(info, document.createElement('span'));
+      const go = document.createElement('span'); go.className = 'go';
+      if(room.startsWith('hub')){ go.textContent = 'в лобби'; go.style.background = 'var(--muted)'; }
+      else { go.textContent = 'К нему'; el.style.cursor = 'pointer'; el.onclick = () => { sfx('ui'); goRoom(room, w); }; }
+      el.append(go); ob.appendChild(el);
+    } }
+  if(!on){ const d = document.createElement('p'); d.className = 'note'; d.textContent = 'Пока никого — зайдите на сервер, и другие увидят вас здесь.'; ob.appendChild(d); }
+  $('onlineStat').textContent = `${on} онлайн`;
   const ol = liveIn('lobby');
   $('lobbyStat').textContent = LOBBY.cs ? `играют: ${total}` : 'подключаюсь…';
   $('lobbyOnline').textContent = LOBBY.cs ? `в лобби: ${Math.max(1, ol.n)}` : '';
@@ -3635,7 +3691,156 @@ function netMakeServer(){
   const name = $('srvName').value.replace(/\s+/g, ' ').trim().slice(0, 24) || ('Сервер ' + myName());
   const code = rid(5);
   NET.code = code; NET.creating = true; NET.metaName = name;
-  lobbyClose(); netJoinRoom('s' + code, name, WORLD_MAX);
+  NET.hub = false; setHubLook(false); lobbyClose(); netJoinRoom('s' + code, name, WORLD_MAX);
+}
+
+// ---------- the 3D lobby: a night clearing in a pine forest, far north of the base ----------
+// Players gather round a campfire, talk (chat and microphone) and walk through glowing portals into the servers.
+const HUB = {x:0, z:-1000, r:22, portals:[], fire:null, fireLight:null, signT:0, lastGo:0, look:false};
+{
+  const X = HUB.x, Z = HUB.z;
+  const floor = canvasTex(256, 256, (g, w, h) => { g.fillStyle = '#2a3320'; g.fillRect(0, 0, w, h);
+    for(let i = 0; i < 60; i++){ g.fillStyle = `rgba(${rnd() < .5 ? '60,45,28' : '30,48,24'},${rr(.2, .5)})`; g.beginPath(); g.arc(rnd()*w, rnd()*h, rr(6, 26), 0, 7); g.fill(); }
+    speckle(g, w, h, 6000, ['rgba(15,20,10,.45)', 'rgba(90,110,60,.25)', 'rgba(70,55,35,.3)']); });
+  slab(440, 440, X, Z, texMat(floor, 70, 70, {color:0x9aa58a}), 0.02);
+  const dirt = canvasTex(128, 128, (g, w, h) => { const gr = g.createRadialGradient(w/2, h/2, 0, w/2, h/2, w/2); gr.addColorStop(0, 'rgba(70,52,34,1)'); gr.addColorStop(.7, 'rgba(62,48,32,.8)'); gr.addColorStop(1, 'rgba(62,48,32,0)'); g.fillStyle = gr; g.fillRect(0, 0, w, h); speckle(g, w, h, 900, ['rgba(30,22,14,.4)', 'rgba(120,100,70,.25)']); });
+  { const m = new THREE.Mesh(new THREE.PlaneGeometry(46, 46), new THREE.MeshStandardMaterial({map:dirt, transparent:true, depthWrite:false, roughness:1})); m.rotation.x = -HALF_PI; m.position.set(X, 0.03, Z); m.receiveShadow = true; scene.add(m); }
+  // pines: three stacked cones on a trunk, hundreds of them round the clearing
+  const pine = mergeParts([[part(new THREE.CylinderGeometry(.18, .3, 3, 6), 0, 1.5, 0), 0x4a3424],
+    [part(new THREE.ConeGeometry(2.6, 4.2, 8), 0, 3.6, 0), 0x1f3a26], [part(new THREE.ConeGeometry(2.1, 3.6, 8), 0, 5.6, 0), 0x24432b], [part(new THREE.ConeGeometry(1.5, 3, 8), 0, 7.4, 0), 0x2a4b30]]);
+  const n = 520, im = new THREE.InstancedMesh(pine, new THREE.MeshStandardMaterial({vertexColors:true, roughness:.95}), n), m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler();
+  for(let i = 0; i < n; i++){
+    const a = rnd()*Math.PI*2, r = i < 70 ? rr(HUB.r + 2, HUB.r + 9) : rr(HUB.r + 6, 150), x = X + Math.cos(a)*r, z = Z + Math.sin(a)*r, s = rr(.8, 1.6);
+    q.setFromEuler(e.set(0, rnd()*6, 0)); m4.compose(new THREE.Vector3(x, 0, z), q, new THREE.Vector3(s, s*rr(.9, 1.25), s)); im.setMatrixAt(i, m4);
+    addCol(x - .35*s, x + .35*s, 0, 9*s, z - .35*s, z + .35*s, {tree:true});
+  }
+  im.castShadow = im.receiveShadow = true; im.frustumCulled = false; scene.add(im);
+  // a ring of logs round the edge keeps you in the clearing
+  for(let i = 0; i < 40; i++){ const a = i/40*Math.PI*2, x = X + Math.cos(a)*(HUB.r + 1.2), z = Z + Math.sin(a)*(HUB.r + 1.2);
+    addCol(x - 1.9, x + 1.9, 0, 3, z - 1.9, z + 1.9); }
+  // the campfire: a ring of stones, crossed logs, a flame that flickers and throws light
+  const stone = std(0x6d6a62, .95), logM = texMat(TEX.wood, 1, 1, {color:0x6b4a2e});
+  for(let i = 0; i < 12; i++){ const a = i/12*Math.PI*2; const s = mesh(new THREE.DodecahedronGeometry(.32, 0), stone, X + Math.cos(a)*1.25, .18, Z + Math.sin(a)*1.25); s.rotation.set(rnd()*3, rnd()*3, 0); }
+  for(let i = 0; i < 4; i++){ const l = mesh(new THREE.CylinderGeometry(.13, .15, 1.9, 7), logM, X, .25, Z); l.rotation.set(HALF_PI, i*Math.PI/4, .35); }
+  addCol(X - 1.5, X + 1.5, 0, .5, Z - 1.5, Z + 1.5);
+  const flameMat = new THREE.MeshBasicMaterial({color:0xffa030, transparent:true, opacity:.9, blending:THREE.AdditiveBlending, depthWrite:false});
+  HUB.fire = new THREE.Group(); HUB.fire.position.set(X, .3, Z); scene.add(HUB.fire);
+  for(const [s, c, y] of [[1, 0xff7a1a, .6], [.7, 0xffb340, .75], [.4, 0xfff0a0, .85]]){
+    const f = new THREE.Mesh(new THREE.ConeGeometry(.55*s, 1.6*s, 8, 1, true), flameMat.clone()); f.material.color.setHex(c); f.position.y = y*s; HUB.fire.add(f); }
+  HUB.fireLight = new THREE.PointLight(0xff9a40, 2.2, 30, 1.6); HUB.fireLight.position.set(X, 1.6, Z); scene.add(HUB.fireLight);
+  // log benches round the fire
+  for(let i = 0; i < 5; i++){ const a = i/5*Math.PI*2 + .3, x = X + Math.cos(a)*5, z = Z + Math.sin(a)*5;
+    const b = mesh(new THREE.CylinderGeometry(.35, .38, 3.2, 9), logM, x, .35, z); b.rotation.set(0, -a, HALF_PI);
+    const c = Math.abs(Math.cos(a)) > .7; addCol(x - (c ? .45 : 1.6), x + (c ? .45 : 1.6), 0, .7, z - (c ? 1.6 : .45), z + (c ? 1.6 : .45)); }
+  // lanterns on posts (they glow, no extra lights)
+  const lampM = new THREE.MeshStandardMaterial({color:0xffd27a, emissive:0xffb040, emissiveIntensity:1.6});
+  for(let i = 0; i < 6; i++){ const a = i/6*Math.PI*2 + Math.PI/6, x = X + Math.cos(a)*(HUB.r - 2), z = Z + Math.sin(a)*(HUB.r - 2);
+    cyl(.07, .09, 3, MAT.dark, x, 0, z, 6); mesh(new THREE.BoxGeometry(.4, .5, .4), lampM, x, 3.1, z, {shadow:false}); addCol(x - .15, x + .15, 0, 3, z - .15, z + .15); }
+  // the portals: stone arches on the north side, each with a glowing door and a sign
+  const archM = std(0x7b786f, .9), cols = [0x5ad1ff, 0x7dff8a, 0xffd15a, 0xff8a5a, 0xc08aff, 0x5affd8, 0xff5ab0];
+  for(let k = 0; k < 7; k++){
+    const a = -Math.PI/2 + (k - 3)*0.36, x = X + Math.cos(a)*(HUB.r - 5), z = Z + Math.sin(a)*(HUB.r - 5), face = Math.atan2(X - x, Z - z);
+    const g = new THREE.Group(); g.position.set(x, 0, z); g.rotation.y = face; scene.add(g);
+    for(const s of [-1, 1]){ mesh(new THREE.BoxGeometry(.6, 4.2, .7), archM, s*1.75, 2.1, 0, {parent:g}); }
+    mesh(new THREE.BoxGeometry(4.1, .6, .8), archM, 0, 4.4, 0, {parent:g});
+    const glow = new THREE.Mesh(new THREE.PlaneGeometry(2.9, 3.9), new THREE.MeshBasicMaterial({color:cols[k], transparent:true, opacity:.55, blending:THREE.AdditiveBlending, depthWrite:false, side:THREE.DoubleSide}));
+    glow.position.y = 1.95; g.add(glow);
+    const c = document.createElement('canvas'); c.width = 512; c.height = 256;
+    const tex = new THREE.CanvasTexture(c), sign = new THREE.Sprite(new THREE.SpriteMaterial({map:tex, transparent:true, depthWrite:false}));
+    sign.scale.set(4.4, 2.2, 1); sign.position.set(x, 6.3, z); scene.add(sign);
+    for(const s of [-1, 1]){ const px = x + Math.cos(face)*s*1.75, pz = z - Math.sin(face)*s*1.75; addCol(px - .4, px + .4, 0, 4.2, pz - .4, pz + .4); }
+    HUB.portals.push({g, glow, sign, c, tex, x, z, face, col:cols[k], what:null, key:''});
+  }
+}
+function drawSign(P_, title, line2, line3){
+  const g = P_.c.getContext('2d'), w = P_.c.width, h = P_.c.height;
+  g.clearRect(0, 0, w, h); g.fillStyle = 'rgba(12,16,12,.82)'; g.beginPath(); g.roundRect ? g.roundRect(6, 6, w - 12, h - 12, 22) : g.rect(6, 6, w - 12, h - 12); g.fill();
+  g.strokeStyle = '#' + P_.col.toString(16).padStart(6, '0'); g.lineWidth = 5; g.stroke();
+  g.textAlign = 'center'; g.textBaseline = 'middle';
+  g.fillStyle = '#ece6d2'; g.font = '400 54px "Russo One", Impact, sans-serif'; g.fillText(title, w/2, 70, w - 40);
+  g.fillStyle = '#d9b93e'; g.font = '600 40px "Golos Text", system-ui, sans-serif'; g.fillText(line2, w/2, 140, w - 40);
+  g.fillStyle = '#a29d86'; g.font = '500 28px "Golos Text", system-ui, sans-serif'; g.fillText(line3, w/2, 200, w - 40);
+  P_.tex.needsUpdate = true;
+}
+// what every portal leads to: quick play, the busiest servers, and «make your own»
+function hubPortals(){
+  const list = [];
+  let top = 1;
+  for(const room of LOBBY.rooms.keys()) if(/^w\d+$/.test(room)) top = Math.max(top, +room.slice(1));
+  let quick = null;
+  for(let k = 1; k <= top + 1; k++){ const l = liveIn('w' + k); if(l.n < WORLD_MAX){ quick = 'w' + k; break; } }
+  list.push({kind:'room', room:quick || 'w1', name:'Быстрая игра', sub:'в свободный мир', ...liveIn(quick || 'w1')});
+  const rooms = [];
+  for(let k = 1; k <= top; k++){ const r = 'w' + k, l = liveIn(r); if(l.n || k === 1) rooms.push({kind:'room', room:r, name:'Мир ' + k, sub:'общая карта', ...l}); }
+  for(const [room, m] of LOBBY.meta){ if(!/^s[A-Z0-9]{5}$/.test(room)) continue; const l = liveIn(room); if(!l.n && Date.now() - m.h > 3*86400000) continue; rooms.push({kind:'room', room, name:m.n, sub:'сервер игрока', ...l}); }
+  rooms.sort((a, b) => b.n - a.n);
+  list.push(...rooms.slice(0, 5));
+  while(list.length < 6) list.push(null);
+  list.push({kind:'make', name:'Свой сервер', sub:'создать', n:0, names:[]});
+  return list;
+}
+function hubSpawn(){ P.pos.set(HUB.x + rr(-3, 3), 0, HUB.z + 11 + rr(-1, 1)); P.vel.set(0, 0, 0); P.face = Math.PI; yaw = 0; pitch = 0.25; heroGroup.position.copy(P.pos); }
+function setHubLook(on){
+  if(HUB.look === on) return; HUB.look = on;
+  document.documentElement.classList.toggle('hub', on);
+  sky.visible = !on; scene.background = on ? new THREE.Color(0x060b0a) : null;
+  if(on){ scene.fog.color.setHex(0x09120f); scene.fog.near = 12; scene.fog.far = 95; hemi.color.setHex(0x7d8fbd); hemi.groundColor.setHex(0x2a2216); hemi.intensity = .75; sun.color.setHex(0xb0c2ff); sun.intensity = .5; }
+  else { scene.fog.color.setHex(0xc9d2d2); scene.fog.near = 150; scene.fog.far = 640; hemi.color.setHex(0xd8e6f0); hemi.groundColor.setHex(0x6f6448); hemi.intensity = .62; sun.color.setHex(0xfff1dc); sun.intensity = .95; }
+}
+function updateHub(dt){
+  const on = NET.hub && NET.on;
+  // the fire flickers whether you are there or not (it is cheap)
+  const fl = .85 + .15*Math.sin(time*9) + .1*Math.sin(time*23.7);
+  HUB.fire.scale.set(1, fl, 1); HUB.fireLight.intensity = on ? 2 + .5*Math.sin(time*11) : 0;
+  if(!on) return;
+  if(rnd() < dt*6) emit(SPARK, HUB.x + rr(-.3, .3), 1.2, HUB.z + rr(-.3, .3), 2, 0xffb050, 1.2, 1.2, 2);
+  for(const p of HUB.portals) p.glow.material.opacity = p.what ? .45 + .15*Math.sin(time*2.5 + p.x) : .12;
+  HUB.signT -= dt;
+  if(HUB.signT <= 0){
+    HUB.signT = 1.5;
+    const list = hubPortals();
+    HUB.portals.forEach((p, i) => {
+      const w = list[i]; p.what = w;
+      const key = w ? w.name + '|' + w.n + '|' + w.names.join(',') : '';
+      if(key === p.key) return; p.key = key;
+      if(!w) drawSign(p, '—', 'скоро', '');
+      else if(w.kind === 'make') drawSign(p, w.name, 'создать', 'войдите и придумайте название');
+      else drawSign(p, w.name, `${w.n}/${WORLD_MAX} игроков`, w.names.length ? w.names.slice(0, 4).join(', ') : w.sub);
+    });
+  }
+  // walking through a glowing door takes you in
+  if(state !== 'play' || P.dead > 0 || performance.now() - HUB.lastGo < 4000) return;
+  for(const p of HUB.portals){
+    if(!p.what) continue;
+    const dx = P.pos.x - p.x, dz = P.pos.z - p.z, lx = dx*Math.cos(p.face) - dz*Math.sin(p.face), lz = dx*Math.sin(p.face) + dz*Math.cos(p.face);
+    if(Math.abs(lx) < 1.4 && Math.abs(lz) < .5){
+      HUB.lastGo = performance.now();
+      if(p.what.kind === 'make'){ P.pos.z = p.z + 3*Math.cos(p.face); P.pos.x = p.x + 3*Math.sin(p.face); openMenu(); showPanel('pNet'); setTimeout(() => $('srvName').focus(), 100); toast('Впишите название и нажмите «Создать»'); }
+      else if(p.what.n >= WORLD_MAX) toast('Этот сервер полон', true);
+      else { sfx('ui'); goRoom(p.what.room, p.what.name === 'Быстрая игра' ? ('Мир ' + p.what.room.slice(1)) : p.what.name); }
+      return;
+    }
+  }
+}
+// to a server (or back to the lobby) without reloading the page
+function goRoom(room, label, max = WORLD_MAX, hub = false){
+  if(NET.on) netQuiet();
+  NET.hub = hub; setHubLook(hub);
+  if(!hub) lobbyClose();
+  netJoinRoom(room, label, max);
+}
+function netQuiet(){
+  if(NET.role === 'host' && !NET.hub) saveRoom();
+  pub('pr/' + NET.myId, '', true);
+  const cs = NET.cs || []; setTimeout(() => { for(const c of cs) try { c.end(true); } catch(e){} }, 400);
+  NET.on = false; NET.cs = null; NET.role = ''; NET.leader = ''; NET.pres.clear(); NET.st = null;
+  for(const id of [...PEERS.keys()]) peerGone(id, true);
+  voiceStop(); closeChat(); $('chatLog').textContent = '';
+}
+function enterHub(){
+  if(NET.on && NET.hub){ startPlay(); return; }
+  goRoom('hub1', 'Лобби', 30, true);
+  lobbyOpen();
 }
 
 // ---------- the «Сервер · по сети» panel ----------
@@ -3643,26 +3848,29 @@ function joinLink(){ return location.origin + location.pathname + '?join=' + NET
 function netPlayWorld(){ netJoinRoom('w1', 'Мир 1', WORLD_MAX); }
 function netCreate(){
   const code = rid(5);
-  NET.code = code; NET.creating = true; netJoinRoom('r' + code, 'Игра ' + code, FRIEND_MAX);
+  NET.code = code; NET.creating = true; NET.hub = false; setHubLook(false); netJoinRoom('r' + code, 'Игра ' + code, FRIEND_MAX);
 }
 function netJoin(code){
   code = (code || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
   if(code.length !== 5){ toast('Код — 5 букв и цифр', true); sfx('err'); return; }
-  NET.code = code; NET.creating = false; netJoinRoom('r' + code, 'Игра ' + code, FRIEND_MAX);
+  NET.code = code; NET.creating = false; NET.hub = false; setHubLook(false); netJoinRoom('r' + code, 'Игра ' + code, FRIEND_MAX);
 }
 function renderNetPanel(){
-  const busy = NET.on || NET.joining, priv = NET.room.startsWith('r');
+  const busy = (NET.on && !NET.hub) || NET.joining, priv = NET.room.startsWith('r');
+  $('bNetOff').textContent = NET.hub ? 'Выйти из лобби в одиночную игру' : 'В лобби'; $('bNetPlay').textContent = NET.hub ? 'Вернуться в лобби' : 'В игру';
+  document.querySelector('.lchat').hidden = NET.hub;
   $('netStart').hidden = busy; $('bNetOff').hidden = !NET.on; $('bNetPlay').hidden = !NET.on;
   $('netCodeBox').hidden = !(NET.on && priv); $('bNetShare').hidden = !(NET.on && priv); $('netCodeShow').textContent = NET.code;
-  const list = $('netPlayers'); list.hidden = !NET.on;
-  if(NET.on){
+  const list = $('netPlayers'); list.hidden = !NET.on || NET.hub;
+  if(NET.on && !NET.hub){
     const now = Date.now(), names = [];
     for(const [id, p] of NET.pres) if(now - p.h < 180000) names.push((id === NET.leader ? '★ ' : '') + (id === NET.myId ? p.n + ' (вы)' : p.n));
     list.textContent = ''; for(const n of names){ const s = document.createElement('span'); s.textContent = n; list.appendChild(s); }
   }
-  $('netTitle').textContent = NET.on ? NET.label : 'Лобби';
-  document.querySelector('.card').classList.toggle('wide', !$('pNet').hidden && !NET.on);
+  $('netTitle').textContent = NET.on && !NET.hub ? NET.label : 'Лобби';
+  document.querySelector('.card').classList.toggle('wide', !$('pNet').hidden && (!NET.on || NET.hub));
   $('netText').textContent = NET.joining ? 'Подключаюсь к серверу…'
+    : NET.hub ? 'Вы в 3D-лобби. Порталы на поляне ведут на серверы — или выберите сервер здесь. Ниже — кто сейчас играет: «К нему» перенесёт вас на тот же сервер.'
     : !NET.on ? 'Выберите сервер или нажмите «Быстрая игра». Игроки со всего мира, с любых устройств, до 16 человек на карте. Можно создать свой сервер — он появится в списке у всех.'
     : NET.room.startsWith('s') ? `Вы на сервере «${NET.label}». Он виден в лобби у всех игроков. Стены и волны сохраняются. Enter — чат, M — микрофон.`
     : priv ? 'Скажите друзьям этот код: они вводят его в этом же меню на своих устройствах. Или отправьте ссылку. Enter — чат, M — включить / выключить микрофон, C (держать) — говорить, пока держите.'
@@ -3672,7 +3880,7 @@ function renderNetPanel(){
 }
 $('netName').addEventListener('keydown', e => e.stopPropagation());
 $('netName').addEventListener('change', e => { store.set('forpost.name', e.target.value.trim().slice(0, 18)); if(NET.on) announce(); renderNetPanel(); });
-$('bWorld').onclick = () => { sfx('ui'); lobbyClose(); netPlayWorld(); };
+$('bWorld').onclick = () => { sfx('ui'); const q = hubPortals()[0]; goRoom(q.room, 'Мир ' + q.room.slice(1)); };
 $('bSrvMake').onclick = () => { sfx('ui'); netMakeServer(); };
 $('srvName').addEventListener('keydown', e => { e.stopPropagation(); if(e.key === 'Enter') netMakeServer(); });
 $('lobbyIn').addEventListener('keydown', e => { e.stopPropagation(); if(e.key === 'Enter') lobbySay(); });
@@ -3725,7 +3933,8 @@ function updatePlayer(dt){
     const dx = p.x - e.p.x, dz = p.z - e.p.z, rs = P.r + e.R.r*0.8, d = Math.hypot(dx, dz);
     if(d < rs && d > 1e-4 && p.y < e.R.h){ p.x = e.p.x + dx/d*rs; p.z = e.p.z + dz/d*rs; }
   }
-  p.x = clamp(p.x, -320, 320); p.z = clamp(p.z, -320, 320);
+  if(NET.hub){ p.x = clamp(p.x, HUB.x - 60, HUB.x + 60); p.z = clamp(p.z, HUB.z - 60, HUB.z + 60); }
+  else { p.x = clamp(p.x, -320, 320); p.z = clamp(p.z, -320, 320); }
   p.y += P.vel.y*dt;
   const g = groundAt(p);
   if(p.y <= g){ p.y = g; P.vel.y = 0; P.onGround = true; } else P.onGround = p.y - g < 0.05 && P.vel.y <= 0;
@@ -3792,9 +4001,10 @@ function frame(now){
   const dt = Math.min(0.05, (now - last)/1000); last = now; time += dt;
   autoQuality(dt); touchCtx(); updateGates(dt);
   if(state === 'play') updatePlayer(dt);
-  if(NET.guest){ if(state === 'play') updateGame(dt); netUpdateUnits(dt); }
+  if(NET.hub){}
+  else if(NET.guest){ if(state === 'play') updateGame(dt); netUpdateUnits(dt); }
   else if(state === 'play' || NET.host){ updateGame(dt); updateEnemies(dt); updateAllies(dt); updateWrecks(dt); updateDrone(dt); }
-  netTick(dt); updatePeer(dt);
+  netTick(dt); updatePeer(dt); updateHub(dt);
   updateWorld(dt);
   updateCamera(dt);
   updateGhost();
@@ -3810,6 +4020,55 @@ function frame(now){
 loadGame();
 { const c = store.get('forpost.char'); setCharacter(Number.isInteger(c) && RIGS[c] ? c : 0); }
 loadWalls(); setBuild(false); syncSettings(); openMenu(); netUpdateFlags();
+// ---------- the dial on the main screen: playing now, on the site now, ever visited ----------
+// Every visitor says «I am here» with a retained message that the broker removes when they leave (topic «site/pr/…»);
+// players are counted from the presence messages of all rooms. The total is one retained number: each device adds
+// itself once, on its first visit (if two devices come in the very same second, one of them may be missed).
+const SITE = {cs:null, id:'', pres:new Map(), total:new Map(), shown:-1};
+function siteRaw(topic, text, c){
+  const parts = topic.slice(NET_ROOT.length).split('/'), room = parts[0];
+  if(room === 'site' && parts[1] === 'total'){ const n = parseInt(text, 10); if(n > 0) SITE.total.set(c.bi, n); renderDial(); return; }
+  if(parts[1] !== 'pr') return;
+  const key = room + '/' + parts[2], old = SITE.pres.get(key);
+  if(!text){ if(old){ old.b.delete(c.bi); if(!old.b.size) SITE.pres.delete(key); } }
+  else { let h = Date.now(); try { h = +JSON.parse(text).h || h; } catch(e){} SITE.pres.set(key, {room, h, b:new Set([...(old ? old.b : []), c.bi])}); }
+  clearTimeout(SITE.rt); SITE.rt = setTimeout(renderDial, 300);
+}
+function renderDial(){
+  const now = Date.now(); let play = 0, site = 0;
+  for(const p of SITE.pres.values()){ if(now - p.h > 180000) continue; if(p.room === 'site') site++; else if(/^(w\d+|hub\d+|s[A-Z0-9]{5}|r[A-Z0-9]{5})$/.test(p.room)) play++; }
+  const total = Math.max(0, ...SITE.total.values());
+  $('dialNow').textContent = SITE.cs ? play : '…';
+  $('dialSite').textContent = SITE.cs ? `на сайте сейчас: ${Math.max(1, site)}` : 'подключаюсь к счётчику…';
+  $('dialTotal').textContent = SITE.cs ? `всего заходили: ${Math.max(total, 1)}` : '';
+  // the scale grows with the crowd: 10, 20, 50, 100, 200…
+  const top = [10, 20, 50, 100, 200, 500, 1000, 5000].find(v => play <= v) || play;
+  const k = Math.min(1, play/top);
+  $('dialNeedle').setAttribute('transform', `rotate(${-125 + 250*k} 60 58)`);
+  $('dialArc').setAttribute('stroke-dasharray', `${(k*100).toFixed(1)} 100`);
+  if(SITE.top !== top){ SITE.top = top; const g = $('dialTicks'); g.textContent = '';
+    for(const [f, v] of [[0, 0], [.5, top/2], [1, top]]){ const a = (-125 + 250*f - 90)*Math.PI/180, t = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+      t.setAttribute('x', (60 + Math.cos(a)*34).toFixed(1)); t.setAttribute('y', (58 + Math.sin(a)*34 + 3).toFixed(1)); t.setAttribute('text-anchor', 'middle');
+      t.setAttribute('font-size', '8'); t.setAttribute('fill', '#a29d86'); t.textContent = v; g.appendChild(t); } }
+}
+async function siteCount(){
+  try { await loadMqtt(); } catch(e){ renderDial(); return; }
+  SITE.id = rid(8);
+  const me = NET_ROOT + 'site/pr/' + SITE.id, hi = c => c.connected && c.publish(me, JSON.stringify({h:Date.now()}), {qos:0, retain:true});
+  try { SITE.cs = await brokersConnect({topic:me, payload:'', qos:0, retain:true}, siteRaw, c => { c.subscribe([NET_ROOT + '+/pr/+', NET_ROOT + 'site/total'], {qos:0}); hi(c); }); }
+  catch(e){ renderDial(); setTimeout(siteCount, 20000); return; }     // no answer: try again a bit later
+  renderDial();
+  // a new device adds itself to the total once
+  if(!store.get('forpost.counted')) setTimeout(() => {
+    const n = Math.max(0, ...SITE.total.values()) + 1;
+    for(const c of SITE.cs) if(c.connected) c.publish(NET_ROOT + 'site/total', String(n), {qos:0, retain:true});
+    SITE.total.set(-1, n); store.set('forpost.counted', 1); renderDial();
+  }, 4000);
+  setInterval(() => { for(const c of SITE.cs) hi(c); }, 60000);
+  setInterval(renderDial, 5000);
+  addEventListener('pagehide', () => { for(const c of SITE.cs || []) try { c.connected && c.publish(me, '', {qos:0, retain:true}); } catch(e){} });
+}
+if(navigator.onLine !== false) siteCount(); else renderDial();
 try { const q = new URLSearchParams(location.search); if(q.get('join')) netJoin(q.get('join')); else if(q.get('server')) netPlayWorld(); } catch(e){}
 requestAnimationFrame(frame);
 </script>
