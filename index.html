@@ -199,6 +199,25 @@ input[type=checkbox]{width:18px;height:18px;accent-color:var(--accent)}
 .dtx b{font:400 36px/1 var(--f-head);color:#7dff6a;font-variant-numeric:tabular-nums}
 .dtx span{font:600 13px var(--f-body);margin-bottom:4px}
 .dtx small{font:500 12px var(--f-body);color:var(--muted);white-space:nowrap}
+.frb.hot{color:#1a1606 !important;background:var(--accent);border-radius:999px;padding:1px 8px}
+.mini{font:600 12px var(--f-body);color:var(--fg);background:rgba(255,255,255,.08);border:1px solid var(--line);border-radius:7px;padding:4px 9px;cursor:pointer;white-space:nowrap}
+.mini:hover{background:rgba(255,255,255,.14)}
+.mini.ok{background:var(--accent);color:#1a1606;border-color:var(--accent)}
+.srv .acts{display:flex;gap:5px;align-items:center}
+.srv.sel{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent) inset}
+.srv.req{border-color:rgba(125,255,106,.5)}
+.unread{font:600 11px var(--f-mono);background:var(--bad);color:#fff;border-radius:999px;padding:1px 7px}
+.frlist{max-height:min(48vh,420px)}
+.dmbox{display:grid;gap:8px}
+.dmlog{min-height:200px;max-height:min(40vh,360px)}
+.msg{justify-self:start;max-width:85%;background:rgba(255,255,255,.07);border-radius:10px 10px 10px 2px;padding:6px 10px;display:grid;gap:2px}
+.msg.me{justify-self:end;background:rgba(217,185,62,.18);border-radius:10px 10px 2px 10px}
+.msg small{font:500 10px var(--f-mono);color:var(--muted);justify-self:end}
+#bRec{justify-content:center}
+#bRec.rec{background:var(--bad);border-color:var(--bad);color:#fff}
+.callbox{position:fixed;left:50%;top:max(14px,env(safe-area-inset-top));transform:translateX(-50%);z-index:60;display:grid;gap:10px;justify-items:center;background:rgba(16,40,22,.95);border:1px solid #7dff6a;border-radius:16px;padding:14px 18px;box-shadow:0 8px 30px rgba(0,0,0,.5);min-width:min(340px,92vw)}
+.callbox b{font:400 18px var(--f-head);letter-spacing:.03em}
+.callbox .btn{justify-content:center;padding:9px 14px}
 .allbtn{justify-self:start;margin-top:5px;font:600 12px var(--f-body);color:var(--accent);background:none;border:1px solid rgba(217,185,62,.45);border-radius:999px;padding:3px 10px;cursor:pointer}
 .allbtn:hover{background:rgba(217,185,62,.12)}
 .alllist{max-height:min(55vh,460px)}
@@ -381,6 +400,8 @@ input.txt:focus{outline:2px solid var(--accent);outline-offset:1px}
     </div>
   </div>
 </div>
+<div class="callbox" id="callBox" hidden role="dialog" aria-label="Звонок"><b id="callText"></b>
+  <div class="row"><button class="btn primary" id="bCallOk" hidden>Ответить</button><button class="btn" id="bCallMute" hidden></button><button class="btn danger" id="bCallEnd">Завершить</button></div></div>
 <div class="rotate"><div><b>⟲</b>Поверните телефон горизонтально</div></div>
 
 <div class="lock" id="lock" hidden><div>Кликните, чтобы управлять персонажем</div></div>
@@ -416,6 +437,7 @@ input.txt:focus{outline:2px solid var(--accent);outline-offset:1px}
       </div>
       <button class="btn primary" id="bPlay">Играть <small>Enter</small></button>
       <button class="btn" id="bNew">Новая игра <small>с начала</small></button>
+      <button class="btn" id="bFriends">Друзья и чаты <small id="frBadge" class="frb">0</small></button>
       <button class="btn" id="bNet">Сервер · по сети <small id="netState">выкл</small></button>
       <button class="btn" id="bChar">Персонаж <small id="charName">Солдат</small></button>
       <button class="btn" id="bControls">Управление</button>
@@ -502,6 +524,28 @@ input.txt:focus{outline:2px solid var(--accent);outline-offset:1px}
       </div>
       <button class="btn primary" id="bNetPlay" hidden>В игру</button>
       <button class="btn danger" id="bNetOff" hidden>Выйти с сервера</button>
+      <button class="btn back">Назад</button>
+    </section>
+
+    <section class="panel" id="pFriends" hidden>
+      <h2>Друзья и чаты</h2>
+      <div class="lobby">
+        <div class="lcol">
+          <div class="lhead"><b>Друзья</b><button class="mini" id="bFind">Найти игроков</button></div>
+          <div class="slist frlist" id="frList"></div>
+          <p class="note">Сообщения, голосовые и звонки зашифрованы: их видите и слышите только вы и друг.</p>
+        </div>
+        <div class="lcol">
+          <p class="note" id="dmEmpty">Выберите друга слева, чтобы написать ему, отправить голосовое или позвонить.</p>
+          <div id="dmBox" class="dmbox" hidden>
+            <div class="lhead"><b id="dmName"></b><span id="dmWhere"></span></div>
+            <div class="row"><button class="btn primary" id="bCall">📞 Позвонить</button><button class="btn" id="bUnfriend">Удалить из друзей</button></div>
+            <div class="llog dmlog" id="dmLog"></div>
+            <div class="joinrow"><input class="txt" id="dmIn" maxlength="1000" placeholder="Сообщение" autocomplete="off" aria-label="Сообщение другу"><button class="btn" id="bDmSend">→</button></div>
+            <button class="btn" id="bRec">🎙 Держать — голосовое</button>
+          </div>
+        </div>
+      </div>
       <button class="btn back">Назад</button>
     </section>
 
@@ -3031,7 +3075,7 @@ $('bNet').onclick = () => { sfx('ui'); if(NET.on || NET.joining){ renderNetPanel
 $('bNetOff').onclick = () => { sfx('ui'); if(NET.hub) netLeave(); else enterHub(); };
 $('mapList').onclick = e => { const b = e.target.closest('.chr'); if(!b) return; if(b.dataset.map === MAP){ sfx('ui'); showPanel('pMain'); return; } pickMap(b.dataset.map); };
 if(BUNKER_ON) $('lede').textContent = 'У вас 5 минут, чтобы укрепить базу и бункер стенами и колючей проволокой. Потом роботы пойдут с юга на базу и по радиоактивной улице к бункеру: ворота на восток ведут к нему. Не наступайте в зелёные лужи — там радиация.';
-function showPanel(id){ if(id !== 'pNet' && !NET.hub) lobbyClose(); document.querySelector('.card').classList.toggle('wide', id === 'pNet' && !NET.on); for(const p of ['pMain', 'pControls', 'pSettings', 'pConfirm', 'pChar', 'pOver', 'pMap', 'pNet', 'pAll']) $(p).hidden = p !== id; const b = id === 'pMain' ? $('bPlay') : $(id).querySelector('button'); if(b) b.focus({preventScroll:true}); }
+function showPanel(id){ if(id !== 'pNet' && !NET.hub) lobbyClose(); document.querySelector('.card').classList.toggle('wide', (id === 'pNet' && !NET.on) || id === 'pFriends'); for(const p of ['pMain', 'pControls', 'pSettings', 'pConfirm', 'pChar', 'pOver', 'pMap', 'pNet', 'pAll', 'pFriends']) $(p).hidden = p !== id; const b = id === 'pMain' ? $('bPlay') : $(id).querySelector('button'); if(b) b.focus({preventScroll:true}); }
 function openMenu(){
   state = 'menu'; $('menu').hidden = false; $('hud').classList.add('off'); $('lock').hidden = true; ghost.visible = false;
   $('menu').classList.toggle('paused', started);
@@ -3193,7 +3237,7 @@ async function netJoinRoom(room, label, max){
   if(NET.hub){ banner('Лобби', 'Пройдите через ворота КПП, чтобы попасть на сервер'); chatLine('', `Вы в лобби. ${TOUCH ? '💬 — чат, 🎤 — микрофон' : 'Enter — чат, M — микрофон, Esc — список серверов'}.`); }
   else { toast(`Вы на сервере: ${label}`); chatLine('', `Вы на сервере «${label}». Enter — написать в чат${TOUCH ? ', 🎤 — микрофон' : ', M — включить микрофон'}. Esc → «В лобби» — вернуться в лобби.`); }
 }
-function announce(){ pub('pr/' + NET.myId, JSON.stringify({n:myName(), t:NET.joinT, h:Date.now()}), true); NET.presT = 60;
+function announce(){ pub('pr/' + NET.myId, JSON.stringify({n:myName(), t:NET.joinT, h:Date.now(), d:DEV}), true); NET.presT = 60;
   if(NET.room.startsWith('s') && NET.role === 'host') pub('meta', JSON.stringify({n:NET.label, h:Date.now()}), true); }
 function livePlayers(){ const now = Date.now(); let n = 0; for(const p of NET.pres.values()) if(now - p.h < 180000) n++; return n; }
 function resetForRoom(){
@@ -3602,7 +3646,7 @@ async function lobbyOpen(){
   try { await loadMqtt(); } catch(e){ $('lobbyStat').textContent = 'нет связи'; return; }
   LOBBY.myId = rid(8); LOBBY.seq = 0;
   const subs = [NET_ROOT + '+/pr/+', NET_ROOT + '+/meta', NET_ROOT + 'lobby/c'];
-  const hi = c => c.connected && c.publish(NET_ROOT + 'lobby/pr/' + LOBBY.myId, JSON.stringify({n:myName(), t:Date.now(), h:Date.now()}), {qos:0, retain:true});
+  const hi = c => c.connected && c.publish(NET_ROOT + 'lobby/pr/' + LOBBY.myId, JSON.stringify({n:myName(), t:Date.now(), h:Date.now(), d:DEV}), {qos:0, retain:true});
   let cs;
   try { cs = await brokersConnect({topic:NET_ROOT + 'lobby/pr/' + LOBBY.myId, payload:'', qos:0, retain:true}, lobbyRaw, c => { c.subscribe(subs, {qos:0}); hi(c); }); }
   catch(e){ if(LOBBY.on) $('lobbyStat').textContent = 'нет связи с сервером'; return; }
@@ -3624,7 +3668,7 @@ function lobbyRaw(topic, text, c){
     const id = parts[2]; let m = LOBBY.rooms.get(room); if(!m) LOBBY.rooms.set(room, m = new Map());
     const old = m.get(id);
     if(!text){ if(old){ old.b.delete(c.bi); if(!old.b.size) m.delete(id); } }
-    else { try { const p = JSON.parse(text); m.set(id, {n:String(p.n || 'Игрок').slice(0, 18), h:+p.h || 0, b:new Set([...(old ? old.b : []), c.bi])}); } catch(e){} }
+    else { try { const p = JSON.parse(text); m.set(id, {n:String(p.n || 'Игрок').slice(0, 18), h:+p.h || 0, d:typeof p.d === 'string' ? p.d : '', b:new Set([...(old ? old.b : []), c.bi])}); } catch(e){} }
     return;
   }
   if(kind === 'meta'){ if(!text) LOBBY.meta.delete(room); else try { const p = JSON.parse(text); LOBBY.meta.set(room, {n:String(p.n || 'Сервер').slice(0, 24), h:+p.h || 0}); } catch(e){} return; }
@@ -3691,6 +3735,7 @@ function renderLobby(){
       const go = document.createElement('span'); go.className = 'go';
       if(room.startsWith('hub')){ go.textContent = 'в лобби'; go.style.background = 'var(--muted)'; }
       else { go.textContent = 'К нему'; el.style.cursor = 'pointer'; el.onclick = () => { sfx('ui'); goRoom(room, w); }; }
+      if(p.d && p.d !== DEV && !FR.friends[p.d] && !FR.out[p.d]) el.children[1].appendChild(smallBtn('+ друг', () => askFriend(p.d)));
       el.append(go); ob.appendChild(el);
     } }
   if(!on){ const d = document.createElement('p'); d.className = 'note'; d.textContent = 'Пока никого — зайдите на сервер, и другие увидят вас здесь.'; ob.appendChild(d); }
@@ -4068,11 +4113,13 @@ const SITE = {cs:null, id:'', pres:new Map(), total:new Map(), users:new Map(), 
 const DEV = store.get('forpost.dev') || (() => { const d = rid(12); store.set('forpost.dev', d); store.set('forpost.first', Date.now()); return d; })();
 function siteRaw(topic, text, c){
   const parts = topic.slice(NET_ROOT.length).split('/'), room = parts[0];
+  if(room === 'dm'){ dmReceive(topic, text, c); return; }
+  if(room === 'ca'){ callAudio(text); return; }
   if(room === 'site' && parts[1] === 'total'){ const n = parseInt(text, 10); if(n > 0) SITE.total.set(c.bi, n); renderDial(); return; }
   if(room === 'site' && parts[1] === 'u'){
     const d = parts[2]; if(!text){ SITE.users.delete(d); return; }
     try { const u = JSON.parse(text), old = SITE.users.get(d);
-      SITE.users.set(d, {n:String(u.n || 'Игрок').slice(0, 18), f:Math.min(+u.f || Date.now(), old ? old.f : Infinity), l:Math.max(+u.l || 0, old ? old.l : 0)}); } catch(e){}
+      SITE.users.set(d, {n:String(u.n || 'Игрок').slice(0, 18), f:Math.min(+u.f || Date.now(), old ? old.f : Infinity), l:Math.max(+u.l || 0, old ? old.l : 0), k:typeof u.k === 'string' ? u.k : (old ? old.k : '')}); } catch(e){}
     clearTimeout(SITE.rt); SITE.rt = setTimeout(renderDial, 300); return;
   }
   if(parts[1] !== 'pr') return;
@@ -4090,6 +4137,7 @@ function renderDial(){
   $('dialTotal').textContent = SITE.cs ? `всего заходили: ${Math.max(total, 1)}` : '';
   $('bAll').textContent = `Все игроки (${Math.max(SITE.users.size, 1)}) →`;
   if(!$('pAll').hidden) renderAll();
+  if(!$('pFriends').hidden) renderFriends(); else if(SITE.badgeT !== (SITE.badgeT = Math.floor(Date.now()/20000))) renderFriends();
   // the scale grows with the crowd: 10, 20, 50, 100, 200…
   const top = [10, 20, 50, 100, 200, 500, 1000, 5000].find(v => play <= v) || play;
   const k = Math.min(1, play/top);
@@ -4102,7 +4150,7 @@ function renderDial(){
 }
 // this device in the list of everyone: name, first and last visit (kept on the broker for good)
 function siteHello(c){
-  const u = JSON.stringify({n:myName(), f:store.get('forpost.first') || Date.now(), l:Date.now()});
+  const u = JSON.stringify({n:myName(), f:store.get('forpost.first') || Date.now(), l:Date.now(), k:KEYS.pub || undefined});
   for(const x of c ? [c] : SITE.cs || []) if(x.connected) x.publish(NET_ROOT + 'site/u/' + DEV, u, {qos:0, retain:true});
 }
 function ago(t){
@@ -4122,23 +4170,328 @@ function renderAll(){
     dot.className = 'dot'; nm.append(dot, document.createTextNode(u.n + (d === DEV ? ' (вы)' : '')));
     sm.textContent = 'впервые: ' + new Date(u.f).toLocaleDateString('ru-RU'); info.append(nm, sm);
     const w = document.createElement('span'); w.className = 'when'; w.textContent = here.has(d) ? 'в сети' : ago(u.l);
-    el.append(info, document.createElement('span'), w); box.appendChild(el);
+    const act = document.createElement('span');
+    if(d !== DEV) act.appendChild(FR.friends[d] ? Object.assign(document.createElement('span'), {className:'when', textContent:'друг ✓'}) : FR.out[d] ? Object.assign(document.createElement('span'), {className:'when', textContent:'запрос отправлен'}) : u.k ? smallBtn('В друзья', () => askFriend(d), 'ok') : Object.assign(document.createElement('span'), {className:'when', textContent:''}));
+    el.append(info, act, w); box.appendChild(el);
   }
   $('allText').textContent = `Все, кто когда-либо заходил в игру: ${SITE.users.size}. Зелёная точка — сейчас на сайте.` + (SITE.users.size > 500 ? ' Показаны последние 500.' : '');
 }
 $('bAll').onclick = () => { sfx('ui'); renderAll(); showPanel('pAll'); };
+$('bFriends').onclick = () => { sfx('ui'); showPanel('pFriends'); renderFriends(); };
+$('bFind').onclick = () => { sfx('ui'); renderAll(); showPanel('pAll'); };
+$('bDmSend').onclick = () => sendText();
+$('dmIn').addEventListener('keydown', e => { e.stopPropagation(); if(e.key === 'Enter') sendText(); });
+$('bCall').onclick = () => { sfx('ui'); callStart(FR.open); };
+$('bUnfriend').onclick = () => { if(confirm('Удалить ' + frName(FR.open) + ' из друзей?')) removeFriend(FR.open); };
+$('bRec').addEventListener('pointerdown', e => { e.preventDefault(); recStart(); });
+for(const ev of ['pointerup', 'pointercancel', 'pointerleave']) $('bRec').addEventListener(ev, () => recEnd());
+$('bCallOk').onclick = () => callAnswer();
+$('bCallEnd').onclick = () => callDecline();
+$('bCallMute').onclick = () => { CALL.mute = !CALL.mute; callUi(); };
 async function siteCount(){
   try { await loadMqtt(); } catch(e){ renderDial(); return; }
+  await keysReady();
   SITE.id = rid(8);
   const me = NET_ROOT + 'site/pr/' + SITE.id, hi = c => { if(!c.connected) return; c.publish(me, JSON.stringify({h:Date.now(), d:DEV}), {qos:0, retain:true}); siteHello(c); };
-  try { SITE.cs = await brokersConnect({topic:me, payload:'', qos:0, retain:true}, siteRaw, c => { c.subscribe([NET_ROOT + '+/pr/+', NET_ROOT + 'site/total', NET_ROOT + 'site/u/+'], {qos:0}); hi(c); }); }
+  try { SITE.cs = await brokersConnect({topic:me, payload:'', qos:0, retain:true}, siteRaw, c => { c.subscribe([NET_ROOT + '+/pr/+', NET_ROOT + 'site/total', NET_ROOT + 'site/u/+', NET_ROOT + 'dm/' + DEV + '/+', NET_ROOT + 'ca/' + DEV], {qos:0}); hi(c); }); }
   catch(e){ renderDial(); setTimeout(siteCount, 20000); return; }     // no answer: try again a bit later
   renderDial();
   setInterval(() => { for(const c of SITE.cs) hi(c); }, 60000);
   setInterval(renderDial, 5000);
   addEventListener('pagehide', () => { for(const c of SITE.cs || []) try { c.connected && c.publish(me, '', {qos:0, retain:true}); } catch(e){} });
 }
+// ---------- friends, private chat, voice messages and calls ----------
+// Every device has a key pair (ECDH P-256, kept in the browser). The public half goes into the list of players,
+// so anyone can send this device a sealed message; only the two ends can open it (AES-GCM with the shared secret).
+// Messages wait for an offline friend on the broker («dm/<device>/<id>», retained) and are deleted once read.
+// Calls stream 8 kHz μ-law sound, sealed in quarter-second pieces, through «ca/<device>».
+const KEYS = {priv:null, pub:'', shared:new Map()};
+const b64e = u8 => { let s = ''; for(let i = 0; i < u8.length; i += 0x8000) s += String.fromCharCode.apply(null, u8.subarray(i, i + 0x8000)); return btoa(s); };
+const b64d = s => { const b = atob(s), u = new Uint8Array(b.length); for(let i = 0; i < b.length; i++) u[i] = b.charCodeAt(i); return u; };
+async function keysReady(){
+  if(KEYS.priv) return true;
+  if(!(window.crypto && crypto.subtle)) return false;
+  try {
+    let k = store.get('forpost.key');
+    if(!k || !k.priv || !k.pub){
+      const pair = await crypto.subtle.generateKey({name:'ECDH', namedCurve:'P-256'}, true, ['deriveKey']);
+      k = {priv:await crypto.subtle.exportKey('jwk', pair.privateKey), pub:await crypto.subtle.exportKey('jwk', pair.publicKey)};
+      store.set('forpost.key', k);
+    }
+    KEYS.priv = await crypto.subtle.importKey('jwk', k.priv, {name:'ECDH', namedCurve:'P-256'}, false, ['deriveKey']);
+    KEYS.pub = k.pub.x + '.' + k.pub.y;
+    return true;
+  } catch(e){ return false; }
+}
+async function sharedKey(pub){
+  let k = KEYS.shared.get(pub); if(k) return k;
+  const [x, y] = String(pub).split('.');
+  const p = await crypto.subtle.importKey('jwk', {kty:'EC', crv:'P-256', x, y, ext:true}, {name:'ECDH', namedCurve:'P-256'}, false, []);
+  k = await crypto.subtle.deriveKey({name:'ECDH', public:p}, KEYS.priv, {name:'AES-GCM', length:256}, false, ['encrypt', 'decrypt']);
+  KEYS.shared.set(pub, k); return k;
+}
+async function seal(pub, obj){
+  const iv = crypto.getRandomValues(new Uint8Array(12)), data = new TextEncoder().encode(JSON.stringify(obj));
+  const c = new Uint8Array(await crypto.subtle.encrypt({name:'AES-GCM', iv}, await sharedKey(pub), data));
+  return {iv:b64e(iv), c:b64e(c)};
+}
+async function unseal(pub, iv, c){
+  const d = await crypto.subtle.decrypt({name:'AES-GCM', iv:b64d(iv)}, await sharedKey(pub), b64d(c));
+  return JSON.parse(new TextDecoder().decode(d));
+}
+
+// ---- what this device keeps: friends, requests, chats
+const FR = {friends:store.get('forpost.friends') || {}, inc:store.get('forpost.freqIn') || {}, out:store.get('forpost.freqOut') || {}, unread:store.get('forpost.unread') || {}, open:'', parts:new Map()};
+const frSave = () => { store.set('forpost.friends', FR.friends); store.set('forpost.freqIn', FR.inc); store.set('forpost.freqOut', FR.out); store.set('forpost.unread', FR.unread); };
+const chatOf = d => store.get('forpost.chat.' + d) || [];
+function chatPush(d, m){
+  const list = chatOf(d); list.push(m);
+  while(list.length > 150) list.shift();
+  // voice messages are big: only the last 12 keep their sound
+  let v = 0; for(let i = list.length - 1; i >= 0; i--) if(list[i].t === 'voice' && list[i].d && ++v > 12) delete list[i].d;
+  store.set('forpost.chat.' + d, list);
+}
+const userOf = d => SITE.users.get(d) || {};
+const frName = d => (userOf(d).n) || (FR.friends[d] || FR.inc[d] || FR.out[d] || {}).n || 'Игрок';
+// where a device is now: on the site, in a world, in the lobby
+function whereIs(d){
+  const now = Date.now(); let site = false, room = '';
+  for(const p of SITE.pres.values()){ if(p.d !== d || now - p.h > 180000) continue; if(p.room === 'site') site = true; else room = p.room; }
+  if(room) return {on:true, room, label:/^w\d+$/.test(room) ? 'играет в «Мир ' + room.slice(1) + '»' : /^hub\d+$/.test(room) ? 'в лобби' : LOBBY.meta.has(room) ? 'на сервере «' + LOBBY.meta.get(room).n + '»' : 'играет'};
+  return site ? {on:true, room:'', label:'в сети'} : {on:false, room:'', label:userOf(d).l ? 'был ' + ago(userOf(d).l) : 'не в сети'};
+}
+
+// ---- sending: a sealed envelope to the device's mailbox (kept until read), or a live one (calls)
+async function dmSend(d, obj, keep = true){
+  const pub = (FR.friends[d] || {}).k || userOf(d).k;
+  if(!pub){ toast('Этот игрок ещё не обновил игру: связаться с ним пока нельзя', true); return false; }
+  if(!anyUp(SITE.cs)){ toast('Нет связи с сервером', true); return false; }
+  if(!await keysReady()){ toast('Этот браузер не умеет шифровать сообщения', true); return false; }
+  const id = rid(10), env = JSON.stringify({f:DEV, k:KEYS.pub, ...(await seal(pub, {...obj, id, ts:Date.now()}))});
+  for(const c of SITE.cs) if(c.connected) c.publish(NET_ROOT + 'dm/' + d + '/' + id, env, {qos:0, retain:keep});
+  return id;
+}
+async function dmReceive(topic, text, c){
+  if(!text) return;
+  const id = topic.split('/').pop();
+  if(SEEN.has('dm:' + id)){ if(c.connected) c.publish(topic, '', {qos:0, retain:true}); return; }
+  let env; try { env = JSON.parse(text); } catch(e){ return; }
+  if(!env.f || !env.k || env.f === DEV) return;
+  // a friend's key is pinned when you become friends: a message «from» them with another key is a fake
+  const pinned = (FR.friends[env.f] || {}).k;
+  if(pinned && pinned !== env.k) return;
+  if(!await keysReady()) return;
+  let m; try { m = await unseal(env.k, env.iv, env.c); } catch(e){ return; }
+  SEEN.add('dm:' + id); SEENQ.push('dm:' + id);
+  for(const x of SITE.cs || []) if(x.connected) x.publish(topic, '', {qos:0, retain:true});   // read: take it off the broker
+  dmHandle(env.f, env.k, m);
+}
+function dmHandle(d, pub, m){
+  const name = String(m.n || frName(d)).slice(0, 18);
+  switch(m.t){
+    case 'freq':
+      if(FR.friends[d]){ dmSend(d, {t:'facc', n:myName()}); break; }
+      if(FR.out[d]){ addFriend(d, name, pub); dmSend(d, {t:'facc', n:myName()}); break; }     // both asked at once
+      FR.inc[d] = {n:name, k:pub, ts:m.ts}; frSave(); sfx('ui'); toast(`${name} хочет добавить вас в друзья — Меню → «Друзья»`); renderFriends(); break;
+    case 'facc': if(FR.out[d] || FR.friends[d]){ addFriend(d, name, pub); toast(`${name} теперь ваш друг`); sfx('ui'); } break;
+    case 'fno': if(FR.out[d]){ delete FR.out[d]; frSave(); renderFriends(); } break;
+    case 'unf': if(FR.friends[d]){ delete FR.friends[d]; frSave(); renderFriends(); } break;
+    case 'msg': if(!FR.friends[d]) break; chatPush(d, {me:false, t:'msg', x:String(m.x || '').slice(0, 1000), ts:m.ts}); notifyMsg(d, String(m.x || '')); break;
+    case 'voice': {
+      if(!FR.friends[d]) break;
+      let v = FR.parts.get(m.vid); if(!v){ v = {n:m.np, got:[], ts:m.ts, len:m.len}; FR.parts.set(m.vid, v); }
+      v.got[m.p] = m.d;
+      if(v.got.filter(Boolean).length === v.n){ FR.parts.delete(m.vid); chatPush(d, {me:false, t:'voice', d:v.got.join(''), len:v.len, ts:v.ts}); notifyMsg(d, '🎙 Голосовое сообщение'); }
+      break;
+    }
+    case 'call': callIncoming(d, m); break;
+    case 'callok': if(CALL.state === 'out' && CALL.dev === d && CALL.id === m.cid) callLive(); break;
+    case 'callno': if(CALL.dev === d && CALL.id === m.cid){ toast(m.busy ? `${frName(d)} сейчас разговаривает` : `${frName(d)} не ответил`, true); callEnd(false); } break;
+    case 'hang': if(CALL.dev === d && CALL.id === m.cid){ toast('Звонок завершён'); callEnd(false); } break;
+  }
+}
+function notifyMsg(d, text){
+  if(FR.open === d && !$('pFriends').hidden){ renderChat(); return; }
+  FR.unread[d] = (FR.unread[d] || 0) + 1; frSave();
+  toast(`💬 ${frName(d)}: ${text.slice(0, 60)}`); sfx('tick'); renderFriends();
+}
+function addFriend(d, n, k){ FR.friends[d] = {n, k, since:Date.now()}; delete FR.inc[d]; delete FR.out[d]; frSave(); renderFriends(); }
+async function askFriend(d){
+  if(d === DEV || FR.friends[d]) return;
+  if(await dmSend(d, {t:'freq', n:myName()})){ FR.out[d] = {n:frName(d), ts:Date.now()}; frSave(); toast(`Запрос в друзья отправлен: ${frName(d)}`); sfx('ui'); renderFriends(); if(!$('pAll').hidden) renderAll(); }
+}
+function acceptFriend(d){ const r = FR.inc[d]; if(!r) return; addFriend(d, r.n, r.k); dmSend(d, {t:'facc', n:myName()}); sfx('ui'); }
+function declineFriend(d){ if(!FR.inc[d]) return; dmSend(d, {t:'fno'}); delete FR.inc[d]; frSave(); renderFriends(); }
+function removeFriend(d){ if(!FR.friends[d]) return; dmSend(d, {t:'unf'}); delete FR.friends[d]; frSave(); if(FR.open === d) FR.open = ''; renderFriends(); toast('Удалён из друзей'); }
+async function sendText(){
+  const d = FR.open, inp = $('dmIn'), x = inp.value.trim().slice(0, 1000);
+  if(!d || !x) return;
+  if(await dmSend(d, {t:'msg', x})){ inp.value = ''; chatPush(d, {me:true, t:'msg', x, ts:Date.now()}); renderChat(); sfx('tick'); }
+}
+
+// ---- recording from the microphone (voice messages and calls): 8 kHz samples handed to onChunk
+async function capture(onChunk, every = 2000){
+  if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){ toast('Этот браузер не даёт доступ к микрофону', true); return null; }
+  const ctx = audioCtx();
+  let stream; try { stream = await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true, noiseSuppression:true, autoGainControl:true}}); }
+  catch(e){ toast('Нет доступа к микрофону: разрешите его в настройках браузера', true); sfx('err'); return null; }
+  const src = ctx.createMediaStreamSource(stream), proc = ctx.createScriptProcessor(4096, 1, 1), sink = ctx.createGain(), r = ctx.sampleRate/8000;
+  sink.gain.value = 0; let t = 0, acc = [], live = true;
+  proc.onaudioprocess = e => {
+    if(!live) return;
+    const inp = e.inputBuffer.getChannelData(0);
+    while(t + r <= inp.length){ let s = 0, k = 0; for(let j = Math.floor(t); j < Math.floor(t + r); j++){ s += inp[j]; k++; } acc.push(k ? s/k : 0); t += r; }
+    t -= inp.length;
+    if(acc.length >= every){ onChunk(acc); acc = []; }
+  };
+  src.connect(proc); proc.connect(sink); sink.connect(ctx.destination);
+  return () => { live = false; if(acc.length) onChunk(acc); try { src.disconnect(); proc.disconnect(); sink.disconnect(); } catch(e){} stream.getTracks().forEach(x => x.stop()); };
+}
+const packMu = samples => { const u = new Uint8Array(samples.length); for(let i = 0; i < samples.length; i++) u[i] = mulawEnc(samples[i]); return u; };
+// play 8 kHz μ-law sound; «at» lets pieces of a call follow each other without gaps
+function playMu(u8, at){
+  const ctx = audioCtx(), n = u8.length, rate = ctx.sampleRate, up = rate/8000, out = Math.floor(n*up);
+  if(!n) return at || 0;
+  const buf = ctx.createBuffer(1, out, rate), dd = buf.getChannelData(0), pcm = new Float32Array(n);
+  for(let i = 0; i < n; i++) pcm[i] = mulawDec(u8[i]);
+  for(let i = 0; i < out; i++){ const x = i/up, j = Math.floor(x), f = x - j; dd[i] = pcm[j]*(1 - f) + pcm[Math.min(n - 1, j + 1)]*f; }
+  const s = ctx.createBufferSource(); s.buffer = buf; const g = ctx.createGain(); g.gain.value = 1.6; s.connect(g); g.connect(ctx.destination);
+  const when = Math.max(ctx.currentTime + 0.05, at || 0); s.start(when); FR.playing = s; return when + buf.duration;
+}
+
+// ---- voice messages: hold the button, speak (up to 20 s), let go
+const REC = {stop:null, samples:[], t0:0, timer:0};
+async function recStart(){
+  if(REC.stop || !FR.open) return;
+  REC.samples = []; REC.want = true;
+  const stop = await capture(ch => { REC.samples.push(...ch); }, 4000);
+  if(!stop) return;
+  if(!REC.want){ stop(); return; }
+  REC.stop = stop; REC.t0 = performance.now(); $('bRec').classList.add('rec');
+  REC.timer = setInterval(() => { const s = (performance.now() - REC.t0)/1000; $('bRec').textContent = `● ${s.toFixed(0)} с — отпустите`; if(s >= 20) recEnd(); }, 200);
+}
+async function recEnd(){
+  REC.want = false;
+  if(!REC.stop) return;
+  REC.stop(); REC.stop = null; clearInterval(REC.timer); $('bRec').classList.remove('rec'); $('bRec').textContent = '🎙 Держать — голосовое';
+  const d = FR.open, sm = REC.samples; REC.samples = [];
+  if(sm.length < 2400){ toast('Слишком коротко: держите кнопку, пока говорите', true); return; }
+  const b = b64e(packMu(sm)), len = +(sm.length/8000).toFixed(1), vid = rid(8), size = 30000, np = Math.ceil(b.length/size);
+  for(let p = 0; p < np; p++) if(!await dmSend(d, {t:'voice', vid, p, np, len, d:b.slice(p*size, (p + 1)*size)})) return;
+  chatPush(d, {me:true, t:'voice', d:b, len, ts:Date.now()}); renderChat(); sfx('tick');
+}
+
+// ---- calls
+const CALL = {state:'idle', dev:'', id:'', stop:null, seq:0, last:-1, at:0, t0:0, ring:0, timer:0, mute:false};
+async function callStart(d){
+  if(CALL.state !== 'idle'){ toast('Вы уже в звонке', true); return; }
+  if(!FR.friends[d]) return;
+  CALL.state = 'out'; CALL.dev = d; CALL.id = rid(8);
+  if(!await dmSend(d, {t:'call', cid:CALL.id, n:myName()}, false)){ callEnd(false); return; }
+  callUi(); CALL.ring = setTimeout(() => { if(CALL.state === 'out'){ dmSend(d, {t:'hang', cid:CALL.id}, false); toast(`${frName(d)} не ответил`, true); callEnd(false); } }, 30000);
+}
+function callIncoming(d, m){
+  if(!FR.friends[d]) return;
+  if(Date.now() - m.ts > 30000) return;                       // an old ring that waited on the broker
+  if(CALL.state !== 'idle'){ dmSend(d, {t:'callno', cid:m.cid, busy:1}, false); return; }
+  CALL.state = 'in'; CALL.dev = d; CALL.id = m.cid; callUi();
+  const ring = () => { if(CALL.state === 'in'){ sfx('alarm'); CALL.ring = setTimeout(ring, 2200); } }; ring();
+  setTimeout(() => { if(CALL.state === 'in' && CALL.id === m.cid){ dmSend(d, {t:'callno', cid:m.cid}, false); callEnd(false); } }, 30000);
+}
+function callAnswer(){ if(CALL.state !== 'in') return; dmSend(CALL.dev, {t:'callok', cid:CALL.id}, false); callLive(); }
+function callDecline(){ if(CALL.state === 'idle') return; dmSend(CALL.dev, {t:CALL.state === 'in' ? 'callno' : 'hang', cid:CALL.id}, false); callEnd(true); }
+async function callLive(){
+  clearTimeout(CALL.ring); CALL.state = 'live'; CALL.t0 = performance.now(); CALL.seq = 0; CALL.last = -1; CALL.at = 0; callUi();
+  const d = CALL.dev, id = CALL.id, pub = (FR.friends[d] || {}).k;
+  const stop = await capture(async ch => {
+    if(CALL.state !== 'live' || CALL.id !== id || CALL.mute) return;
+    const env = JSON.stringify({f:DEV, ...(await seal(pub, {cid:id, s:++CALL.seq, d:b64e(packMu(ch))}))});
+    for(const c of SITE.cs || []) if(c.connected) c.publish(NET_ROOT + 'ca/' + d, env, {qos:0});
+  });
+  if(CALL.state !== 'live' || CALL.id !== id){ stop && stop(); return; }
+  CALL.stop = stop;
+  CALL.timer = setInterval(callUi, 1000);
+}
+async function callAudio(text){
+  if(CALL.state !== 'live') return;
+  let env; try { env = JSON.parse(text); } catch(e){ return; }
+  if(env.f !== CALL.dev) return;
+  let m; try { m = await unseal(FR.friends[CALL.dev].k, env.iv, env.c); } catch(e){ return; }
+  if(m.cid !== CALL.id || m.s <= CALL.last) return;           // a late copy from the second broker
+  CALL.last = m.s;
+  CALL.at = playMu(b64d(m.d), CALL.at);
+}
+function callEnd(){
+  clearTimeout(CALL.ring); clearInterval(CALL.timer);
+  if(CALL.stop) CALL.stop();
+  Object.assign(CALL, {state:'idle', dev:'', id:'', stop:null, mute:false});
+  callUi();
+}
+function callUi(){
+  const box = $('callBox'); box.hidden = CALL.state === 'idle'; if(box.hidden) return;
+  const n = frName(CALL.dev), secs = Math.floor((performance.now() - CALL.t0)/1000);
+  $('callText').textContent = CALL.state === 'out' ? `📞 Звоним: ${n}…` : CALL.state === 'in' ? `📞 Звонит ${n}` : `📞 ${n} · ${Math.floor(secs/60)}:${String(secs % 60).padStart(2, '0')}`;
+  $('bCallOk').hidden = CALL.state !== 'in';
+  $('bCallMute').hidden = CALL.state !== 'live'; $('bCallMute').textContent = CALL.mute ? '🔇 Микрофон выключен' : '🎤 Выключить микрофон';
+  $('bCallEnd').textContent = CALL.state === 'in' ? 'Отклонить' : 'Завершить';
+}
+
+// ---- the «Друзья» panel
+function friendRow(d, title, sub, live, extra){
+  const el = document.createElement('div'); el.className = 'srv' + (live ? ' live' : '') + (FR.open === d ? ' sel' : '');
+  const info = document.createElement('div'), nm = document.createElement('b'), sm = document.createElement('small'), dot = document.createElement('i');
+  dot.className = 'dot'; nm.append(dot, document.createTextNode(title)); sm.textContent = sub; info.append(nm, sm);
+  el.append(info, document.createElement('span'));
+  const right = document.createElement('span'); right.className = 'acts'; for(const x of extra) right.appendChild(x); el.appendChild(right);
+  return el;
+}
+function smallBtn(text, fn, cls = ''){ const b = document.createElement('button'); b.className = 'mini ' + cls; b.textContent = text; b.onclick = e => { e.stopPropagation(); sfx('ui'); fn(); }; return b; }
+function renderFriends(){
+  if(FR.open && FR.unread[FR.open] && !$('pFriends').hidden){ delete FR.unread[FR.open]; frSave(); }     // the open chat is read
+  const unread = Object.values(FR.unread).reduce((a, b) => a + b, 0), inc = Object.keys(FR.inc).length;
+  $('frBadge').textContent = unread + inc ? `${unread ? '💬 ' + unread : ''}${unread && inc ? ' · ' : ''}${inc ? '👤 ' + inc : ''}` : `${Object.keys(FR.friends).length}`;
+  $('frBadge').classList.toggle('hot', unread + inc > 0);
+  if($('pFriends').hidden) return;
+  const box = $('frList'); box.textContent = '';
+  for(const [d, r] of Object.entries(FR.inc)){
+    const el = friendRow(d, r.n, 'хочет дружить', false, [smallBtn('Принять', () => acceptFriend(d), 'ok'), smallBtn('✕', () => declineFriend(d))]);
+    el.classList.add('req'); box.appendChild(el);
+  }
+  const list = Object.keys(FR.friends).map(d => ({d, w:whereIs(d)})).sort((a, b) => b.w.on - a.w.on || (FR.unread[b.d] || 0) - (FR.unread[a.d] || 0));
+  for(const {d, w} of list){
+    const extra = [];
+    if(FR.unread[d]){ const u = document.createElement('span'); u.className = 'unread'; u.textContent = FR.unread[d]; extra.push(u); }
+    if(w.room && !w.room.startsWith('hub') && !w.room.startsWith('r')) extra.push(smallBtn('К нему', () => goRoom(w.room, w.label.replace(/^.*«|»$/g, '') || 'Сервер')));
+    const el = friendRow(d, frName(d), w.label, w.on, extra);
+    el.style.cursor = 'pointer'; el.onclick = () => { FR.open = d; delete FR.unread[d]; frSave(); renderFriends(); };
+    box.appendChild(el);
+  }
+  for(const [d, r] of Object.entries(FR.out)){ const el = friendRow(d, r.n, 'запрос отправлен, ждём ответа', false, []); el.style.opacity = .6; box.appendChild(el); }
+  if(!box.children.length){ const p = document.createElement('p'); p.className = 'note'; p.textContent = 'Друзей пока нет. Нажмите «Найти игроков» и отправьте запрос.'; box.appendChild(p); }
+  renderChat();
+}
+function renderChat(){
+  const d = FR.open, has = !!(d && FR.friends[d]);
+  $('dmEmpty').hidden = has; $('dmBox').hidden = !has;
+  if(!has) return;
+  const w = whereIs(d);
+  $('dmName').textContent = frName(d); $('dmWhere').textContent = w.label;
+  const log = $('dmLog'); log.textContent = '';
+  for(const m of chatOf(d)){
+    const el = document.createElement('div'); el.className = 'msg' + (m.me ? ' me' : '');
+    if(m.t === 'voice'){
+      const b = document.createElement('button'); b.className = 'mini vplay'; b.textContent = m.d ? `▶ Голосовое · ${m.len || '?'} с` : '🎙 голосовое (устарело)';
+      if(m.d) b.onclick = () => { try { if(FR.playing) FR.playing.stop(); } catch(e){} playMu(b64d(m.d)); };
+      el.appendChild(b);
+    } else el.appendChild(document.createTextNode(m.x));
+    const t = document.createElement('small'); t.textContent = new Date(m.ts).toLocaleString('ru-RU', {day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit'}); el.appendChild(t);
+    log.appendChild(el);
+  }
+  log.scrollTop = log.scrollHeight;
+}
+
 if(navigator.onLine !== false) siteCount(); else renderDial();
+setTimeout(renderFriends, 0);
 try { const q = new URLSearchParams(location.search); if(q.get('join')) netJoin(q.get('join')); else if(q.get('server')) netPlayWorld(); } catch(e){}
 requestAnimationFrame(frame);
 </script>
