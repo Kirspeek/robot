@@ -162,6 +162,14 @@ input[type=checkbox]{width:18px;height:18px;accent-color:var(--accent)}
 .mp.on b::before{content:"● ";color:var(--accent)}
 
 .netlink{display:grid;gap:6px}
+.netcode{display:flex;justify-content:space-between;align-items:center;background:rgba(217,185,62,.1);border:1px solid var(--accent);border-radius:10px;padding:10px 14px}
+.netcode span{font:500 12px var(--f-mono);color:var(--muted);text-transform:uppercase;letter-spacing:.12em}
+.netcode b{font:400 32px/1 var(--f-head);letter-spacing:.18em;color:var(--accent);user-select:all;-webkit-user-select:all}
+.netstart{display:grid;gap:8px}
+.joinrow{display:grid;grid-template-columns:1fr auto;gap:8px}
+.joinrow input{min-width:0;font:400 20px var(--f-head);letter-spacing:.2em;text-transform:uppercase;text-align:center;color:var(--fg);background:rgba(255,255,255,.06);border:1px solid var(--line);border-radius:10px;padding:8px 10px;user-select:text;-webkit-user-select:text}
+.joinrow input:focus{outline:2px solid var(--accent);outline-offset:1px}
+.joinrow .btn{width:auto}
 .netlink code{font:500 13px var(--f-mono);background:rgba(255,255,255,.06);border:1px solid var(--line);border-radius:8px;padding:8px 10px;user-select:all;-webkit-user-select:all;word-break:break-all}
 .note{margin:0;font-size:13px;color:var(--muted)}
 .note kbd{font:500 11px var(--f-mono);background:rgba(255,255,255,.08);border:1px solid var(--line);border-radius:4px;padding:0 5px}
@@ -340,8 +348,15 @@ input[type=checkbox]{width:18px;height:18px;accent-color:var(--accent)}
     <section class="panel" id="pNet" hidden>
       <h2>Вдвоём по сети</h2>
       <p class="note" id="netText"></p>
+      <div class="netcode" id="netCodeBox" hidden><span>Код игры</span><b id="netCodeShow"></b></div>
       <div class="netlink" id="netLink" hidden></div>
-      <div class="row"><button class="btn primary" id="bNetGo">Подключиться</button><button class="btn danger" id="bNetOff" hidden>Отключиться</button></div>
+      <button class="btn" id="bNetShare" hidden>Отправить ссылку напарнику</button>
+      <div class="netstart" id="netStart">
+        <button class="btn primary" id="bNetHost">Создать игру <small>получить код</small></button>
+        <div class="joinrow"><input id="netCode" placeholder="КОД" maxlength="5" autocomplete="off" autocapitalize="characters" spellcheck="false" aria-label="Код игры напарника"><button class="btn" id="bNetJoin">Войти по коду</button></div>
+        <button class="btn" id="bNetGo" hidden>По Wi‑Fi через этот компьютер</button>
+      </div>
+      <button class="btn danger" id="bNetOff" hidden>Отключиться</button>
       <button class="btn back">Назад</button>
     </section>
 
@@ -2720,8 +2735,9 @@ $('bDefaults').onclick = () => { Object.assign(S, DEF); applySettings(); sfx('ui
 // ---------- playing together over the network ----------
 // The first player to connect hosts: robots, waves, walls, resources and the headquarters live on their computer.
 // The second player (the guest) moves and shoots on their own and asks the host for everything else.
-// server.py relays the messages between the two browsers.
-const NET = {ws:null, role:'', peer:false, host:false, guest:false, pT:0, sT:0, wT:0, wSig:-1, shots:[], fx:[], units:new Map(), status:'off'};
+// Two ways to connect: over the internet from any devices (WebRTC through the free PeerJS service, with a room code),
+// or through server.py on a computer in the same Wi‑Fi. Either way the same messages go back and forth.
+const NET = {kind:'', code:'', p2p:null, conn:null, ws:null, role:'', peer:false, host:false, guest:false, pT:0, sT:0, wT:0, wSig:-1, shots:[], fx:[], units:new Map(), status:'off'};
 const PEER = {on:false, i:-1, R:null, g:new THREE.Group(), p:new THREE.Vector3(), t:new THREE.Vector3(), face:0, tface:0, walk:0, amt:0, air:0, build:false,
   pitch:0, place:0, dead:true, fall:1, label:null};
 scene.add(PEER.g); PEER.g.visible = false;
@@ -2739,27 +2755,95 @@ function netSend(m){ if(NET.ws && NET.ws.readyState === 1) NET.ws.send(JSON.stri
 function netUpdateFlags(){
   NET.host = NET.role === 'host' && NET.peer; NET.guest = NET.role === 'guest' && NET.peer;
   if(!NET.peer){ PEER.on = false; PEER.fall = 1; }
-  const s = !NET.ws ? 'выкл' : NET.peer ? (NET.host ? 'вы ведёте игру' : 'в игре у напарника') : 'ждём напарника';
+  const s = !NET.ws ? 'выкл' : NET.peer ? (NET.host ? 'вы ведёте игру' : 'в игре у напарника') : NET.role === 'host' && NET.code ? 'код ' + NET.code : NET.role ? 'ждём напарника' : 'подключаюсь…';
   NET.status = s; $('netState').textContent = s; $('netHud').textContent = NET.peer ? 'вдвоём' : '';
   renderNetPanel();
 }
+// ---- over the internet: PeerJS. The host's id is ROOM + code, the guest connects to it
+const ROOM = 'robot-vs-people-v1-', CODE_ABC = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+let peerLib = null;
+function loadPeer(){
+  if(window.Peer) return Promise.resolve();
+  return peerLib || (peerLib = new Promise((ok, bad) => { const sc = document.createElement('script');
+    sc.src = 'https://cdnjs.cloudflare.com/ajax/libs/peerjs/1.5.4/peerjs.min.js'; sc.onload = ok; sc.onerror = () => { peerLib = null; bad(); }; document.head.appendChild(sc); }));
+}
+// a WebSocket-like wrapper, so netSend and the rest do not care which way we are connected
+function p2pTransport(){ return {get readyState(){ return NET.conn && NET.conn.open ? 1 : 0; }, send(t){ try { NET.conn.send(t); } catch(e){} }, close(){ netP2PClose(); }}; }
+function netP2PWire(conn){
+  NET.conn = conn;
+  conn.on('data', d => { let m; try { m = typeof d === 'string' ? JSON.parse(d) : d; } catch(e){ return; } netOnMessage(m); });
+  conn.on('close', () => { if(NET.conn !== conn) return; NET.conn = null; if(NET.role === 'host') netOnMessage({t:'left'}); else netP2PClose(true); });
+  conn.on('error', () => {});
+}
+function netP2PFail(msg){ netP2PClose(); $('netText').textContent = msg; toast(msg, true); sfx('err'); }
+function netP2PClose(lost){
+  const wasGuest = NET.guest, p = NET.p2p;
+  NET.p2p = null; NET.conn = null; NET.ws = null; NET.kind = ''; NET.role = ''; NET.peer = false; NET.code = '';
+  try { if(p) p.destroy(); } catch(e){}
+  netUpdateFlags();
+  if(wasGuest){ toast(lost ? 'Связь с напарником потеряна' : 'Вы вышли из игры напарника', !!lost); setTimeout(() => { location.href = location.pathname; }, 1500); }
+}
+async function netHost(){
+  if(NET.ws) return;
+  NET.kind = 'p2p'; NET.ws = p2pTransport(); NET.status = 'подключаюсь…'; renderNetPanel();
+  try { await loadPeer(); } catch(e){ netP2PFail('Не удалось загрузить сетевой модуль. Проверьте интернет.'); return; }
+  const tryCode = (left) => {
+    const code = Array.from({length:5}, () => CODE_ABC[Math.floor(Math.random()*CODE_ABC.length)]).join('');
+    const peer = new Peer(ROOM + code); NET.p2p = peer;
+    peer.on('open', () => { NET.code = code; NET.role = 'host'; netUpdateFlags(); });
+    peer.on('connection', conn => {
+      if(NET.conn && NET.conn.open){ conn.on('open', () => { conn.send(JSON.stringify({t:'full'})); setTimeout(() => conn.close(), 500); }); return; }
+      netP2PWire(conn); conn.on('open', () => netOnMessage({t:'joined'}));
+    });
+    peer.on('disconnected', () => { try { peer.reconnect(); } catch(e){} });   // lost the code service: keep the game going, get the code back
+    peer.on('error', err => {
+      if(err.type === 'unavailable-id' && left > 0){ try { peer.destroy(); } catch(e){} tryCode(left - 1); return; }
+      if(err.type === 'network' || err.type === 'server-error' || err.type === 'socket-error') { if(!NET.peer) netP2PFail('Нет связи с сервисом кодов. Проверьте интернет и попробуйте ещё раз.'); return; }
+      if(err.type === 'peer-unavailable') return;
+      if(!NET.peer) netP2PFail('Не получилось создать игру: ' + err.type);
+    });
+  };
+  tryCode(3);
+}
+async function netJoin(code){
+  code = (code || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+  if(code.length !== 5){ toast('Код — 5 букв и цифр', true); sfx('err'); return; }
+  if(NET.ws) return;
+  NET.kind = 'p2p'; NET.ws = p2pTransport(); NET.code = code; NET.status = 'подключаюсь…'; renderNetPanel();
+  try { await loadPeer(); } catch(e){ netP2PFail('Не удалось загрузить сетевой модуль. Проверьте интернет.'); return; }
+  const peer = new Peer(); NET.p2p = peer;
+  let opened = false;
+  const giveUp = setTimeout(() => { if(!opened && NET.p2p === peer) netP2PFail('Не удалось соединиться. Проверьте код и что напарник не закрыл игру.'); }, 45000);
+  peer.on('open', () => {
+    const conn = peer.connect(ROOM + code, {reliable:true, serialization:'raw'});
+    netP2PWire(conn);
+    conn.on('open', () => { opened = true; clearTimeout(giveUp); NET.role = 'guest'; netUpdateFlags(); });
+  });
+  peer.on('error', err => {
+    clearTimeout(giveUp);
+    if(err.type === 'peer-unavailable') netP2PFail(`Игра с кодом ${code} не найдена. Проверьте код: напарник должен держать игру открытой.`);
+    else if(!NET.peer) netP2PFail('Нет связи: ' + err.type + '. Проверьте интернет.');
+  });
+}
+
 function netConnect(){
   if(NET.ws) return;
   if(noServer){ renderNetPanel(); return; }
+  NET.kind = 'ws';
   const ws = new WebSocket((location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/ws');
   NET.ws = ws; NET.status = 'подключаюсь…'; renderNetPanel();
   ws.onmessage = e => { let m; try { m = JSON.parse(e.data); } catch(err){ return; } netOnMessage(m); };
   ws.onclose = () => {
     const wasGuest = NET.guest; NET.ws = null; NET.role = ''; NET.peer = false; netUpdateFlags();
-    if(wasGuest){ toast('Связь с напарником потеряна', true); setTimeout(() => { location.href = location.pathname + '?map=' + MAP; }, 1500); }
+    if(wasGuest){ toast('Связь с напарником потеряна', true); setTimeout(() => { location.href = location.pathname; }, 1500); }
   };
   ws.onerror = () => { $('netText').textContent = 'Не удалось подключиться к серверу игры. Запустите игру ярлыком «Играть — ….command».'; };
 }
-function netDisconnect(){ if(NET.ws){ const g = NET.guest; NET.ws.close(); if(g) location.href = location.pathname + '?map=' + MAP; } }
+function netDisconnect(){ if(!NET.ws) return; if(NET.kind === 'p2p'){ netP2PClose(); return; } const g = NET.guest; NET.ws.close(); if(g) location.href = location.pathname; }
 
 function netOnMessage(m){
   switch(m.t){
-    case 'full': toast('В игре уже двое', true); NET.ws.close(); break;
+    case 'full': NET.ws && NET.ws.close(); toast('В этой игре уже двое', true); break;
     case 'role': NET.role = m.role; netUpdateFlags(); break;
     case 'joined':                       // a guest came in: tell them the map and send the whole world
       NET.peer = true; netUpdateFlags(); NET.wSig = -1;
@@ -2777,7 +2861,7 @@ function netOnMessage(m){
       break;
     case 'left':
       NET.peer = false; PEER.g.visible = PEER.label.visible = false;
-      if(NET.role === 'guest'){ netUpdateFlags(); toast('Напарник вышел из игры', true); setTimeout(() => { location.href = location.pathname + '?map=' + MAP; }, 1500); }
+      if(NET.role === 'guest'){ netUpdateFlags(); toast('Напарник вышел из игры', true); setTimeout(() => { location.href = location.pathname; }, 1500); }
       else { NET.units.clear(); netUpdateFlags(); toast('Напарник вышел из игры', true); }
       break;
     case 'p': netOnPeer(m); break;
@@ -2928,25 +3012,37 @@ function netTick(dt){
 // ---- the «Вдвоём по сети» panel in the menu
 let netInfo = null;
 let noServer = location.protocol === 'file:';     // e.g. GitHub Pages: no game server, so only single play
-function updateNetState(){ if(noServer && !NET.ws) $('netState').textContent = 'только с компьютера'; }
+function joinLink(){ return location.origin + location.pathname + '?join=' + NET.code; }
 function renderNetPanel(){
-  const txt = $('netText'), link = $('netLink'), go = $('bNetGo'), off = $('bNetOff');
-  if(noServer){
-    txt.textContent = location.protocol === 'file:'
-      ? 'Игра открыта как файл, а для игры вдвоём нужен сервер. Закройте вкладку и запустите игру ярлыком «Играть.command» в папке игры.'
-      : 'По этой ссылке играют в одиночку — на компьютере или телефоне. Для игры вдвоём игру запускают на компьютере ярлыком «Играть.command» из папки игры: тогда в этом меню появится ссылка для напарника в той же сети Wi‑Fi.';
-    link.hidden = true; go.hidden = true; off.hidden = true; return;
-  }
-  go.hidden = !!NET.ws; off.hidden = !NET.ws;
-  const addr = netInfo && netInfo.ips.length ? netInfo.ips.map(ip => `http://${ip}:${netInfo.port}/?net=1`) : [];
-  if(!NET.ws) txt.textContent = 'Оба компьютера должны быть в одной сети Wi‑Fi. Нажмите «Подключиться». Напарник открывает ссылку ниже в браузере на своём компьютере и сразу попадает к вам.';
-  else if(!NET.role) txt.textContent = 'Подключаюсь к серверу игры…';
-  else if(!NET.peer) txt.textContent = 'Ждём напарника. Пусть он откроет у себя эту ссылку:';
-  else txt.textContent = NET.host ? 'Напарник в игре. Вы ведёте игру: роботы, волны и стены считаются на вашем компьютере. Ресурсы общие.'
+  const txt = $('netText'), link = $('netLink'), off = $('bNetOff'), start = $('netStart'), box = $('netCodeBox'), share = $('bNetShare');
+  start.hidden = !!NET.ws; off.hidden = !NET.ws;
+  $('bNetGo').hidden = noServer;
+  const hostWaiting = NET.kind === 'p2p' && NET.role === 'host' && !NET.peer && NET.code;
+  box.hidden = !hostWaiting; share.hidden = !hostWaiting; $('netCodeShow').textContent = NET.code;
+  let addr = [];
+  if(hostWaiting) addr = [joinLink()];
+  else if(NET.kind === 'ws' && !NET.peer && NET.role === 'host' && netInfo && netInfo.ips.length) addr = netInfo.ips.map(ip => `http://${ip}:${netInfo.port}/?net=1`);
+  link.hidden = !addr.length; link.innerHTML = addr.map(a => `<code>${a}</code>`).join('');
+  if(!NET.ws) txt.textContent = location.protocol === 'file:'
+    ? 'Игра открыта как файл. Для игры вдвоём откройте её по ссылке https://kirspeek.github.io/robot/ или ярлыком «Играть.command».'
+    : 'Играйте вдвоём через интернет с любых устройств: телефон с телефоном, ноутбук с ноутбуком, телефон с компьютером. Один нажимает «Создать игру» и сообщает напарнику код. Напарник открывает игру у себя, вводит код и нажимает «Войти по коду».';
+  else if(!NET.role) txt.textContent = NET.kind === 'p2p' && NET.code ? `Подключаюсь к игре ${NET.code}…` : 'Подключаюсь…';
+  else if(!NET.peer) txt.textContent = NET.kind === 'p2p'
+    ? 'Скажите напарнику этот код: он вводит его в меню «Вдвоём по сети» на своём устройстве. Или отправьте ему ссылку — по ней он попадёт сразу к вам. Не закрывайте игру, пока ждёте.'
+    : 'Ждём напарника. Пусть он откроет у себя эту ссылку (вы оба в одной сети Wi‑Fi):';
+  else txt.textContent = NET.host ? 'Напарник в игре. Вы ведёте игру: роботы, волны и стены считаются на вашем устройстве. Ресурсы общие.'
     : 'Вы в игре у напарника. Стены, ресурсы и волны общие. Ремонтный дрон и команды союзникам есть только у первого игрока.';
-  link.hidden = !addr.length || NET.guest; link.innerHTML = addr.map(a => `<code>${a}</code>`).join('');
 }
-fetch('/api/info').then(r => r.json()).then(j => { netInfo = j; renderNetPanel(); }).catch(() => { noServer = true; renderNetPanel(); updateNetState(); });
+$('bNetHost').onclick = () => { sfx('ui'); netHost(); };
+$('bNetJoin').onclick = () => { sfx('ui'); netJoin($('netCode').value); };
+$('netCode').addEventListener('keydown', e => { e.stopPropagation(); if(e.key === 'Enter') netJoin($('netCode').value); });
+$('netCode').addEventListener('input', e => { const v = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ''); if(v !== e.target.value) e.target.value = v; });
+$('bNetShare').onclick = async () => {
+  sfx('ui'); const url = joinLink();
+  try { if(navigator.share){ await navigator.share({title:'Робот против людей', text:`Заходи ко мне в игру! Код: ${NET.code}`, url}); return; } } catch(e){ if(e && e.name === 'AbortError') return; }
+  try { await navigator.clipboard.writeText(url); toast('Ссылка скопирована'); } catch(e){ toast('Скопируйте ссылку выше', true); }
+};
+fetch('/api/info').then(r => r.json()).then(j => { netInfo = j; renderNetPanel(); }).catch(() => { noServer = true; renderNetPanel(); });
 
 // ---------- frame ----------
 const fwd = new THREE.Vector3(), right = new THREE.Vector3(), move = new THREE.Vector3(), tgt = new THREE.Vector3(), camWant = new THREE.Vector3();
@@ -3051,7 +3147,7 @@ function frame(now){
 loadGame();
 { const c = store.get('forpost.char'); setCharacter(Number.isInteger(c) && RIGS[c] ? c : 0); }
 loadWalls(); setBuild(false); syncSettings(); openMenu(); netUpdateFlags();
-try { if(new URLSearchParams(location.search).get('net') === '1') netConnect(); } catch(e){}
+try { const q = new URLSearchParams(location.search); if(q.get('join')) netJoin(q.get('join')); else if(q.get('net') === '1') netConnect(); } catch(e){}
 requestAnimationFrame(frame);
 </script>
 </body>
