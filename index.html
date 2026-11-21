@@ -48,13 +48,13 @@ button{font:inherit;color:inherit}
 .cross.walk::after{display:none}
 .bar{position:absolute;bottom:18px;left:50%;transform:translateX(-50%);display:flex;gap:8px;transition:opacity .2s}
 .bar.dim{opacity:.4}
-.slot{width:92px;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:8px 8px 7px;display:grid;gap:4px;justify-items:center;position:relative}
+.slot{box-sizing:border-box;width:76px;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:8px 8px 7px;display:grid;gap:4px;justify-items:center;position:relative}
 .slot.on{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent) inset}
 .slot i{position:absolute;top:5px;left:7px;font:500 11px var(--f-mono);color:var(--muted);font-style:normal}
-.slot svg{width:56px;height:34px}
-.slot b{font:600 12px var(--f-body)}
-.slot small{font:500 10px var(--f-mono);color:var(--muted)}
-.hint{position:absolute;bottom:18px;left:16px;max-width:300px;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:9px 12px;font:500 12px/1.7 var(--f-body);color:var(--muted)}
+.slot svg{width:48px;height:30px}
+.slot b{font:600 11px var(--f-body);white-space:nowrap}
+.slot small{font:500 9px var(--f-mono);color:var(--muted);white-space:nowrap}
+.hint{position:absolute;bottom:100px;left:16px;max-width:300px;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:9px 12px;font:500 12px/1.7 var(--f-body);color:var(--muted)}
 .hint kbd{font:500 11px var(--f-mono);color:var(--fg);background:rgba(255,255,255,.08);border:1px solid var(--line);border-radius:4px;padding:0 5px}
 .tip{position:absolute;left:50%;top:calc(50% + 26px);transform:translateX(-50%);font:500 12px var(--f-body);color:var(--fg);text-shadow:0 1px 3px #000;white-space:nowrap}
 .res{color:var(--accent) !important;font-weight:500}
@@ -107,7 +107,9 @@ button{font:inherit;color:inherit}
 .hurt{position:absolute;inset:0;background:radial-gradient(ellipse at center,rgba(160,0,0,0) 45%,rgba(170,10,0,.6) 100%);opacity:0}
 .rad{position:absolute;inset:0;background:radial-gradient(ellipse at center,rgba(70,255,40,0) 35%,rgba(90,255,40,.42) 100%);opacity:0}
 .cross.hit::before,.cross.hit::after{background:var(--bad)}
-@media (max-width:1100px){.vitals{width:170px}.slot{width:76px}}
+@media (max-width:1100px){.vitals{width:170px}}
+@media (max-width:1250px){.slot{width:64px}.slot svg{width:40px}.slot b{font-size:11px}}
+@media (max-width:1000px){.slot{width:56px}.slot svg{width:36px}.slot small{display:none}}
 .toast{position:absolute;top:128px;left:50%;transform:translate(-50%,-8px);background:var(--panel);border:1px solid var(--line);border-radius:999px;padding:8px 18px;font-weight:500;opacity:0;transition:.2s}
 .toast.show{opacity:1;transform:translate(-50%,0)}
 .toast.bad{border-color:var(--bad);color:#ffd2cc}
@@ -195,7 +197,7 @@ input[type=checkbox]{width:18px;height:18px;accent-color:var(--accent)}
 .touch .toast{top:86px;font-size:13px;max-width:80vw;white-space:normal;text-align:center}
 .touch .banner b{font-size:30px}
 .touch .bar{bottom:max(6px,env(safe-area-inset-bottom));gap:4px;pointer-events:auto;z-index:2}
-.touch .slot{width:58px;padding:5px 4px 4px;gap:2px}
+.touch .slot{width:55px;padding:4px 3px 3px;gap:2px}
 .touch .slot svg{width:36px;height:22px}
 .touch .slot b{font-size:10px}
 .touch .slot small,.touch .slot i{display:none}
@@ -220,7 +222,8 @@ input[type=checkbox]{width:18px;height:18px;accent-color:var(--accent)}
 .tb.use{width:70px;height:70px;right:calc(var(--r) + 204px);bottom:calc(var(--b) + 6px)}
 .tb.fix,.tb.bx{width:60px;height:60px;right:calc(var(--r) + 190px);bottom:calc(var(--b) + 92px)}
 .tb.bf{width:60px;height:60px;right:calc(var(--r) + 178px);bottom:calc(var(--b) + 172px)}
-.touch .bar.show{left:41%}
+.touch .bar.show{left:max(12px,env(safe-area-inset-left));bottom:auto;top:calc(max(8px,env(safe-area-inset-top)) + 92px);transform:none}
+.touch .slot b{font-size:9px;white-space:nowrap}
 .tb.ctx{background:rgba(217,185,62,.3);border-color:var(--accent);animation:ctxin .25s ease-out}
 @keyframes ctxin{from{transform:scale(.6);opacity:0}}
 .tb.bx,.tb.bf{display:none}
@@ -338,6 +341,8 @@ input[type=checkbox]{width:18px;height:18px;accent-color:var(--accent)}
         <span class="sep">Строительство</span>
         <kbd>B</kbd><span>строительство / оружие</span>
         <kbd>1 – 5</kbd><span>бетон, металл, доски, мешки, проволока</span>
+        <kbd>6 – 9</kbd><span>бронедверь (сама открывается перед своими), пол, ступени, люк</span>
+        <kbd>E</kbd><span>у люка — открыть / закрыть; под открытым люком «вперёд» или пробел — лезть по лестнице</span>
         <kbd>R</kbd><span>повернуть на 90°</span>
         <kbd>ЛКМ</kbd><span>поставить (тратит ресурсы)</span>
         <kbd>ПКМ / X</kbd><span>разобрать (половина ресурсов назад)</span>
@@ -639,7 +644,47 @@ const WT = [
       ...[-1.85, 1.85].map(x => [part(new THREE.BoxGeometry(.03, 1.0, .03), x, .45, -.75, -.5), 0x4c5040])]),
     mat:new THREE.MeshStandardMaterial({vertexColors:true, metalness:.75, roughness:.38})}
 ];
+// four more things to build: an armoured door, a floor slab, stairs and a floor hatch with a ladder.
+// Door and hatch sit on the same 4 m grid; floor, stairs and hatch fill a whole 4×4 m cell (cell:true).
+{
+  const steel = 0x6e7570, dark = 0x3a3e3b, hz = 0xd9b13a;
+  WT.push(
+    {name:'Бронедверь', L:4, H:3, T:0.4, hp:900, cost:90, icon:'door', kind:'door', geo:mergeParts([
+      [part(new THREE.BoxGeometry(0.5, 3, 0.4), -1.75, 1.5, 0), steel], [part(new THREE.BoxGeometry(0.5, 3, 0.4), 1.75, 1.5, 0), steel],
+      [part(new THREE.BoxGeometry(3, 0.5, 0.4), 0, 2.75, 0), steel],
+      [part(new THREE.BoxGeometry(3, 0.08, 0.42), 0, 2.52, 0), hz], [part(new THREE.BoxGeometry(0.06, 2.5, 0.44), -1.52, 1.25, 0), hz], [part(new THREE.BoxGeometry(0.06, 2.5, 0.44), 1.52, 1.25, 0), hz]]),
+      mat:new THREE.MeshStandardMaterial({map:TEX.metal, vertexColors:true, roughness:.45, metalness:.55})},
+    {name:'Пол', L:4, H:0.25, T:4, hp:400, cost:30, icon:'floor', kind:'floor', cell:true, flat:true, geo:mergeParts([
+      [part(new THREE.BoxGeometry(4, 0.22, 4), 0, 0.11, 0), 0xd8d6cf], [part(new THREE.BoxGeometry(4, 0.05, 4), 0, 0.225, 0), 0xb9b6ad]]),
+      mat:new THREE.MeshStandardMaterial({map:TEX.concrete, vertexColors:true, roughness:.9})},
+    {name:'Ступени', L:4, H:3, T:4, hp:450, cost:40, icon:'stairs', kind:'stairs', cell:true, geo:mergeParts(Array.from({length:8}, (_, i) =>
+      [part(new THREE.BoxGeometry(3.8, 0.375, 4 - i*0.5), 0, i*0.375 + 0.1875, i*0.25), i % 2 ? 0xc9c6bd : 0xdedbd2])),
+      mat:new THREE.MeshStandardMaterial({map:TEX.concrete, vertexColors:true, roughness:.9})},
+    {name:'Люк', L:4, H:0.25, T:4, hp:450, cost:45, icon:'hatch', kind:'hatch', cell:true, flat:true, geo:mergeParts([
+      [part(new THREE.BoxGeometry(4, 0.25, 1.2), 0, 0.125, -1.4), 0xd8d6cf], [part(new THREE.BoxGeometry(4, 0.25, 1.2), 0, 0.125, 1.4), 0xd8d6cf],
+      [part(new THREE.BoxGeometry(1.2, 0.25, 1.6), -1.4, 0.125, 0), 0xd8d6cf], [part(new THREE.BoxGeometry(1.2, 0.25, 1.6), 1.4, 0.125, 0), 0xd8d6cf],
+      [part(new THREE.BoxGeometry(1.8, 0.04, 0.1), 0, 0.27, -0.85), hz], [part(new THREE.BoxGeometry(1.8, 0.04, 0.1), 0, 0.27, 0.85), hz],
+      // ladder under the hole, down to the level below
+      [part(new THREE.BoxGeometry(0.06, 3, 0.06), -0.35, -1.5, -0.72), dark], [part(new THREE.BoxGeometry(0.06, 3, 0.06), 0.35, -1.5, -0.72), dark],
+      ...Array.from({length:9}, (_, i) => [part(new THREE.BoxGeometry(0.7, 0.04, 0.04), 0, -2.85 + i*0.33, -0.72), dark])]),
+      mat:new THREE.MeshStandardMaterial({map:TEX.concrete, vertexColors:true, roughness:.85, metalness:.1})}
+  );
+}
 const WIRE = 4;
+const DOOR_LEAF = {geo:mergeParts([[part(new THREE.BoxGeometry(3, 2.5, 0.14), 0, 0, 0), 0x7d8780],
+    ...[-0.9, 0, 0.9].map(y => [part(new THREE.BoxGeometry(2.8, 0.12, 0.2), 0, y, 0), 0x5b625d]), [part(new THREE.BoxGeometry(0.1, 0.4, 0.24), 1.2, 0, 0), 0x2e312f]]),
+  mat:new THREE.MeshStandardMaterial({map:TEX.metal, vertexColors:true, roughness:.4, metalness:.65})};
+const HATCH_LID = {geo:mergeParts([[part(new THREE.BoxGeometry(1.6, 0.08, 1.6), 0.8, 0.04, 0), 0x6b736d], [part(new THREE.BoxGeometry(1.2, 0.04, 0.12), 0.8, 0.1, 0), 0x3a3e3b],
+    [part(new THREE.BoxGeometry(0.12, 0.04, 1.2), 0.8, 0.1, 0), 0x3a3e3b], [part(new THREE.BoxGeometry(0.3, 0.1, 0.06), 1.4, 0.13, 0), 0xd9b13a]]),
+  mat:new THREE.MeshStandardMaterial({map:TEX.metal, vertexColors:true, roughness:.45, metalness:.6})};
+// a 4×4 cell piece turned by r quarter turns: a box given in its own coordinates, as a world box
+function cellBox(x, z, r, x0, x1, z0, z1, y0, y1){
+  const a = r*HALF_PI, c = Math.round(Math.cos(a)), sn = Math.round(Math.sin(a)), xs = [], zs = [];
+  for(const lx of [x0, x1]) for(const lz of [z0, z1]){ xs.push(x + lx*c + lz*sn); zs.push(z - lx*sn + lz*c); }
+  return {x0:Math.min(...xs), x1:Math.max(...xs), y0, y1, z0:Math.min(...zs), z1:Math.max(...zs)};
+}
+// open doors and hatches let friends (player, partner, allies) through, never the robots
+const passable = c => c.gate && c.gate.oa > 0.6;
 
 // ---------- the military base ----------
 const ground = new THREE.Mesh(new THREE.PlaneGeometry(1600, 1600), texMat(TEX.sand, 400, 400));
@@ -1657,7 +1702,7 @@ const P = {pos:new THREE.Vector3(0, 0, START_Z), vel:new THREE.Vector3(), r:0.33
   hp:100, maxHp:0, dead:0, ammo:30, reload:0, fireCD:0, aimT:0, recoil:0, hurt:0, rad:0};
 function collideXZ(p){
   for(let it = 0; it < 2; it++) for(const c of COLS){
-    if(p.y >= c.y1 - P.step || p.y + P.h <= c.y0) continue;
+    if(p.y >= c.y1 - P.step || p.y + P.h <= c.y0 || passable(c)) continue;
     if(p.x + P.r < c.x0 || p.x - P.r > c.x1 || p.z + P.r < c.z0 || p.z - P.r > c.z1) continue;
     const cx = clamp(p.x, c.x0, c.x1), cz = clamp(p.z, c.z0, c.z1), dx = p.x - cx, dz = p.z - cz, d2 = dx*dx + dz*dz;
     if(d2 >= P.r*P.r) continue;
@@ -1668,7 +1713,7 @@ function collideXZ(p){
 }
 function groundAt(p){
   let g = 0; const r = P.r*0.7;
-  for(const c of COLS){ if(c.y1 > p.y + P.step || c.y1 <= g) continue; if(p.x + r < c.x0 || p.x - r > c.x1 || p.z + r < c.z0 || p.z - r > c.z1) continue; g = c.y1; }
+  for(const c of COLS){ if(c.y1 > p.y + P.step || c.y1 <= g || passable(c)) continue; if(p.x + r < c.x0 || p.x - r > c.x1 || p.z + r < c.z0 || p.z - r > c.z1) continue; g = c.y1; }
   return g;
 }
 function rayBoxT(o, d, c, maxT){
@@ -1699,8 +1744,8 @@ addEventListener('keydown', e => {
 function keyAction(code){
   const e = {code};
   if(e.code === 'KeyB'){ setBuild(!build); }
-  else if(e.code === 'KeyR'){ if(build){ rot ^= 1; sfx('tick'); } else startReload(); }
-  else if(/^Digit[1-5]$/.test(e.code)){ sel = +e.code[5] - 1; if(!build) setBuild(true); renderBar(); sfx('tick'); }
+  else if(e.code === 'KeyR'){ if(build){ rot = WT[sel].kind === 'stairs' ? (rot + 1) & 3 : (rot & 1) ^ 1; sfx('tick'); } else startReload(); }
+  else if(/^Digit[1-9]$/.test(e.code)){ sel = +e.code[5] - 1; if(!build) setBuild(true); renderBar(); sfx('tick'); }
   else if(e.code === 'KeyX' && build) removeAim();
   else if(e.code === 'KeyF' && build) repairAim();
   else if(e.code === 'KeyF' && P.dead <= 0 && !PILOT && !P.repair){ const w = nearWreck(); if(w) startRepair(w); }
@@ -1708,7 +1753,7 @@ function keyAction(code){
   else if(e.code === 'KeyE' && P.dead <= 0){
     if(P.repair) cancelRepair('Ремонт отменён, запчасти возвращены');
     else if(PILOT) pilotOut(false);
-    else { const w = nearWreck(), a = w ? null : nearAlly(); if(w) pilotIn(w); else if(a) pilotIn(a);
+    else { const w = nearWreck(), a = w ? null : nearAlly(), h = w || a ? null : nearHatch(); if(w) pilotIn(w); else if(a) pilotIn(a); else if(h) toggleHatch(h);
       else { const n = nearSlot(); if(n){ setCharacter(n.i, true); sfx('stomp'); toast(`Вы управляете: ${CHARS[n.i].name}`); } } }
   }
   else if(e.code === 'KeyG') toggleAllyMode();
@@ -1833,8 +1878,8 @@ if(TOUCH){
     if(state === 'play' && P.dead <= 0 && !build){
       if(P.repair) use = 'Отмена';
       else if(PILOT) use = 'Вылезти';
-      else { const w = nearWreck(), a = w ? null : nearAlly(), n = w || a ? null : nearSlot();
-        use = w || a ? 'Залезть' : n ? 'Пересесть' : ''; fix = !!w; }
+      else { const w = nearWreck(), a = w ? null : nearAlly(), h = w || a ? null : nearHatch(), n = w || a || h ? null : nearSlot();
+        use = w || a ? 'Залезть' : h ? (h.open ? 'Закрыть люк' : 'Открыть люк') : n ? 'Пересесть' : ''; fix = !!w; }
     }
     const key = use + fix; if(key === ctxKey) return; ctxKey = key;
     $('tUse').hidden = !use; if(use) $('tUse').firstChild.textContent = use;
@@ -1884,25 +1929,49 @@ function footprint(t, x, z, r){ const L = WT[t].L/2, T = WT[t].T/2; return r ? {
 // overlap of two built walls' footprints, ignoring the ends where walls meet at grid corners
 function shrunk(f, r){ return r ? {x0:f.x0 + .05, x1:f.x1 - .05, z0:f.z0 + .45, z1:f.z1 - .45} : {x0:f.x0 + .45, x1:f.x1 - .45, z0:f.z0 + .05, z1:f.z1 - .05}; }
 const overlap2 = (a, b) => a.x0 < b.x1 && a.x1 > b.x0 && a.z0 < b.z1 && a.z1 > b.z0;
+const grow = (f, d) => ({x0:f.x0 - d, x1:f.x1 + d, z0:f.z0 - d, z1:f.z1 + d});
+const isCell = t => !!WT[t].cell;
+// does piece o (already built) touch the new piece with footprint f: as support (sup) or by taking its space (occ)?
+// two cell pieces only when they share the cell; a wall and a cell piece when the wall runs along or across the cell
+function touches(o, t, f, r, sup){
+  const oc = isCell(o.t), nc = isCell(t);
+  if(oc && nc) return overlap2(grow(f, -0.3), grow(o.col, -0.3));
+  if(!oc && !nc) return overlap2(shrunk(f, r), shrunk(o.col, o.r));
+  const fw = oc ? shrunk(f, r) : (sup ? grow(f, 0.25) : grow(f, -0.3)), fo = oc ? (sup ? grow(o.col, 0.25) : grow(o.col, -0.3)) : shrunk(o.col, o.r);
+  return overlap2(fw, fo);
+}
 
 function addWall(t, x, y, z, r, hp){
-  const w = WT[t], m = mesh(w.geo, w.mat, x, y, z, {ry:r ? HALF_PI : 0});
-  const f = footprint(t, x, z, r), col = {x0:f.x0, x1:f.x1, y0:y, y1:y + w.H, z0:f.z0, z1:f.z1, built:true, wire:!!w.wire};
-  if(!w.wire) COLS.push(col);                                   // wire is not solid: you walk into it and it slows you
-  const b = {t, x, y, z, r, mesh:m, col, max:w.hp, hp:hp > 0 ? Math.min(hp, w.hp) : w.hp}; col.wall = b;
+  const w = WT[t], m = mesh(w.geo, w.mat, x, y, z, {ry:w.cell ? r*HALF_PI : (r ? HALF_PI : 0)});
+  const f = w.cell ? {x0:x - 2, x1:x + 2, z0:z - 2, z1:z + 2} : footprint(t, x, z, r), col = {x0:f.x0, x1:f.x1, y0:y, y1:y + w.H, z0:f.z0, z1:f.z1, built:true, wire:!!w.wire};
+  const b = {t, x, y, z, r, mesh:m, col, max:w.hp, hp:hp > 0 ? Math.min(hp, w.hp) : w.hp, extra:[], parts:[], open:false, oa:0}; col.wall = b;
+  const addC = c => { Object.assign(c, {built:true, wall:b}); COLS.push(c); b.extra.push(c); return c; };
+  if(w.kind === 'stairs'){
+    for(let i = 0; i < 8; i++) addC(cellBox(x, z, r, -1.9, 1.9, -2 + i*0.5, 2, y + i*0.375, y + (i + 1)*0.375));
+  } else if(w.kind === 'door'){
+    COLS.push(col); col.gate = b;
+    const pivot = new THREE.Group(); pivot.position.set(-1.5, 1.25, 0); m.add(pivot);
+    const leaf = new THREE.Mesh(DOOR_LEAF.geo, DOOR_LEAF.mat); leaf.position.x = 1.5; leaf.castShadow = leaf.receiveShadow = true; pivot.add(leaf);
+    leaf.userData.built = b; rayTargets.push(leaf); b.parts.push(leaf); b.pivot = pivot;
+  } else if(w.kind === 'hatch'){
+    for(const [x0, x1, z0, z1] of [[-2, 2, -2, -0.8], [-2, 2, 0.8, 2], [-2, -0.8, -0.8, 0.8], [0.8, 2, -0.8, 0.8]]) addC(cellBox(x, z, 0, x0, x1, z0, z1, y, y + 0.25));
+    addC(cellBox(x, z, 0, -0.8, 0.8, -0.8, 0.8, y, y + 0.25)).gate = b;
+    const pivot = new THREE.Group(); pivot.position.set(-0.8, 0.2, 0); m.add(pivot);
+    const lid = new THREE.Mesh(HATCH_LID.geo, HATCH_LID.mat); lid.castShadow = lid.receiveShadow = true; pivot.add(lid);
+    lid.userData.built = b; rayTargets.push(lid); b.parts.push(lid); b.pivot = pivot;
+  } else if(!w.wire) COLS.push(col);                            // wire is not solid: you walk into it and it slows you
   b.id = ++WALL_ID; m.userData.built = b; built.push(b); rayTargets.push(m); if(b.hp < b.max) tintWall(b); return b;
 }
 function dropWall(b){
   scene.remove(b.mesh);
   const bi = built.indexOf(b); if(bi >= 0) built.splice(bi, 1);
-  const ci = COLS.indexOf(b.col); if(ci >= 0) COLS.splice(ci, 1);
-  const ri = rayTargets.indexOf(b.mesh); if(ri >= 0) rayTargets.splice(ri, 1);
+  for(const c of [b.col, ...(b.extra || [])]){ const ci = COLS.indexOf(c); if(ci >= 0) COLS.splice(ci, 1); }
+  for(const o of [b.mesh, ...(b.parts || [])]){ const ri = rayTargets.indexOf(o); if(ri >= 0) rayTargets.splice(ri, 1); }
   b.dead = true;
 }
 function supported(b){
   if(b.y < 0.01) return true;
-  const s = shrunk(b.col, b.r);
-  return built.some(o => o !== b && !WT[o.t].wire && Math.abs(o.col.y1 - b.y) < 0.01 && overlap2(s, shrunk(o.col, o.r)));
+  return built.some(o => o !== b && !WT[o.t].wire && Math.abs(o.col.y1 - b.y) < 0.01 && touches(o, b.t, b.col, b.r, true));
 }
 // remove everything left hanging in the air; returns how many fell
 function collapse(){
@@ -1917,7 +1986,7 @@ function tintWall(b){
 }
 let saveT;
 function saveWalls(now){ if(NET.guest) return; clearTimeout(saveT); const f = () => store.set(KEY + '.walls', built.map(b => [b.t, b.x, +b.y.toFixed(2), b.z, b.r, Math.round(b.hp)])); if(now) f(); else saveT = setTimeout(f, 300); updateCount(); }
-function loadWalls(){ const list = store.get(KEY + '.walls'); if(Array.isArray(list)) for(const w of list){ if(Array.isArray(w) && WT[w[0]]) addWall(w[0], w[1], w[2], w[3], w[4] ? 1 : 0, w[5]); } updateCount(); }
+function loadWalls(){ const list = store.get(KEY + '.walls'); if(Array.isArray(list)) for(const w of list){ if(Array.isArray(w) && WT[w[0]]) addWall(w[0], w[1], w[2], w[3], (w[4] | 0) & (WT[w[0]].cell ? 3 : 1), w[5]); } updateCount(); }
 
 function computeAim(){
   aim = null; aimWall = null;
@@ -1928,27 +1997,29 @@ function computeAim(){
   const n = hit.face ? hit.face.normal.clone().transformDirection(hit.object.matrixWorld) : new THREE.Vector3(0, 1, 0);
   const p = hit.point.clone();
   if(n.y < 0.5 && !aimWall) p.addScaledVector(n, 0.3);
-  const t = sel, w = WT[t];
+  const t = sel, w = WT[t], r = w.cell ? rot & 3 : rot & 1;
   let x, z;
-  if(rot === 0){ x = Math.floor(p.x/4)*4 + 2; z = Math.round(p.z/4)*4; }
+  if(w.cell){ x = Math.floor(p.x/4)*4 + 2; z = Math.floor(p.z/4)*4 + 2; }
+  else if(r === 0){ x = Math.floor(p.x/4)*4 + 2; z = Math.round(p.z/4)*4; }
   else { x = Math.round(p.x/4)*4; z = Math.floor(p.z/4)*4 + 2; }
-  const f = footprint(t, x, z, rot), fs = shrunk(f, rot);
-  // stand on the highest wall below the aimed point in this grid segment (aim at a wall to stack on top of it)
+  const f = w.cell ? {x0:x - 2, x1:x + 2, z0:z - 2, z1:z + 2} : footprint(t, x, z, r);
+  // stand on the highest piece below the aimed point (aim at a wall to stack on top of it, or to lay a floor on the walls)
   let y = 0;
-  for(const b of built) if(!WT[b.t].wire && b.y <= p.y + 0.35 && b.col.y1 > y && overlap2(fs, shrunk(b.col, b.r))) y = b.col.y1;
+  // a floor, stairs or hatch aimed at the ground stays on the ground; aimed at a wall it goes on top of it
+  if(!(w.cell && !aimWall && p.y < 0.5)) for(const b of built) if(!WT[b.t].wire && b.y <= p.y + 0.35 && b.col.y1 > y && touches(b, t, f, r, true)) y = b.col.y1;
   let why = '';
   const top = y + w.H;
   if(Math.hypot(x - P.pos.x, z - P.pos.z) > Math.max(16, rig.h*3.5)) why = 'Слишком далеко';
   else if(top > 18) why = 'Слишком высоко';
   else if(Math.abs(x) > 300 || Math.abs(z) > 300) why = 'Край карты';
   else {
-    for(const b of built){ if(b.y < top - 0.01 && b.col.y1 > y + 0.01 && overlap2(fs, shrunk(b.col, b.r))){ why = 'Место занято'; break; } }
+    for(const b of built){ if(b.y < top - 0.01 && b.col.y1 > y + 0.01 && touches(b, t, f, r, false)){ why = 'Место занято'; break; } }
     if(!why){ const fi = {x0:f.x0 + .1, x1:f.x1 - .1, z0:f.z0 + .1, z1:f.z1 - .1};
       for(const c of COLS){ if(c.built) continue; if(c.y0 < top && c.y1 > y + 0.05 && overlap2(fi, c)){ why = 'Мешает постройка'; break; } } }
     if(!why && G.res < w.cost) why = `Не хватает ресурсов: нужно ${w.cost}`;
     if(!why && !w.wire && P.pos.y < top && P.pos.y + P.h > y){ const cx = clamp(P.pos.x, f.x0, f.x1), cz = clamp(P.pos.z, f.z0, f.z1); if(Math.hypot(P.pos.x - cx, P.pos.z - cz) < P.r + 0.05) why = 'Вы стоите на этом месте'; }
   }
-  aim = {t, x, y, z, r:rot, why};
+  aim = {t, x, y, z, r, why};
 }
 function placeWall(){
   if(!aim){ toast('Наведите прицел на землю', true); sfx('err'); return; }
@@ -1966,6 +2037,35 @@ function removeAim(){
   toast(fell ? `Разобрано, +${back}. Обрушилось ещё ${fell}` : `Разобрано, +${back}`);
   aimWall = null; saveWalls(); saveGame(); sfx('break'); P.place = 1;
 }
+// ---- doors open by themselves for friends; hatches are opened and closed with E
+function friendNear(x, y, z, rad){
+  if(started && P.dead <= 0 && Math.hypot(P.pos.x - x, P.pos.z - z) < rad && Math.abs(P.pos.y - y) < 3) return true;
+  if(PEER.on && !PEER.dead && Math.hypot(PEER.p.x - x, PEER.p.z - z) < rad && Math.abs(PEER.p.y - y) < 3) return true;
+  for(const a of allies) if(!a.dead && a.fall <= 0 && Math.hypot(a.p.x - x, a.p.z - z) < rad + a.R.r && y < 1) return true;
+  return false;
+}
+function updateGates(dt){
+  for(const b of built){
+    const k = WT[b.t].kind;
+    if(k !== 'door' && k !== 'hatch') continue;
+    if(k === 'door'){ const want = friendNear(b.x, b.y, b.z, 3.4); if(want !== b.open){ b.open = want; sfxAt('door', b); } }
+    const o0 = b.oa; b.oa = clamp(b.oa + (b.open ? 1 : -1)*dt*(k === 'door' ? 2.2 : 3), 0, 1);
+    if(b.oa !== o0) k === 'door' ? b.pivot.rotation.y = -b.oa*1.65 : b.pivot.rotation.z = b.oa*1.9;
+  }
+}
+function nearHatch(){
+  let best = null, bd = 2.8;
+  for(const b of built){ if(WT[b.t].kind !== 'hatch') continue;
+    const d = Math.hypot(P.pos.x - b.x, P.pos.z - b.z); if(d < bd && P.pos.y > b.y - 4.6 && P.pos.y < b.y + 2.5){ bd = d; best = b; } }
+  return best;
+}
+function toggleHatch(b){ b.open = !b.open; sfxAt('door', b); netSend({t:'hatch', id:b.id, o:b.open ? 1 : 0}); }
+// the ladder under an open hatch: stand in the hole and hold «forward» or «jump» to climb
+function onLadder(p){
+  for(const b of built){ if(WT[b.t].kind !== 'hatch' || b.oa < 0.6) continue;
+    if(Math.abs(p.x - b.x) < 0.85 && Math.abs(p.z - b.z) < 0.85 && p.y > b.y - 4.6 && p.y < b.y + 0.3) return b; }
+  return null;
+}
 function repairAim(){
   const b = aimWall;
   if(!b){ toast('Наведите прицел на стену', true); sfx('err'); return; }
@@ -1982,8 +2082,8 @@ function updateGhost(){
     if(state === 'play'){
       if(P.repair) t = `Ремонт: ${CHARS[P.repair.w.T.c].name} ${Math.floor(P.repair.t/P.repair.total*100)}% · E — отменить`;
       else if(PILOT) t = '';
-      else { const w = nearWreck(), a = w ? null : nearAlly(), n = w || a ? null : nearSlot();
-        t = w ? `E — залезть: ${CHARS[w.T.c].name} · F — починить в союзника (⚙ ${repairCost(w)})` : a ? `E — залезть в робота: ${CHARS[a.T.c].name}` : n ? `E — пересесть: ${CHARS[n.i].name}` : ''; }
+      else { const w = nearWreck(), a = w ? null : nearAlly(), h = w || a ? null : nearHatch(), n = w || a || h ? null : nearSlot();
+        t = h ? (h.open ? 'E — закрыть люк' + (onLadder(P.pos) ? ' · вперёд или пробел — лезть' : '') : 'E — открыть люк') : w ? `E — залезть: ${CHARS[w.T.c].name} · F — починить в союзника (⚙ ${repairCost(w)})` : a ? `E — залезть в робота: ${CHARS[a.T.c].name}` : n ? `E — пересесть: ${CHARS[n.i].name}` : ''; }
     }
     if(TOUCH && !P.repair) t = '';     // on a phone the yellow buttons say it
     if($('tip').textContent !== t) $('tip').textContent = t;
@@ -1991,7 +2091,7 @@ function updateGhost(){
   }
   computeAim();
   if(aim){
-    ghost.visible = true; ghost.geometry = WT[aim.t].geo; ghost.position.set(aim.x, aim.y + 0.005, aim.z); ghost.rotation.y = aim.r ? HALF_PI : 0;
+    ghost.visible = true; ghost.geometry = WT[aim.t].geo; ghost.position.set(aim.x, aim.y + 0.005, aim.z); ghost.rotation.y = WT[aim.t].cell ? aim.r*HALF_PI : (aim.r ? HALF_PI : 0);
     ghostMat.color.setHex(aim.why ? 0xff4a3a : 0x7dff6a);
   } else ghost.visible = false;
   const tip = aim && aim.why ? aim.why
@@ -2145,9 +2245,9 @@ function navPoint(p, tx, tz){
   const a = ein ? 60 : 80, b = ein ? 80 : 60;
   return {x:0, z:inGate ? b : a, direct:false};
 }
-function pushEnemy(p, r){
+function pushEnemy(p, r, friend){
   for(const c of COLS){
-    if(c.tree || c.y0 > 1.5 || c.y1 < 0.3) continue;
+    if(c.tree || c.y0 > 1.5 || c.y1 < 0.3 || (friend && passable(c))) continue;
     if(p.x + r < c.x0 || p.x - r > c.x1 || p.z + r < c.z0 || p.z - r > c.z1) continue;
     const cx = clamp(p.x, c.x0, c.x1), cz = clamp(p.z, c.z0, c.z1), dx = p.x - cx, dz = p.z - cz, d2 = dx*dx + dz*dz;
     if(d2 >= r*r) continue;
@@ -2159,7 +2259,7 @@ function pushEnemy(p, r){
 // a built wall standing in the way (on the ground) at this spot
 function blockingWall(x, z, r){
   for(const b of built){
-    if(b.dead || WT[b.t].wire || b.y > 1) continue;
+    if(b.dead || WT[b.t].wire || WT[b.t].flat || b.y > 1) continue;     // robots walk over floors and hatches
     const c = b.col; if(x + r > c.x0 && x - r < c.x1 && z + r > c.z0 && z - r < c.z1) return b;
   }
   return null;
@@ -2176,7 +2276,7 @@ function wireAt(x, z, r, y = 0){
 function losBlock(a, b){
   _d.subVectors(b, a); const len = _d.length(); if(len < 0.01) return null; _d.divideScalar(len);
   let best = null, bt = len - 0.4;
-  for(const c of COLS){ if(c.tree) continue; const t = rayBoxT(a, _d, c, bt); if(t < bt){ bt = t; best = c; } }
+  for(const c of COLS){ if(c.tree || passable(c)) continue; const t = rayBoxT(a, _d, c, bt); if(t < bt){ bt = t; best = c; } }
   return best;
 }
 function muzzleOf(R, face, out){
@@ -2496,7 +2596,7 @@ function updateAllies(dt){
     const speed = want ? T.speed*(foe ? 1 : Math.min(1.7, 0.6 + ml/8)) : 0;
     a.v.x += (mx*speed - a.v.x)*Math.min(1, 5*dt); a.v.z += (mz*speed - a.v.z)*Math.min(1, 5*dt);
     p.x += a.v.x*dt; p.z += a.v.z*dt;
-    pushEnemy(p, R.r);
+    pushEnemy(p, R.r, true);
     { const dx = p.x - P.pos.x, dz = p.z - P.pos.z, rs = R.r + P.r, d = Math.hypot(dx, dz); if(d < rs && d > 1e-4){ p.x = P.pos.x + dx/d*rs; p.z = P.pos.z + dz/d*rs; } }
     a.chkT -= dt;
     if(a.chkT <= 0){ if(speed > 0.5 && Math.hypot(p.x - a.cx, p.z - a.cz) < 0.6){ a.sideT = 1.4; a.side = rnd() < .5 ? -1 : 1; } a.chkT = 1.2; a.cx = p.x; a.cz = p.z; }
@@ -2691,6 +2791,10 @@ const ICONS = {
   metal:'<rect x="4" y="5" width="48" height="25" fill="#8f9c86"/><path d="M8 5v25M13 5v25M18 5v25M23 5v25M28 5v25M33 5v25M38 5v25M43 5v25M48 5v25" stroke="#5f6a58" stroke-width="1.5"/><rect x="1" y="4" width="4" height="27" fill="#3d413c"/><rect x="51" y="4" width="4" height="27" fill="#3d413c"/>',
   wood:'<g fill="#b08a5a" stroke="#6a5034" stroke-width=".8"><rect x="3" y="7" width="7" height="24"/><rect x="11" y="5" width="7" height="26"/><rect x="19" y="7" width="7" height="24"/><rect x="27" y="6" width="7" height="25"/><rect x="35" y="5" width="7" height="26"/><rect x="43" y="7" width="7" height="24"/></g><rect x="2" y="12" width="50" height="3" fill="#7d6040"/><rect x="2" y="24" width="50" height="3" fill="#7d6040"/>',
   sand:'<g fill="#d3c294" stroke="#8d7b52" stroke-width=".8"><rect x="2" y="22" width="12" height="8" rx="4"/><rect x="15" y="22" width="12" height="8" rx="4"/><rect x="28" y="22" width="12" height="8" rx="4"/><rect x="41" y="22" width="12" height="8" rx="4"/><rect x="8" y="14" width="12" height="8" rx="4"/><rect x="21" y="14" width="12" height="8" rx="4"/><rect x="34" y="14" width="12" height="8" rx="4"/><rect x="15" y="6" width="12" height="8" rx="4"/><rect x="28" y="6" width="12" height="8" rx="4"/></g>'
+  ,door:'<rect x="12" y="3" width="32" height="29" fill="#6e7570"/><rect x="17" y="8" width="22" height="24" fill="#8d968f" stroke="#d9b13a" stroke-width="1.5"/><path d="M19 15h18M19 21h18M19 27h18" stroke="#5b625d" stroke-width="1.5"/><circle cx="35" cy="20" r="1.6" fill="#2e312f"/>',
+  floor:'<path d="M4 20 28 10 52 20 28 30Z" fill="#cfcdc5" stroke="#8a877e" stroke-width="1.2"/><path d="M4 20v4l24 10 24-10v-4L28 30Z" fill="#9a978e"/>',
+  stairs:'<path d="M6 31h44V7h-9v6h-9v6h-9v6h-9v6z" fill="#d1cec5" stroke="#8a877e" stroke-width="1.2"/>',
+  hatch:'<path d="M4 20 28 10 52 20 28 30Z" fill="#cfcdc5" stroke="#8a877e" stroke-width="1.2"/><path d="M18 20 28 16 38 20 28 24Z" fill="#2b2e2c"/><path d="M28 16 38 20 40 9 30 5Z" fill="#7d8780" stroke="#d9b13a" stroke-width="1"/>'
   ,wire:'<g fill="none" stroke="#b4b8b8" stroke-width="1.1"><ellipse cx="10" cy="24" rx="7" ry="7"/><ellipse cx="16" cy="24" rx="7" ry="7"/><ellipse cx="22" cy="24" rx="7" ry="7"/><ellipse cx="28" cy="24" rx="7" ry="7"/><ellipse cx="34" cy="24" rx="7" ry="7"/><ellipse cx="40" cy="24" rx="7" ry="7"/><ellipse cx="46" cy="24" rx="7" ry="7"/><ellipse cx="16" cy="12" rx="6" ry="6"/><ellipse cx="24" cy="12" rx="6" ry="6"/><ellipse cx="32" cy="12" rx="6" ry="6"/><ellipse cx="40" cy="12" rx="6" ry="6"/></g><path d="M4 31V6M28 31V4M52 31V6" stroke="#4c5040" stroke-width="2"/>'
 };
 function renderBar(){
@@ -2701,7 +2805,7 @@ function setBuild(on){
   $('mode').classList.toggle('build', on); $('modeName').textContent = on ? 'СТРОИТЕЛЬСТВО' : 'БОЙ';
   $('bar').classList.toggle('dim', !on);
   $('hint').innerHTML = on
-    ? '<kbd>ЛКМ</kbd> поставить · <kbd>ПКМ</kbd> убрать · <kbd>F</kbd> починить<br><kbd>R</kbd> повернуть · <kbd>1–5</kbd> тип · <kbd>B</kbd> к оружию'
+    ? '<kbd>ЛКМ</kbd> поставить · <kbd>ПКМ</kbd> убрать · <kbd>F</kbd> починить<br><kbd>R</kbd> повернуть · <kbd>1–9</kbd> тип · <kbd>B</kbd> к оружию'
     : '<kbd>ЛКМ</kbd> огонь · <kbd>R</kbd> перезарядка · <kbd>B</kbd> строить<br><kbd>E</kbd> залезть в робота · <kbd>F</kbd> починить его<br><kbd>Q</kbd> ремонтный робот · <kbd>G</kbd> союзники';
   if(!on){ ghost.visible = false; $('tip').textContent = ''; }
   renderBar(); touchLabels();
@@ -3034,6 +3138,7 @@ function netOnMessage(m){
       else { NET.units.clear(); netUpdateFlags(); toast('Напарник вышел из игры', true); }
       break;
     case 'p': netOnPeer(m); break;
+    case 'hatch': { const b = built.find(w => w.id === m.id); if(b) b.open = !!m.o; } break;
     case 's': if(NET.guest) netApplySnap(m); break;
     case 'walls': if(NET.guest) netApplyWalls(m.w); break;
     case 'banner': banner(m.a, m.b); if(m.s) sfx(m.s); break;
@@ -3242,6 +3347,12 @@ function updatePlayer(dt){
   P.vel.z += (move.z*speed - P.vel.z)*Math.min(1, accel*dt);
   if(state === 'play' && P.dead <= 0 && keys.Space && P.onGround){ P.vel.y = rig.jump; P.onGround = false; }
   P.vel.y -= 22*dt;
+  { const lad = state === 'play' && P.dead <= 0 && rig.r < 0.7 ? onLadder(P.pos) : null;
+    if(lad && (keys.Space || keys.KeyW || keys.ArrowUp || (JOY.on && JOY.m > 0.3))){
+      P.vel.y = 3.4; P.onGround = false;
+      // on the rungs: stay in the hole until the head is through, then step off forward onto the floor
+      if(P.pos.y < lad.y - 0.05){ P.vel.x = (lad.x - P.pos.x)*3; P.vel.z = (lad.z - P.pos.z)*3; }
+    } }
   const p = P.pos;
   p.x += P.vel.x*dt; p.z += P.vel.z*dt;
   collideXZ(p);
@@ -3294,7 +3405,7 @@ function updateCamera(dt){
   tgt.set(P.pos.x + right.x*shoulder, P.pos.y + rig.camH, P.pos.z + right.z*shoulder);
   camWant.set(Math.sin(yaw)*Math.cos(pitch), Math.sin(pitch), Math.cos(yaw)*Math.cos(pitch));
   let d = dist;
-  for(const c of COLS){ const t = rayBoxT(tgt, camWant, c, d + 0.3); if(t < d + 0.3) d = Math.max(0.6, t - 0.3); }
+  for(const c of COLS){ if(passable(c)) continue; const t = rayBoxT(tgt, camWant, c, d + 0.3); if(t < d + 0.3) d = Math.max(0.6, t - 0.3); }
   camera.position.copy(tgt).addScaledVector(camWant, d);
   if(camera.position.y < 0.3) camera.position.y = 0.3;
   camera.lookAt(tgt);
@@ -3314,7 +3425,7 @@ function updateWorld(dt){
 }
 function frame(now){
   const dt = Math.min(0.05, (now - last)/1000); last = now; time += dt;
-  autoQuality(dt); touchCtx();
+  autoQuality(dt); touchCtx(); updateGates(dt);
   if(state === 'play') updatePlayer(dt);
   if(NET.guest){ if(state === 'play') updateGame(dt); netUpdateUnits(dt); }
   else if(state === 'play' || NET.host){ updateGame(dt); updateEnemies(dt); updateAllies(dt); updateWrecks(dt); updateDrone(dt); }
