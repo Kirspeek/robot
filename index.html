@@ -2,7 +2,10 @@
 <html lang="ru">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#12150e">
 <title>Робот против людей</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Russo+One&family=Golos+Text:wght@400;500;600&family=JetBrains+Mono:wght@500&display=swap">
@@ -141,7 +144,8 @@ label.chk{display:flex;justify-content:space-between;align-items:center;font-siz
 input[type=checkbox]{width:18px;height:18px;accent-color:var(--accent)}
 .stats{font:500 12px var(--f-mono);color:var(--muted)}
 .menu{overflow-y:auto}
-.card{padding:24px 0}
+.card{padding:24px 0;margin:auto 0}
+.menu{align-items:flex-start}
 .chars{display:grid;grid-template-columns:1fr 1fr;gap:6px}
 .chr{display:grid;gap:2px;text-align:left;padding:9px 11px;border-radius:9px;border:1px solid var(--line);background:rgba(255,255,255,.04);cursor:pointer;transition:background .15s,border-color .15s}
 .chr:hover{background:rgba(255,255,255,.09)}
@@ -149,12 +153,73 @@ input[type=checkbox]{width:18px;height:18px;accent-color:var(--accent)}
 .chr b{font:600 14px var(--f-body)}
 .chr small{font:400 11px/1.3 var(--f-body);color:var(--muted)}
 .maps{display:grid;gap:6px}
+.mappick{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:6px}
+.mp{display:grid;gap:2px;text-align:left;padding:10px 12px;border-radius:10px;border:1px solid var(--line);background:rgba(255,255,255,.04);cursor:pointer;transition:background .15s,border-color .15s}
+.mp:hover{background:rgba(255,255,255,.09)}
+.mp b{font:600 14px var(--f-body)}
+.mp small{font:400 11px/1.3 var(--f-body);color:var(--muted)}
+.mp.on{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent) inset;background:rgba(217,185,62,.12)}
+.mp.on b::before{content:"● ";color:var(--accent)}
+
 .netlink{display:grid;gap:6px}
 .netlink code{font:500 13px var(--f-mono);background:rgba(255,255,255,.06);border:1px solid var(--line);border-radius:8px;padding:8px 10px;user-select:all;-webkit-user-select:all;word-break:break-all}
 .note{margin:0;font-size:13px;color:var(--muted)}
 .note kbd{font:500 11px var(--f-mono);background:rgba(255,255,255,.08);border:1px solid var(--line);border-radius:4px;padding:0 5px}
 .lock{position:fixed;inset:0;display:grid;place-items:center;background:rgba(10,12,8,.45);cursor:pointer}
 .lock div{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px 22px;font-weight:600}
+
+/* ---------- phone / touch ---------- */
+.tc,.rotate{display:none}
+.touch #c{touch-action:none}
+.touch body,body.touch{-webkit-touch-callout:none;touch-action:manipulation}
+.touch .tc{display:block;position:absolute;inset:0;pointer-events:auto;touch-action:none}
+.touch .hint,.touch .inv,.touch .feed{display:none}
+.touch .mode{top:max(8px,env(safe-area-inset-top));left:max(8px,env(safe-area-inset-left));padding:6px 10px;gap:7px}
+.touch .mode b{font-size:12px}
+.touch .mode span{font-size:11px;padding-left:7px}
+.touch #wallCount{display:none}
+.touch .phase{top:max(6px,env(safe-area-inset-top));min-width:150px;padding:5px 12px 7px}
+.touch .phase b{font-size:11px}
+.touch .phase span{font-size:21px}
+.touch .phase small{display:none}
+.touch .vitals{top:max(8px,env(safe-area-inset-top));bottom:auto;right:calc(max(8px,env(safe-area-inset-right)) + 52px);width:150px;padding:7px 10px;gap:5px}
+.touch .ammo b{font-size:20px}
+.touch .toast{top:86px;font-size:13px;max-width:80vw;white-space:normal;text-align:center}
+.touch .banner b{font-size:30px}
+.touch .bar{bottom:max(6px,env(safe-area-inset-bottom));gap:4px;pointer-events:auto;z-index:2}
+.touch .slot{width:58px;padding:5px 4px 4px;gap:2px}
+.touch .slot svg{width:36px;height:22px}
+.touch .slot b{font-size:10px}
+.touch .slot small,.touch .slot i{display:none}
+.touch .bar.dim{opacity:.55}
+.joy{position:absolute;width:130px;height:130px;margin:-65px 0 0 -65px;border-radius:50%;border:2px solid rgba(255,255,255,.28);background:rgba(0,0,0,.18);display:none;pointer-events:none}
+.joy.on{display:block}
+.joy i{position:absolute;left:50%;top:50%;width:58px;height:58px;margin:-29px 0 0 -29px;border-radius:50%;background:rgba(236,230,210,.45);box-shadow:0 0 0 2px rgba(0,0,0,.25)}
+.joy.run i{background:rgba(217,185,62,.75)}
+.joyhint{position:absolute;left:max(28px,env(safe-area-inset-left));bottom:max(28px,env(safe-area-inset-bottom));width:110px;height:110px;border-radius:50%;border:2px dashed rgba(255,255,255,.18);display:grid;place-items:center;font:500 11px var(--f-body);color:rgba(255,255,255,.45);text-align:center;pointer-events:none}
+.joy.on ~ .joyhint{display:none}
+.tb{position:absolute;display:grid;place-items:center;border-radius:50%;border:1px solid rgba(255,255,255,.25);background:rgba(16,19,13,.55);color:var(--fg);font:600 12px/1.1 var(--f-body);text-align:center;padding:0;touch-action:none;-webkit-tap-highlight-color:transparent}
+.tb.down{background:rgba(217,185,62,.55);border-color:var(--accent)}
+.tb.fire{width:96px;height:96px;right:calc(max(18px,env(safe-area-inset-right)) + 0px);bottom:max(26px,env(safe-area-inset-bottom));font-size:14px;background:rgba(160,40,30,.5);border-color:rgba(255,120,100,.5)}
+.tc.build .tb.fire{background:rgba(70,140,50,.55);border-color:rgba(125,255,106,.5)}
+.tb.jump{width:62px;height:62px;right:calc(max(18px,env(safe-area-inset-right)) + 108px);bottom:max(22px,env(safe-area-inset-bottom))}
+.tb.rel{width:56px;height:56px;right:calc(max(18px,env(safe-area-inset-right)) + 98px);bottom:calc(max(22px,env(safe-area-inset-bottom)) + 76px)}
+.tb.bld{width:56px;height:56px;right:calc(max(18px,env(safe-area-inset-right)) + 22px);bottom:calc(max(26px,env(safe-area-inset-bottom)) + 110px)}
+.tb.use{width:56px;height:56px;right:calc(max(18px,env(safe-area-inset-right)) + 172px);bottom:calc(max(22px,env(safe-area-inset-bottom)) + 40px)}
+.tc.build .tb.use{display:none}
+.side{position:absolute;right:max(8px,env(safe-area-inset-right));top:max(8px,env(safe-area-inset-top));display:grid;gap:6px}
+.side .tb{position:static;width:44px;height:44px;border-radius:12px;font-size:10px}
+.side .tb.bo{display:none}
+.tc.build .side .tb.bo{display:grid}
+.tc.build .side .tb.co{display:none}
+@media (orientation:portrait){
+  .touch .rotate{display:grid;position:fixed;inset:0;z-index:50;place-items:center;background:rgba(10,12,8,.92);text-align:center;padding:24px;font-weight:600}
+  .touch .rotate b{display:block;font:400 54px/1 var(--f-head);margin-bottom:14px;color:var(--accent)}
+  .touch .menu{padding:0 16px}
+}
+.touch-only{display:none}
+.touch .touch-only{display:block}
+.touch .menu .btn:hover{transform:none}
 </style>
 </head>
 <body>
@@ -186,7 +251,26 @@ input[type=checkbox]{width:18px;height:18px;accent-color:var(--accent)}
   </div>
   <div class="feed" id="feed"></div>
   <div class="toast" id="toast" role="status"></div>
+  <div class="tc" id="tc">
+    <div class="joy" id="joy"><i id="joyKnob"></i></div>
+    <div class="joyhint">ведите<br>пальцем —<br>идти</div>
+    <button class="tb fire" data-a="fire" id="tFire">Огонь</button>
+    <button class="tb jump" data-a="Space">Прыжок</button>
+    <button class="tb rel" data-a="KeyR" id="tRel">Перезар.</button>
+    <button class="tb bld" data-a="KeyB" id="tBld">Строить</button>
+    <button class="tb use" data-a="KeyE">Залезть<br>/ вылезти</button>
+    <div class="side">
+      <button class="tb" data-a="menu">❚❚</button>
+      <button class="tb co" data-a="KeyQ">Дрон</button>
+      <button class="tb co" data-a="KeyG">Союз&shy;ники</button>
+      <button class="tb co" data-a="KeyF">Почи&shy;нить</button>
+      <button class="tb bo" data-a="KeyX">Убрать</button>
+      <button class="tb bo" data-a="KeyF">Почи&shy;нить</button>
+      <button class="tb" data-a="KeyT">Волна</button>
+    </div>
+  </div>
 </div>
+<div class="rotate"><div><b>⟲</b>Поверните телефон горизонтально</div></div>
 
 <div class="lock" id="lock" hidden><div>Кликните, чтобы управлять персонажем</div></div>
 
@@ -202,7 +286,6 @@ input[type=checkbox]{width:18px;height:18px;accent-color:var(--accent)}
       <button class="btn primary" id="bPlay">Играть <small>Enter</small></button>
       <button class="btn" id="bNew">Новая игра <small>с начала</small></button>
       <button class="btn" id="bNet">Вдвоём по сети <small id="netState">выкл</small></button>
-      <button class="btn" id="bMap">Карта <small id="mapName"></small></button>
       <button class="btn" id="bChar">Персонаж <small id="charName">Солдат</small></button>
       <button class="btn" id="bControls">Управление</button>
       <button class="btn" id="bSettings">Настройки</button>
@@ -210,6 +293,7 @@ input[type=checkbox]{width:18px;height:18px;accent-color:var(--accent)}
 
     <section class="panel" id="pControls" hidden>
       <h2>Управление</h2>
+      <p class="note touch-only">На телефоне: левая половина экрана — джойстик (отведите палец до края — бег), правая — поворот камеры. Кнопка «Огонь» стреляет, пока её держите, а в режиме строительства ставит стену; тип стены выбирается касанием внизу. ❚❚ — пауза.</p>
       <div class="keys">
         <span class="sep">Передвижение</span>
         <kbd>W A S D</kbd><span>идти</span>
@@ -222,7 +306,6 @@ input[type=checkbox]{width:18px;height:18px;accent-color:var(--accent)}
         <kbd>R</kbd><span>перезарядка</span>
         <kbd>T</kbd><span>начать волну, не дожидаясь таймера</span>
         <span class="sep">Подбитые роботы</span>
-        <kbd>E</kbd><span>у обломков — починить за запчасти ⚙, робот станет союзником</span>
         <kbd>Q</kbd><span>выпустить / вернуть ремонтного робота: сам лечит союзников, поднимает обломки, чинит стены</span>
         <kbd>I</kbd><span>свернуть / развернуть инвентарь</span>
         <kbd>G</kbd><span>союзники: за мной / держать позицию</span>
@@ -235,6 +318,8 @@ input[type=checkbox]{width:18px;height:18px;accent-color:var(--accent)}
         <kbd>F</kbd><span>починить стену под прицелом</span>
         <span class="sep">Прочее</span>
         <kbd>E</kbd><span>на площадке техники — пересесть в другого персонажа</span>
+        <kbd>E</kbd><span>у любого своего или подбитого робота — залезть в него и управлять; ещё раз E — вылезти</span>
+        <kbd>F</kbd><span>у подбитого робота — починить за запчасти ⚙, он станет союзником</span>
         <kbd>Esc</kbd><span>меню и пауза</span>
       </div>
       <button class="btn back">Назад</button>
@@ -246,6 +331,7 @@ input[type=checkbox]{width:18px;height:18px;accent-color:var(--accent)}
       <label class="set"><span class="top">Поле зрения <output id="oFov"></output></span><input type="range" id="sFov" min="55" max="95" step="1"></label>
       <label class="chk">Тени <input type="checkbox" id="sShadows"></label>
       <label class="chk">Высокое разрешение <input type="checkbox" id="sHq"></label>
+      <label class="set"><span class="top">Резкость <output id="oSharp"></output></span><input type="range" id="sSharp" min="1" max="3" step="0.25"></label>
       <label class="chk">Звук <input type="checkbox" id="sSound"></label>
       <div class="row"><button class="btn" id="bDefaults">По умолчанию</button><button class="btn back">Назад</button></div>
     </section>
@@ -296,35 +382,39 @@ input[type=checkbox]{width:18px;height:18px;accent-color:var(--accent)}
 'use strict';
 const $ = id => document.getElementById(id);
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const TOUCH = /[?&]touch=1/.test(location.search) || (matchMedia('(pointer:coarse)').matches && navigator.maxTouchPoints > 0);
+if(TOUCH) document.documentElement.classList.add('touch');
 const rnd = (() => { let s = 20241112; return () => { s |= 0; s = s + 0x6D2B79F5 | 0; let t = Math.imul(s ^ s >>> 15, 1 | s); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; })();
 const rr = (a, b) => a + rnd()*(b - a);
 const HALF_PI = Math.PI/2;
 
 // ---------- settings (saved in the browser) ----------
-const DEF = {sens:1, fov:70, shadows:true, hq:true, sound:true};
+const DEF = {sens:1, fov:70, shadows:true, hq:true, sound:true, sharp:2};
 const S = {...DEF};
 const store = {
   get(k){ try{ return JSON.parse(localStorage.getItem(k)); }catch(e){ return null; } },
   set(k, v){ try{ localStorage.setItem(k, JSON.stringify(v)); }catch(e){} }
 };
 Object.assign(S, store.get('forpost.settings') || {});
-// which map: «Военная база» or «Бункер и радиоактивная улица» (?map=bunker in the address also works)
-const MAP = (() => { let m = null; try { m = new URLSearchParams(location.search).get('map'); } catch(e){}
-  if(m === 'base' || m === 'bunker'){ store.set('forpost.map', m); return m; } return store.get('forpost.map') === 'bunker' ? 'bunker' : 'base'; })();
-const KEY = MAP === 'base' ? 'forpost' : 'forpost.bunker';     // walls and waves are saved per map
-const START_Z = MAP === 'base' ? 18 : -14;
-const MAP_NAME = MAP === 'base' ? 'Военная база' : 'Бункер и радиоактивная улица';
+// one world: the military base, and east of it a ruined radioactive street with bunker № 7 at its north end.
+// The bunker part is built in its own coordinates and shifted by BX metres to the east.
+const MAP = 'world', BX = 140;
+const KEY = 'forpost.world';
+const START_Z = 18;
+const MAP_NAME = 'База и бункер';
 
 // ---------- renderer, scene, light ----------
 const canvas = $('c');
 const renderer = new THREE.WebGLRenderer({canvas, antialias:true});
 renderer.shadowMap.enabled = S.shadows;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+const MAX_ANISO = Math.min(16, renderer.capabilities.getMaxAnisotropy() || 8);
 const scene = new THREE.Scene();
-scene.fog = MAP === 'base' ? new THREE.Fog(0xc9d2d2, 150, 640) : new THREE.Fog(0x9fa585, 60, 400);
+scene.fog = new THREE.Fog(0xc9d2d2, 150, 640);
 const camera = new THREE.PerspectiveCamera(S.fov, 1, 0.1, 1600);
 function resize(){
-  renderer.setPixelRatio(Math.min(devicePixelRatio || 1, S.hq ? 2 : 1));
+  // «Резкость»: how many real pixels per screen point. Above the screen's own density the picture is supersampled (smoother, crisper edges)
+  renderer.setPixelRatio(S.hq ? Math.min(+S.sharp || 2, Math.max(devicePixelRatio || 1, 1)*1.5, TOUCH ? 2.5 : 3) : 1);
   renderer.setSize(innerWidth, innerHeight, false);
   camera.aspect = innerWidth/innerHeight; camera.updateProjectionMatrix();
 }
@@ -333,16 +423,26 @@ addEventListener('resize', resize); resize();
 const sky = new THREE.Mesh(new THREE.SphereGeometry(1200, 32, 16), new THREE.ShaderMaterial({
   side:THREE.BackSide, depthWrite:false, fog:false,
   vertexShader:'varying vec3 vP; void main(){ vP = normalize(position); gl_Position = projectionMatrix*modelViewMatrix*vec4(position,1.); }',
-  fragmentShader:'varying vec3 vP; void main(){ float h = vP.y; ' + (MAP === 'base' ? 'vec3 top = vec3(.30,.50,.76), hor = vec3(.79,.82,.82), gnd = vec3(.60,.57,.48);' : 'vec3 top = vec3(.40,.46,.36), hor = vec3(.66,.68,.53), gnd = vec3(.36,.35,.28);')
+  fragmentShader:'varying vec3 vP; void main(){ float h = vP.y; ' + 'vec3 top = vec3(.30,.50,.76), hor = vec3(.79,.82,.82), gnd = vec3(.60,.57,.48);'
     + ' vec3 c = h > 0. ? mix(hor, top, pow(h, .55)) : mix(hor, gnd, min(1., -h*5.));'
     + ' float sun = max(0., dot(vP, normalize(vec3(-.45,.8,.35)))); c += vec3(1.,.9,.7)*pow(sun, 300.)*1.2 + vec3(.25,.2,.1)*pow(sun, 8.)*.4;'
     + ' gl_FragColor = vec4(c, 1.); }'
 }));
 sky.renderOrder = -1; scene.add(sky);
 
-scene.add(MAP === 'base' ? new THREE.HemisphereLight(0xd8e6f0, 0x6f6448, 0.62) : new THREE.HemisphereLight(0xcfd8b4, 0x4a4636, 0.58));
-const sun = MAP === 'base' ? new THREE.DirectionalLight(0xfff1dc, 0.95) : new THREE.DirectionalLight(0xf2f0c2, 0.8);
-sun.castShadow = true; sun.shadow.mapSize.set(2048, 2048);
+const hemi = new THREE.HemisphereLight(0xd8e6f0, 0x6f6448, 0.62); scene.add(hemi);
+const sun = new THREE.DirectionalLight(0xfff1dc, 0.95);
+// near the radioactive street the air turns hazy and green
+const LOOK_A = {fog:new THREE.Color(0xc9d2d2), near:150, far:640, sky:new THREE.Color(0xd8e6f0), gnd:new THREE.Color(0x6f6448), hi:.62, sun:new THREE.Color(0xfff1dc), si:.95};
+const LOOK_B = {fog:new THREE.Color(0x9fa585), near:60, far:400, sky:new THREE.Color(0xcfd8b4), gnd:new THREE.Color(0x4a4636), hi:.58, sun:new THREE.Color(0xf2f0c2), si:.8};
+let lookK = -1;
+function updateLook(x){
+  const k = clamp((x - 78)/40, 0, 1); if(Math.abs(k - lookK) < .002) return; lookK = k;
+  scene.fog.color.copy(LOOK_A.fog).lerp(LOOK_B.fog, k); scene.fog.near = LOOK_A.near + (LOOK_B.near - LOOK_A.near)*k; scene.fog.far = LOOK_A.far + (LOOK_B.far - LOOK_A.far)*k;
+  hemi.color.copy(LOOK_A.sky).lerp(LOOK_B.sky, k); hemi.groundColor.copy(LOOK_A.gnd).lerp(LOOK_B.gnd, k); hemi.intensity = LOOK_A.hi + (LOOK_B.hi - LOOK_A.hi)*k;
+  sun.color.copy(LOOK_A.sun).lerp(LOOK_B.sun, k); sun.intensity = LOOK_A.si + (LOOK_B.si - LOOK_A.si)*k;
+}
+sun.castShadow = true; sun.shadow.mapSize.set(TOUCH ? 2048 : 4096, TOUCH ? 2048 : 4096);
 Object.assign(sun.shadow.camera, {left:-50, right:50, top:50, bottom:-50, near:1, far:260});
 sun.shadow.bias = -0.0005; sun.shadow.normalBias = 0.04;
 scene.add(sun, sun.target);
@@ -351,7 +451,7 @@ const SUN_DIR = new THREE.Vector3(-0.45, 0.8, 0.35).normalize();
 // ---------- textures (drawn on canvas, nothing to download) ----------
 function canvasTex(w, h, draw){
   const c = document.createElement('canvas'); c.width = w; c.height = h; draw(c.getContext('2d'), w, h);
-  const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.anisotropy = 8; return t;
+  const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.anisotropy = MAX_ANISO; return t;
 }
 function speckle(g, w, h, n, cols, size = 2){ for(let i = 0; i < n; i++){ g.fillStyle = cols[(rnd()*cols.length) | 0]; const s = size*(0.5 + rnd()); g.fillRect(rnd()*w, rnd()*h, s, s); } }
 const TEX = {
@@ -422,10 +522,11 @@ const MAT = {
 
 // ---------- colliders: axis-aligned boxes, walked into and stood on ----------
 const COLS = [], solids = [];
-function addCol(x0, x1, y0, y1, z0, z1, o = {}){ const c = {x0, x1, y0, y1, z0, z1, ...o}; COLS.push(c); return c; }
+let WOX = 0, WOZ = 0;      // while the bunker part is built, everything placed in the scene is shifted by this
+function addCol(x0, x1, y0, y1, z0, z1, o = {}){ const c = {x0:x0 + WOX, x1:x1 + WOX, y0, y1, z0:z0 + WOZ, z1:z1 + WOZ, ...o}; COLS.push(c); return c; }
 function colFor(x, z, w, d, y0, h, ry = 0){ const q = Math.round(ry/HALF_PI) % 2 !== 0, hw = (q ? d : w)/2, hd = (q ? w : d)/2; return addCol(x - hw, x + hw, y0, y0 + h, z - hd, z + hd); }
 function mesh(geo, mat, x, y, z, {ry = 0, shadow = true, parent = scene} = {}){
-  const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); m.rotation.y = ry; m.castShadow = m.receiveShadow = shadow; parent.add(m); return m;
+  const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); if(parent === scene){ m.position.x += WOX; m.position.z += WOZ; } m.rotation.y = ry; m.castShadow = m.receiveShadow = shadow; parent.add(m); return m;
 }
 // a box standing on y (its bottom), solid unless col:false
 function box(w, h, d, mat, x, y, z, {col = true, ry = 0, shadow = true, parent = scene} = {}){
@@ -507,11 +608,11 @@ const WIRE = 4;
 // ---------- the military base ----------
 const ground = new THREE.Mesh(new THREE.PlaneGeometry(1600, 1600), texMat(TEX.sand, 400, 400));
 ground.rotation.x = -HALF_PI; ground.receiveShadow = true; scene.add(ground);
-function slab(w, d, x, z, mat, y){ const m = new THREE.Mesh(new THREE.PlaneGeometry(w, d), mat); m.rotation.x = -HALF_PI; m.position.set(x, y, z); m.receiveShadow = true; scene.add(m); return m; }
+function slab(w, d, x, z, mat, y){ const m = new THREE.Mesh(new THREE.PlaneGeometry(w, d), mat); m.rotation.x = -HALF_PI; m.position.set(x + WOX, y, z + WOZ); m.receiveShadow = true; scene.add(m); return m; }
 const PER = 70, GATE = 6;
 let barrier = null, rotor = null, flagGeo = null, flagBase = null;
 const radarHead = new THREE.Group();
-if(MAP === 'base'){
+{
   slab(140, 140, 0, 0, texMat(TEX.gravel, 35, 35), 0.01);
   slab(40, 34, 0, -25, texMat(TEX.concrete, 10, 8, {color:0xb8b5aa}), 0.025);
   slab(10, 78, 0, 31, texMat(TEX.asphalt, 1, 10), 0.03);
@@ -523,12 +624,15 @@ if(MAP === 'base'){
   const perMat = texMat(TEX.concrete, 35, 1);
   box(2*PER + 1, 4, 1, perMat, 0, 0, -PER);
   box(1, 4, 2*PER + 1, perMat, -PER, 0, 0);
-  box(1, 4, 2*PER + 1, perMat, PER, 0, 0);
+  // east wall with a gate: the road to the bunker
+  box(PER - GATE + 0.5, 4, 1, texMat(TEX.concrete, 16, 1), PER, 0, -(PER + GATE)/2 - 0.25, {ry:HALF_PI});
+  box(PER - GATE + 0.5, 4, 1, texMat(TEX.concrete, 16, 1), PER, 0, (PER + GATE)/2 + 0.25, {ry:HALF_PI});
+  slab(BX - 40 - PER + 4, 8, (PER - 2 + BX - 40)/2, 0, texMat(TEX.asphalt, (BX - 40 - PER)/8, 1), 0.03);
   box(PER - GATE + 0.5, 4, 1, texMat(TEX.concrete, 16, 1), -(PER + GATE)/2 - 0.25, 0, PER);
   box(PER - GATE + 0.5, 4, 1, texMat(TEX.concrete, 16, 1), (PER + GATE)/2 + 0.25, 0, PER);
   { // concertina coil along the top of the wall
     const coil = mergeParts(coilParts(4, .36, 20, 0, 0, 30, 8, 3)), segs = [];
-    for(let t = -PER + 2; t < PER; t += 4){ segs.push([t, -PER, 0], [-PER, t, 1], [PER, t, 1]); if(Math.abs(t) > GATE + 1) segs.push([t, PER, 0]); }
+    for(let t = -PER + 2; t < PER; t += 4){ segs.push([t, -PER, 0], [-PER, t, 1]); if(Math.abs(t) > GATE + 1) segs.push([PER, t, 1]); if(Math.abs(t) > GATE + 1) segs.push([t, PER, 0]); }
     const im = new THREE.InstancedMesh(coil, new THREE.MeshStandardMaterial({vertexColors:true, metalness:.75, roughness:.38}), segs.length), m4 = new THREE.Matrix4();
     segs.forEach(([x, z, r], i) => im.setMatrixAt(i, m4.makeRotationY(r ? HALF_PI : 0).setPosition(x, 4.36, z))); im.frustumCulled = false; im.castShadow = true; scene.add(im);
   }
@@ -705,7 +809,7 @@ if(MAP === 'base'){
     const crowns = new THREE.InstancedMesh(new THREE.ConeGeometry(2.2, 6, 7).translate(0, 5, 0), std(0x3f5a2e, .95), n);
     const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler();
     for(let i = 0; i < n; i++){
-      let x, z; do { const a = rnd()*Math.PI*2, r = rr(88, 330); x = Math.cos(a)*r; z = Math.sin(a)*r; } while((Math.abs(x) < 80 && Math.abs(z) < 80) || (Math.abs(x) < 10 && z > 60));
+      let x, z; do { const a = rnd()*Math.PI*2, r = rr(88, 330); x = Math.cos(a)*r; z = Math.sin(a)*r; } while((Math.abs(x) < 80 && Math.abs(z) < 80) || (Math.abs(x) < 10 && z > 60) || x > 78);
       const s = rr(0.7, 1.4); q.setFromEuler(e.set(0, rnd()*6, 0));
       m4.compose(new THREE.Vector3(x, 0, z), q, new THREE.Vector3(s, s*rr(.85, 1.2), s));
       trunks.setMatrixAt(i, m4); crowns.setMatrixAt(i, m4); addCol(x - .3*s, x + .3*s, 0, 7*s, z - .3*s, z + .3*s, {tree:true});
@@ -720,9 +824,12 @@ if(MAP === 'base'){
 // Same orientation as the base: the bunker (the headquarters) is in the north, robots come down the street from the south.
 const PUDDLES = [], FANS = [], BLINK = [], PGLOW = [];
 const DOOR = {o:0, want:0, col:null, L:null, R:null};
-const inBunker = q => Math.abs(q.x) < 8 && q.z < -48.7 && q.z > -67;   // inside the bunker hall
+const inBunker = q => Math.abs(q.x - BX) < 8 && q.z < -48.7 && q.z > -67;   // inside the bunker hall
 let DUST = null, DUSTV = null;
-if(MAP === 'bunker'){
+const SCENE0 = scene, BUNKER_G = new THREE.Group(); BUNKER_G.position.x = BX; scene.add(BUNKER_G);
+WOX = BX;
+{
+  const scene = BUNKER_G;     // things added straight to the scene in this block land in the shifted group
   const tex = {
     ash: canvasTex(256, 256, (g, w, h) => { g.fillStyle = '#5d5b4c'; g.fillRect(0, 0, w, h);
       for(let i = 0; i < 50; i++){ g.fillStyle = `rgba(${rnd() < .5 ? '38,38,32' : '112,116,78'},${rr(.1, .25)})`; g.beginPath(); g.arc(rnd()*w, rnd()*h, rr(8, 34), 0, 7); g.fill(); }
@@ -777,7 +884,7 @@ if(MAP === 'bunker'){
     tree: std(0x3b3128, .95)
   };
 
-  ground.material = texMat(tex.ash, 400, 400);
+  slab(300, 760, 90, 90, texMat(tex.ash, 75, 190), 0.015);     // ashen ground under the whole bunker district
 
   // ---- the street: cracked asphalt, sidewalks, the yard in front of the bunker
   slab(16, 305, 0, 147.5, texMat(tex.road, 2, 38), 0.03);
@@ -810,6 +917,7 @@ if(MAP === 'bunker'){
   }
   // distant ruined city in the haze
   for(let i = 0; i < 46; i++){ const a = rnd()*Math.PI*2, r = rr(290, 480), w = rr(14, 34), h = rr(14, 58), d = rr(14, 34);
+    if(Math.cos(a)*r + BX < 150) continue;
     mesh(new THREE.BoxGeometry(w, h, d), std(shade(0x45463f, rr(.8, 1.15)), 1), Math.cos(a)*r, h/2, Math.sin(a)*r, {shadow:false}); }
 
   // ---- debris all over the street
@@ -864,8 +972,7 @@ if(MAP === 'bunker'){
     const p = new THREE.Mesh(new THREE.ShapeGeometry(sh), puddleMat); p.rotation.x = -HALF_PI; p.position.set(x, 0.05, z); p.receiveShadow = true; scene.add(p);
     const s = new THREE.Sprite(new THREE.SpriteMaterial({map:tex.glow, color:0x8dff5a, transparent:true, depthWrite:false, blending:THREE.AdditiveBlending, opacity:.55}));
     s.scale.set(r*3.4, r*1.6, 1); s.position.set(x, .7, z); scene.add(s);
-    PUDDLES.push({x, z, r}); PGLOW.push({s, base:.55, ph:rnd()*6});
-    if(r >= 2.4){ const L = new THREE.PointLight(0x66ff33, 1.1, r*6, 2); L.position.set(x, 1.2, z); scene.add(L); }
+    PUDDLES.push({x:x + BX, z, r}); PGLOW.push({s, base:.55, ph:rnd()*6});
   }
   // barrels of waste, some tipped over and leaking into the puddles
   function barrel(x, z, tipped){
@@ -983,7 +1090,7 @@ if(MAP === 'bunker'){
       [part(new THREE.CylinderGeometry(.03, .06, 1.3, 5), .1, 4.9, -.4, -.7, 0, 0), 0xcccccc]]);
     const n = 150, im = new THREE.InstancedMesh(geo, new THREE.MeshStandardMaterial({color:0x3b3128, vertexColors:true, roughness:.95}), n), m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler();
     for(let i = 0; i < n; i++){
-      let x, z; do { const a = rnd()*Math.PI*2, r = rr(55, 300); x = Math.cos(a)*r; z = Math.sin(a)*r; } while((Math.abs(x) < 42 && z > -12) || (Math.abs(x) < 56 && z > -90 && z <= -12));
+      let x, z; do { const a = rnd()*Math.PI*2, r = rr(55, 300); x = Math.cos(a)*r; z = Math.sin(a)*r; } while((Math.abs(x) < 42 && z > -12) || (Math.abs(x) < 56 && z > -90 && z <= -12) || x + BX < 84 || (x < -40 && Math.abs(z) < 14));
       const s = rr(.8, 1.5); q.setFromEuler(e.set(rr(-.08, .08), rnd()*6, rr(-.08, .08))); m4.compose(new THREE.Vector3(x, 0, z), q, new THREE.Vector3(s, s, s));
       im.setMatrixAt(i, m4); addCol(x - .25*s, x + .25*s, 0, 5*s, z - .25*s, z + .25*s, {tree:true});
     }
@@ -996,22 +1103,24 @@ if(MAP === 'bunker'){
     for(let i = 0; i < n; i++){ pos[i*3] = rr(-30, 30); pos[i*3 + 1] = rr(0, 14); pos[i*3 + 2] = rr(-30, 30); DUSTV[i*3] = rr(-.4, .4); DUSTV[i*3 + 1] = rr(-.15, .2); DUSTV[i*3 + 2] = rr(-.4, .4); }
     const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
     DUST = new THREE.Points(geo, new THREE.PointsMaterial({color:0xb8ff8a, size:.09, transparent:true, opacity:.6, depthWrite:false, blending:THREE.AdditiveBlending}));
-    DUST.frustumCulled = false; scene.add(DUST);
+    DUST.frustumCulled = false; SCENE0.add(DUST);
   }
 }
+WOX = 0;
 function updateBunkerWorld(dt){
   if(DOOR.L){   // the blast door opens for a player (either of the two) standing at it or inside
-    const near = q => Math.hypot(q.x, q.z + 45.4) < 7 || inBunker(q);
+    const near = q => Math.hypot(q.x - BX, q.z + 45.4) < 7 || inBunker(q);
     const want = (started && P.dead <= 0 && near(P.pos)) || (PEER.on && !PEER.dead && near(PEER.p)) ? 1 : 0;
-    if(want !== DOOR.want){ DOOR.want = want; sfxAt('door', {x:0, z:-45.4}); }
+    if(want !== DOOR.want){ DOOR.want = want; sfxAt('door', {x:BX, z:-45.4}); }
     DOOR.o += clamp(want - DOOR.o, -dt*.7, dt*.7);
-    DOOR.L.position.x = -1.525 - DOOR.o*3.05; DOOR.R.position.x = 1.525 + DOOR.o*3.05;
+    DOOR.L.position.x = BX - 1.525 - DOOR.o*3.05; DOOR.R.position.x = BX + 1.525 + DOOR.o*3.05;
     DOOR.col.y1 = DOOR.o > .6 ? -1 : 4.4;
   }
   for(const f of FANS) f.rotation.y += dt*5;
   for(const b of BLINK) b.emissiveIntensity = Math.sin(time*3) > .55 ? 2.4 : .08;
   for(const g of PGLOW) g.s.material.opacity = g.base*(.75 + .25*Math.sin(time*1.7 + g.ph));
-  if(DUST){
+  if(DUST) DUST.visible = camera.position.x > BX - 75;
+  if(DUST && DUST.visible){
     const a = DUST.geometry.attributes.position.array, c = [camera.position.x, camera.position.y, camera.position.z], half = [30, 8, 30];
     for(let i = 0; i < a.length; i += 3) for(let k = 0; k < 3; k++){
       a[i + k] += DUSTV[i + k]*dt + (k === 1 ? 0 : Math.sin(time*.7 + i)*.15*dt);
@@ -1149,7 +1258,7 @@ function finish(R, st){
   return R;
 }
 function mkSoldier(){
-  const s = makeSoldier(), v = new THREE.PointLight(0xff2a14, 0.6, 2.2); v.position.set(0, 1.75, 0.32); s.root.add(v);
+  const s = makeSoldier();     // the red lenses glow on their own: no light per soldier, so big waves stay fast
   return finish(s, {h:1.85, r:.33, hipY:.98, legSwing:.75, kneeBend:1.1, armSwing:.6, elBase:-.25, armOut:.1, walk:4.4, run:8.5, jump:7.2, camH:1.65, camDist:5.5, step:.45, gunPose:true});
 }
 // camouflage walker with a twin cannon and a long rifle
@@ -1395,12 +1504,11 @@ const heroGroup = new THREE.Group(); scene.add(heroGroup);
 
 // vehicle bay near the gate: every character you are not playing stands on its own pad
 function redrawOnFonts(tex, draw){ try { document.fonts.ready.then(() => { const c = tex.image, g = c.getContext('2d'); g.clearRect(0, 0, c.width, c.height); draw(g, c.width, c.height); tex.needsUpdate = true; }); } catch(e){} }
-if(MAP === 'base') slab(38, 28, 28, 49.5, texMat(TEX.concrete, 9, 7, {color:0xa5a296}), 0.027);
-else for(const [w, x] of [[36, 29], [29, -25.5]]) slab(w, 9, x, -24, texMat(TEX.concrete, w/4, 2, {color:0xa5a296}), 0.027);
+slab(38, 28, 28, 49.5, texMat(TEX.concrete, 9, 7, {color:0xa5a296}), 0.027);
 const padTex = canvasTex(128, 128, (g, w, h) => { g.strokeStyle = '#d9b93e'; g.lineWidth = 6; g.strokeRect(5, 5, w - 10, h - 10); g.fillStyle = '#d9b93e'; for(const [x, y] of [[5, 5], [w - 25, 5], [5, h - 25], [w - 25, h - 25]]) g.fillRect(x, y, 20, 20); });
 const padMat = new THREE.MeshStandardMaterial({map:padTex, transparent:true, depthWrite:false, roughness:.9});
 const slots = RIGS.map((R, i) => {
-  const row = i < 5 ? 0 : 1, base = MAP === 'base';
+  const row = i < 5 ? 0 : 1, base = true;
   const x = base ? (row ? 17.5 + (i - 5)*7 : 14 + i*7) : (row ? -15 - (i - 5)*7 : 15 + i*7), z = base ? (row ? 58 : 41) : -24, ry = base && row ? Math.PI : 0;
   slab(6, 6, x, z, padMat, 0.035);
   const g = new THREE.Group(); g.position.set(x, 0, z); g.rotation.y = ry; scene.add(g);
@@ -1418,7 +1526,7 @@ function park(i){
 }
 function unpark(i){ const s = slots[i]; s.label.visible = false; if(s.col){ COLS.splice(COLS.indexOf(s.col), 1); s.col = null; } }
 RIGS.forEach((R, i) => park(i));
-let cur = -1, rig = null;
+let cur = -1, rig = null, PILOT = null;   // PILOT: the ally robot the player climbed into
 function setCharacter(i, board){
   if(i === cur) return;
   if(rig) park(cur);
@@ -1429,13 +1537,63 @@ function setCharacter(i, board){
   P.ammo = CHARS[i].w.mag; P.reload = 0; P.fireCD = 0;
   if(board){ const s = slots[i]; P.pos.set(s.x, 0, s.z); P.vel.set(0, 0, 0); P.face = s.ry; yaw = s.ry + Math.PI; heroGroup.position.copy(P.pos); heroGroup.rotation.y = P.face; }
   collideXZ(P.pos);
-  store.set('forpost.char', i); updateCharUI();
+  if(!PILOT) store.set('forpost.char', i); updateCharUI();
 }
 function nearSlot(){
   let best = null, bd = 2.5;
   for(const s of slots){ if(s.i === cur) continue; const d = Math.hypot(P.pos.x - s.x, P.pos.z - s.z) - RIGS[s.i].r - P.r; if(d < bd){ bd = d; best = s; } }
   return best;
 }
+
+
+// ---------- climbing into your own (blue) robots ----------
+function nearAlly(){
+  let best = null, bd = 2.2;
+  for(const a of allies){ if(a.dead || a.fall > 0) continue; const d = Math.hypot(a.p.x - P.pos.x, a.p.z - P.pos.z) - a.R.r - P.r; if(d < bd){ bd = d; best = a; } }
+  return best;
+}
+function hideBody(i, on){ const s = slots[i]; RIGS[i].root.visible = !on; if(on){ s.label.visible = false; if(s.col){ COLS.splice(COLS.indexOf(s.col), 1); s.col = null; } } }
+function pilotIn(a){
+  if(NET.guest){ toast('В игре вдвоём в роботов залезает первый игрок', true); sfx('err'); return; }
+  const c = a.T.c, prev = cur;
+  PILOT = {prev, prevHp:P.hp, prevMax:P.maxHp, type:a.type, max:a.max};
+  const pos = a.p.clone(), face = a.face, hp = a.state === 'wreck' ? a.max*0.4 : a.hp;
+  if(a.state === 'wreck' && DR.task && DR.task.ref === a) DR.task = null;
+  removeUnit(a);
+  if(c === prev){ PILOT.same = true; }
+  else { setCharacter(c); hideBody(prev, true); }
+  P.maxHp = PILOT.max; P.hp = Math.max(1, hp); P.ammo = CHARS[c].w.mag; P.reload = 0;
+  P.pos.copy(pos); P.vel.set(0, 0, 0); P.face = face; yaw = face + Math.PI; heroGroup.position.copy(P.pos); heroGroup.rotation.y = face;
+  setGlowRig(rig, true);
+  sfx('stomp'); emit(SPARK, pos.x, rig.h*.6, pos.z, 25, 0x6fe0ff, 4, .5);
+  banner(CHARS[c].name, 'Вы внутри робота. E — вылезти'); updateCharUI();
+}
+// leave the robot: it stays an ally (or a wreck, if it was destroyed) and you step out next to it
+function pilotOut(destroyed){
+  if(!PILOT) return;
+  const pl = PILOT, c = cur, R = rig;
+  const u = makeUnit(pl.type); u.id = ++UNIT_ID;
+  u.p.set(P.pos.x, 0, P.pos.z); u.v.set(0, 0, 0);
+  Object.assign(u, {state:'ally', hp:Math.max(1, P.hp), max:pl.max, face:P.face, walk:0, cd:1, dead:false, fall:0, hx:u.p.x, hz:u.p.z,
+    sideT:0, side:1, chkT:1.2, cx:u.p.x, cz:u.p.z, punch:0, smokeT:0});
+  setGlow(u, 'ally'); tintRig(u.R, 1); u.R.root.rotation.set(0, 0, 0); u.R.root.position.y = 0;
+  u.g.position.copy(u.p); u.g.rotation.y = u.face; u.bg.visible = u.fill.visible = false;
+  scene.add(u.g, u.bg, u.fill); allies.push(u);
+  if(destroyed){ u.hp = 0; makeWreck(u); }
+  setGlowRig(R, false);
+  PILOT = null;
+  if(!pl.same){ hideBody(pl.prev, false); setCharacter(pl.prev); }
+  P.maxHp = pl.prevMax; P.hp = Math.max(1, pl.prevHp); P.ammo = curW().mag; P.reload = 0; P.dead = 0;
+  // step out to the side of the robot
+  const side = u.R.r + P.r + 0.6;
+  P.pos.x += Math.cos(P.face)*side; P.pos.z -= Math.sin(P.face)*side; P.pos.y = 0; P.vel.set(0, 0, 0);
+  collideXZ(P.pos); heroGroup.position.copy(P.pos);
+  store.set('forpost.char', cur); updateCharUI();
+  if(destroyed){ toast('Робот разбит, вы успели выбраться. Его можно починить', true); }
+  else { toast(`${CHARS[c].name} снова воюет за вас`); sfx('stomp'); }
+}
+// a piloted robot keeps its blue lights so it is clear it is yours
+function setGlowRig(R, on){ if(!R || !R.glow) return; for(const m of R.glow){ if(on){ m.userData.c0 = m.userData.c0 ?? m.color.getHex(); m.color.setHex(0x3fd6ff); m.emissive.setHex(0x3fd6ff); } else if(m.userData.c0 !== undefined){ m.color.setHex(m.userData.c0); m.emissive.setHex(m.userData.c0); delete m.userData.c0; } } }
 
 // ---------- player movement and collision ----------
 const P = {pos:new THREE.Vector3(0, 0, START_Z), vel:new THREE.Vector3(), r:0.33, h:1.85, step:0.45, onGround:true, face:Math.PI, walk:0, speed:0, place:0,
@@ -1474,23 +1632,29 @@ let build = false, sel = 0, rot = 0;
 addEventListener('keydown', e => {
   if(state !== 'play'){ if(e.code === 'Escape'){ if($('pMain').hidden) showPanel('pMain'); else if(started) startPlay(); } return; }
   keys[e.code] = true;
+  keyAction(e.code);
+  if(e.code === 'Escape' && !locked) openMenu();
+  if(e.code === 'Space') e.preventDefault();
+});
+function keyAction(code){
+  const e = {code};
   if(e.code === 'KeyB'){ setBuild(!build); }
   else if(e.code === 'KeyR'){ if(build){ rot ^= 1; sfx('tick'); } else startReload(); }
   else if(/^Digit[1-5]$/.test(e.code)){ sel = +e.code[5] - 1; if(!build) setBuild(true); renderBar(); sfx('tick'); }
   else if(e.code === 'KeyX' && build) removeAim();
   else if(e.code === 'KeyF' && build) repairAim();
+  else if(e.code === 'KeyF' && P.dead <= 0 && !PILOT && !P.repair){ const w = nearWreck(); if(w) startRepair(w); }
   else if(e.code === 'KeyT' && G.phase === 'build'){ if(NET.guest) netSend({t:'wave'}); else G.timer = 0; }
   else if(e.code === 'KeyE' && P.dead <= 0){
     if(P.repair) cancelRepair('Ремонт отменён, запчасти возвращены');
-    else { const w = nearWreck(); if(w) startRepair(w);
+    else if(PILOT) pilotOut(false);
+    else { const w = nearWreck(), a = w ? null : nearAlly(); if(w) pilotIn(w); else if(a) pilotIn(a);
       else { const n = nearSlot(); if(n){ setCharacter(n.i, true); sfx('stomp'); toast(`Вы управляете: ${CHARS[n.i].name}`); } } }
   }
   else if(e.code === 'KeyG') toggleAllyMode();
   else if(e.code === 'KeyQ') toggleDrone();
   else if(e.code === 'KeyI'){ $('inv').classList.toggle('min'); sfx('tick'); }
-  else if(e.code === 'Escape' && !locked) openMenu();
-  if(e.code === 'Space') e.preventDefault();
-});
+}
 addEventListener('keyup', e => { keys[e.code] = false; });
 addEventListener('blur', () => { for(const k in keys) keys[k] = false; });
 document.addEventListener('mousemove', e => {
@@ -1510,6 +1674,7 @@ canvas.addEventListener('click', () => { if(state === 'play' && !locked) lock();
 $('lock').addEventListener('click', () => lock());
 
 function lock(){
+  if(TOUCH){ locked = true; $('lock').hidden = true; return; }
   try { const r = canvas.requestPointerLock(); if(r && r.catch) r.catch(() => { $('lock').hidden = false; }); }
   catch(e){ $('lock').hidden = false; }
 }
@@ -1519,6 +1684,82 @@ document.addEventListener('pointerlockchange', () => {
   else if(state === 'play') openMenu();
 });
 document.addEventListener('pointerlockerror', () => { if(state === 'play') $('lock').hidden = false; });
+
+// ---------- touch controls (phones / tablets) ----------
+const JOY = {on:false, id:null, cx:0, cy:0, x:0, y:0, m:0};
+const LOOK = new Map();       // pointerId -> last x, y
+let touchReset = () => {};
+if(TOUCH){
+  const tc = $('tc'), joy = $('joy'), knob = $('joyKnob');
+  const R = 56;
+  const hold = new Map();     // pointerId -> button
+  tc.addEventListener('contextmenu', e => e.preventDefault());
+  tc.addEventListener('pointerdown', e => {
+    if(state !== 'play') return;
+    e.preventDefault();
+    const b = e.target.closest('.tb');
+    if(b){
+      const a = b.dataset.a; b.classList.add('down'); hold.set(e.pointerId, b);
+      try { tc.setPointerCapture(e.pointerId); } catch(_){}
+      if(a === 'fire'){ if(build) placeWall(); else if(P.dead <= 0) firing = true; LOOK.set(e.pointerId, [e.clientX, e.clientY]); }
+      else if(a === 'menu') openMenu();
+      else if(a === 'Space') keys.Space = true;
+      else keyAction(a);
+      return;
+    }
+    try { tc.setPointerCapture(e.pointerId); } catch(_){}
+    if(!JOY.on && e.clientX < innerWidth*0.42){
+      Object.assign(JOY, {on:true, id:e.pointerId, cx:e.clientX, cy:e.clientY, x:0, y:0, m:0});
+      joy.style.left = e.clientX + 'px'; joy.style.top = e.clientY + 'px'; knob.style.transform = '';
+      joy.classList.add('on'); joy.classList.remove('run');
+    } else LOOK.set(e.pointerId, [e.clientX, e.clientY]);
+  }, {passive:false});
+  tc.addEventListener('pointermove', e => {
+    if(e.pointerId === JOY.id){
+      let dx = e.clientX - JOY.cx, dy = e.clientY - JOY.cy; const d = Math.hypot(dx, dy);
+      if(d > R){ dx *= R/d; dy *= R/d; }
+      JOY.x = dx/R; JOY.y = dy/R; JOY.m = Math.min(1, d/R);
+      knob.style.transform = `translate(${dx}px,${dy}px)`;
+      joy.classList.toggle('run', JOY.m > 0.92 && !build);
+      return;
+    }
+    const l = LOOK.get(e.pointerId); if(!l || state !== 'play') return;
+    const k = 0.0055*S.sens;
+    yaw -= (e.clientX - l[0])*k; pitch = clamp(pitch + (e.clientY - l[1])*k, -0.45, 1.25);
+    l[0] = e.clientX; l[1] = e.clientY;
+  });
+  const up = e => {
+    if(e.pointerId === JOY.id){ JOY.on = false; JOY.id = null; JOY.m = 0; joy.classList.remove('on'); }
+    LOOK.delete(e.pointerId);
+    const b = hold.get(e.pointerId);
+    if(b){ hold.delete(e.pointerId); b.classList.remove('down');
+      if(b.dataset.a === 'fire') firing = false;
+      if(b.dataset.a === 'Space') keys.Space = false; }
+  };
+  tc.addEventListener('pointerup', up); tc.addEventListener('pointercancel', up);
+  touchReset = () => { JOY.on = false; JOY.id = null; JOY.m = 0; joy.classList.remove('on'); LOOK.clear();
+    for(const b of hold.values()) b.classList.remove('down'); hold.clear(); keys.Space = false; };
+  // wall type: tap a slot in the bottom bar
+  $('bar').addEventListener('pointerdown', e => {
+    const sl = e.target.closest('.slot'); if(!sl || state !== 'play') return;
+    e.preventDefault(); sel = [...$('bar').children].indexOf(sl); if(!build) setBuild(true); renderBar(); sfx('tick');
+  });
+}
+function touchLabels(){
+  if(!TOUCH) return;
+  $('tc').classList.toggle('build', build);
+  $('tFire').textContent = build ? 'Стена' : 'Огонь';
+  $('tRel').textContent = build ? 'Повер­нуть' : 'Перезар.';
+  $('tBld').textContent = build ? 'Оружие' : 'Строить';
+}
+function goFullscreen(){
+  if(!TOUCH || document.fullscreenElement || document.webkitFullscreenElement) return;
+  const el = document.documentElement, f = el.requestFullscreen || el.webkitRequestFullscreen;
+  if(!f) return;
+  try { const r = f.call(el, {navigationUI:'hide'}); const lockO = () => { try { const o = screen.orientation && screen.orientation.lock && screen.orientation.lock('landscape'); if(o && o.catch) o.catch(() => {}); } catch(_){} };
+    if(r && r.then) r.then(lockO, () => {}); else lockO(); } catch(_){}
+}
+
 
 // ---------- building ----------
 const built = [];
@@ -1630,8 +1871,9 @@ function updateGhost(){
     let t = '';
     if(state === 'play'){
       if(P.repair) t = `Ремонт: ${CHARS[P.repair.w.T.c].name} ${Math.floor(P.repair.t/P.repair.total*100)}% · E — отменить`;
-      else { const w = nearWreck(), n = w ? null : nearSlot();
-        t = w ? `E — починить: ${CHARS[w.T.c].name} (⚙ ${repairCost(w)})` : n ? `E — пересесть: ${CHARS[n.i].name}` : ''; }
+      else if(PILOT) t = '';
+      else { const w = nearWreck(), a = w ? null : nearAlly(), n = w || a ? null : nearSlot();
+        t = w ? `E — залезть: ${CHARS[w.T.c].name} · F — починить в союзника (⚙ ${repairCost(w)})` : a ? `E — залезть в робота: ${CHARS[a.T.c].name}` : n ? `E — пересесть: ${CHARS[n.i].name}` : ''; }
     }
     if($('tip').textContent !== t) $('tip').textContent = t;
     return;
@@ -1650,7 +1892,7 @@ function updateGhost(){
 // ---------- the game: 5 minutes to build, then waves of robots ----------
 const START_RES = 1500, START_PARTS = 30, BUILD_FIRST = 300, BUILD_NEXT = 90;
 const G = {phase:'build', timer:BUILD_FIRST, wave:0, res:START_RES, parts:START_PARTS, hq:3000, hqMax:3000, kills:0, best:0, queue:[], spawnT:0};
-const HQ = {x0:-10, x1:10, z0:-58, z1:-46};
+const HQ = {x0:-10, x1:10, z0:-58, z1:-46}, BHQ = {x0:BX - 10, x1:BX + 10, z0:-58, z1:-46};
 function saveGame(){ if(NET.guest) return; store.set(KEY + '.game', {wave:G.wave, res:Math.floor(G.res), parts:Math.floor(G.parts), hq:Math.round(G.hq), best:G.best, kills:G.kills}); }
 function loadGame(){
   const s = store.get(KEY + '.game');
@@ -1754,7 +1996,8 @@ function makeUnit(type){
 function spawnEnemy(type){
   const e = makeUnit(type), T = e.T; e.id = ++UNIT_ID;
   const k = 1 + (G.wave - 1)*0.08;
-  if(MAP === 'base') e.p.set(rr(-55, 55), 0, rr(150, 195)); else e.p.set(rr(-6, 6), 0, rr(215, 245)); e.v.set(0, 0, 0);
+  e.hq = rnd() < .5 ? HQ : BHQ;     // half the wave storms the base, half goes up the radioactive street to the bunker
+  if(e.hq === HQ) e.p.set(rr(-55, 55), 0, rr(150, 195)); else e.p.set(BX + rr(-6, 6), 0, rr(215, 245)); e.v.set(0, 0, 0);
   Object.assign(e, {state:'enemy', hp:T.hp*k, max:T.hp*k, face:Math.PI, walk:0, cd:rr(.5, 1.5), dead:false, chkT:1.2, cx:e.p.x, cz:e.p.z, sideT:0, side:1, punch:0, fall:0});
   setGlow(e, 'enemy'); tintRig(e.R, 1); e.R.root.rotation.set(0, 0, 0); e.R.root.position.y = 0;
   e.g.position.copy(e.p); e.g.rotation.y = e.face; e.bg.visible = e.fill.visible = false;
@@ -1783,7 +2026,7 @@ const distToBox = (x, z, b) => Math.hypot(Math.max(b.x0 - x, 0, x - b.x1), Math.
 const distToBox3 = (p, c) => Math.hypot(Math.max(c.x0 - p.x, 0, p.x - c.x1), Math.max(c.y0 - p.y, 0, p.y - c.y1), Math.max(c.z0 - p.z, 0, p.z - c.z1));
 // the only way in or out of the base is the south gate; robots outside on other sides walk round the corners first
 function navPoint(p, tx, tz){
-  if(MAP !== 'base') return {x:tx, z:tz, direct:true};   // the street is open all the way to the bunker
+  if(p.x > 78 && tx > 78) return {x:tx, z:tz, direct:true};   // the bunker district is open
   const ein = inBase(p.x, p.z), tin = inBase(tx, tz);
   if(ein === tin) return {x:tx, z:tz, direct:true};
   if(!ein && p.z < 74) return Math.abs(p.x) < 78 ? {x:Math.sign(p.x || 1)*84, z:-84} : {x:Math.sign(p.x)*84, z:84};
@@ -1851,7 +2094,7 @@ function updateEnemies(dt){
     let tx, tz, dT;
     if(foe === 'player'){ tx = P.pos.x; tz = P.pos.z; dT = fd - P.r; }
     else if(foe){ tx = foe.p.x; tz = foe.p.z; dT = fd - foe.R.r; }
-    else { tx = clamp(p.x, HQ.x0 + 1, HQ.x1 - 1); tz = HQ.z1 + 0.3; dT = distToBox(p.x, p.z, HQ); }
+    else { const H = e.hq || HQ; tx = clamp(p.x, H.x0 + 1, H.x1 - 1); tz = H.z1 + 0.3; dT = distToBox(p.x, p.z, H); }
     const nav = navPoint(p, tx, tz);
     e.cd -= dt; e.punch = Math.max(0, e.punch - dt*3);
     let want = true;
@@ -1860,7 +2103,7 @@ function updateEnemies(dt){
       if(T.melee){
         if(foe !== 'player' || P.pos.y < R.h*0.6 + 0.5){ want = dT > T.range*0.6; if(e.cd <= 0){ e.cd = 1/T.rate; melee(e, foe); } }
       } else {
-        const from = muzzleOf(R, e.face, _a), to = foe === 'player' ? _b.set(P.pos.x, P.pos.y + P.h*0.6, P.pos.z) : foe ? _b.set(tx, foe.R.h*0.55, tz) : _b.set(tx, 2.5, HQ.z1);
+        const from = muzzleOf(R, e.face, _a), to = foe === 'player' ? _b.set(P.pos.x, P.pos.y + P.h*0.6, P.pos.z) : foe ? _b.set(tx, foe.R.h*0.55, tz) : _b.set(tx, 2.5, (e.hq || HQ).z1);
         const blk = losBlock(from, to);
         if(!blk){ want = dT > reach*0.55; if(e.cd <= 0){ e.cd = rr(.85, 1.15)/T.rate; enemyShoot(e, from, to, foe === 'player' ? 'player' : foe ? 'ally' : 'hq', foe === 'player' ? null : foe); } }
         else if(blk.wall && e.cd <= 0 && dT < reach*0.8){
@@ -1934,7 +2177,7 @@ function enemyShoot(e, from, to, kind, wall){
 }
 function melee(e, foe){
   const T = e.T; e.punch = 1; sfxAt('punch', e.p);
-  if(foe === 'player') damagePlayer(T.dmg); else if(foe) damageAlly(foe, T.dmg); else damageHQ(T.dmg*1.5, _c.set(e.p.x, 2, HQ.z1));
+  if(foe === 'player') damagePlayer(T.dmg); else if(foe) damageAlly(foe, T.dmg); else damageHQ(T.dmg*1.5, _c.set(e.p.x, 2, (e.hq || HQ).z1));
   if(T.splash) explode(_c.set(e.p.x + Math.sin(e.face)*2, .5, e.p.z + Math.cos(e.face)*2), T.splash, T.dmg*.5, 'enemy');
 }
 
@@ -1994,6 +2237,7 @@ function damageAlly(a, d){
 function damagePlayer(d, quiet){
   if(P.dead > 0 || state !== 'play') return;
   P.hp -= d; if(!quiet) P.hurt = Math.min(1, P.hurt + d/P.maxHp*3 + .15);
+  if(P.hp <= 0 && PILOT){ pilotOut(true); return; }
   if(P.hp <= 0){
     P.hp = 0; P.dead = 6; firing = false; if(build) setBuild(false);
     toast('Вы погибли. Возрождение у штаба через 6 секунд', true);
@@ -2288,12 +2532,12 @@ function updateGame(dt){
   if(firing && !build) playerFire();
   updateRepair(dt);
   if(hitT > 0){ hitT -= dt; if(hitT <= 0) $('cross').classList.remove('hit'); }
-  if(MAP === 'bunker') updateRadiation(dt);
+  updateRadiation(dt);
   if(G.hq < G.hqMax*.7 && rnd() < dt*(1 - G.hq/G.hqMax)*12) emit(PUFF, rr(-8, 8), 8.4, rr(-56, -48), 1, 0x3a3835, .6, 3.5, -1.2, 1.2);
 }
 function startWave(){
   G.wave++; G.queue = waveList(G.wave); G.phase = 'wave'; G.spawnT = 0;
-  banner(`Волна ${G.wave}`, `${MAP === 'base' ? 'Роботы наступают с юга' : 'Роботы идут по улице'}: ${G.queue.length}`); sfx('alarm'); saveGame();
+  banner(`Волна ${G.wave}`, `Роботы идут на базу и по улице к бункеру: ${G.queue.length}`); sfx('alarm'); saveGame();
   netSend({t:'banner', a:$('bannerT').textContent, b:$('bannerS').textContent, s:'alarm'});
 }
 function endWave(){
@@ -2347,9 +2591,9 @@ function setBuild(on){
   $('bar').classList.toggle('dim', !on);
   $('hint').innerHTML = on
     ? '<kbd>ЛКМ</kbd> поставить · <kbd>ПКМ</kbd> убрать · <kbd>F</kbd> починить<br><kbd>R</kbd> повернуть · <kbd>1–5</kbd> тип · <kbd>B</kbd> к оружию'
-    : '<kbd>ЛКМ</kbd> огонь · <kbd>R</kbd> перезарядка · <kbd>B</kbd> строить<br><kbd>E</kbd> починить · <kbd>Q</kbd> ремонтный робот · <kbd>G</kbd> союзники';
+    : '<kbd>ЛКМ</kbd> огонь · <kbd>R</kbd> перезарядка · <kbd>B</kbd> строить<br><kbd>E</kbd> залезть в робота · <kbd>F</kbd> починить его<br><kbd>Q</kbd> ремонтный робот · <kbd>G</kbd> союзники';
   if(!on){ ghost.visible = false; $('tip').textContent = ''; }
-  renderBar();
+  renderBar(); touchLabels();
 }
 function updateCount(){ $('wallCount').textContent = `стен: ${built.length}`; $('stats').textContent = G.best ? `Рекорд: ${G.best} волн · уничтожено роботов: ${G.kills}` : ''; }
 let toastT;
@@ -2400,29 +2644,31 @@ function updateCharUI(){
   $('charName').textContent = CHARS[cur].name;
   $('charList').innerHTML = CHARS.map((c, i) => `<button class="chr${i === cur ? ' on' : ''}" data-i="${i}"><b>${c.name}</b><small>${c.desc} · ${RIGS[i].h.toFixed(1).replace('.', ',')} м</small></button>`).join('');
 }
-$('charList').onclick = e => { const b = e.target.closest('.chr'); if(!b) return; setCharacter(+b.dataset.i); sfx('ui'); };
+$('charList').onclick = e => { const b = e.target.closest('.chr'); if(!b) return; pilotOut(false); setCharacter(+b.dataset.i); sfx('ui'); };
 $('bChar').onclick = () => { sfx('ui'); showPanel('pChar'); };
-$('mapName').textContent = MAP_NAME;
 document.querySelectorAll('#mapList .chr').forEach(b => b.classList.toggle('on', b.dataset.map === MAP));
-$('bMap').onclick = () => { sfx('ui'); if(NET.peer){ toast('Карту меняют без напарника: сначала отключитесь', true); return; } showPanel('pMap'); };
+function pickMap(m){
+  sfx('ui');
+  if(m === MAP) return;
+  if(NET.peer){ toast('Карту меняют без напарника: сначала отключитесь', true); return; }
+  saveWalls(true); saveGame(); store.set('forpost.map', m);
+  location.href = location.pathname + '?map=' + m;
+}
 $('bNet').onclick = () => { sfx('ui'); renderNetPanel(); showPanel('pNet'); };
 $('bNetGo').onclick = () => { sfx('ui'); netConnect(); };
 $('bNetOff').onclick = () => { sfx('ui'); netDisconnect(); };
-$('mapList').onclick = e => { const b = e.target.closest('.chr'); if(!b) return; sfx('ui');
-  if(b.dataset.map === MAP){ showPanel('pMain'); return; }
-  saveWalls(true); saveGame(); store.set('forpost.map', b.dataset.map);
-  location.href = location.pathname + '?map=' + b.dataset.map; };
-if(MAP === 'bunker') $('lede').textContent = 'У вас 5 минут, чтобы перегородить улицу стенами и колючей проволокой. Потом по ней пойдут роботы: они ломают стены и рвутся к бункеру. Не наступайте в зелёные лужи — там радиация.';
-function showPanel(id){ for(const p of ['pMain', 'pControls', 'pSettings', 'pConfirm', 'pChar', 'pOver', 'pMap', 'pNet']) $(p).hidden = p !== id; const b = $(id).querySelector('button'); if(b) b.focus({preventScroll:true}); }
+$('mapList').onclick = e => { const b = e.target.closest('.chr'); if(!b) return; if(b.dataset.map === MAP){ sfx('ui'); showPanel('pMain'); return; } pickMap(b.dataset.map); };
+$('lede').textContent = 'У вас 5 минут, чтобы укрепить базу и бункер стенами и колючей проволокой. Потом роботы пойдут с юга на базу и по радиоактивной улице к бункеру: ворота на восток ведут к нему. Не наступайте в зелёные лужи — там радиация.';
+function showPanel(id){ for(const p of ['pMain', 'pControls', 'pSettings', 'pConfirm', 'pChar', 'pOver', 'pMap', 'pNet']) $(p).hidden = p !== id; const b = id === 'pMain' ? $('bPlay') : $(id).querySelector('button'); if(b) b.focus({preventScroll:true}); }
 function openMenu(){
   state = 'menu'; $('menu').hidden = false; $('hud').classList.add('off'); $('lock').hidden = true; ghost.visible = false;
   $('menu').classList.toggle('paused', started);
   const over = G.phase === 'over';
-  $('kicker').textContent = over ? 'Штаб разрушен' : started ? 'Пауза' : MAP === 'base' ? 'Оборона военной базы' : 'Бункер · радиоактивная улица';
+  $('kicker').textContent = over ? 'Штаб разрушен' : started ? 'Пауза' : 'База и бункер № 7';
   $('bPlay').firstChild.textContent = over ? 'Новая игра ' : started ? 'Продолжить ' : 'Играть ';
   $('lede').hidden = started;
   for(const k in keys) keys[k] = false;
-  firing = false; updateCount();
+  firing = false; updateCount(); touchReset();
   if(document.pointerLockElement) document.exitPointerLock();
   showPanel('pMain');
 }
@@ -2431,10 +2677,11 @@ function startPlay(){
   const first = !started;
   if(!started){ started = true; yaw = 0; pitch = 0.32; }
   state = 'play'; $('menu').hidden = true; $('hud').classList.remove('off');
-  sfx('ui'); lock();
-  if(first && G.phase === 'build') banner(G.wave ? 'Передышка' : 'Подготовка', G.wave ? 'Чините стены, волна скоро' : `5 минут, чтобы укрепить ${MAP === 'base' ? 'базу' : 'бункер'}. Потом пойдут роботы`);
+  sfx('ui'); goFullscreen(); lock();
+  if(first && G.phase === 'build') banner(G.wave ? 'Передышка' : 'Подготовка', G.wave ? 'Чините стены, волна скоро' : `5 минут, чтобы укрепить базу и бункер. Потом пойдут роботы`);
 }
 function newGame(){
+  if(PILOT){ hideBody(PILOT.prev, false); setGlowRig(rig, false); const pv = PILOT.prev; PILOT = null; setCharacter(pv); }
   for(const b of built.slice()) dropWall(b);
   P.repair = null; allyMode = 'follow'; droneHome();
   for(const u of [...enemies, ...allies, ...wrecks]) removeUnit(u);
@@ -2442,7 +2689,7 @@ function newGame(){
   P.hp = P.maxHp; P.dead = 0; P.ammo = curW().mag; P.reload = 0; rig.root.rotation.set(0, 0, 0);
   saveWalls(); saveGame();
   P.pos.set(0, 0, START_Z); P.vel.set(0, 0, 0); P.face = Math.PI; yaw = 0; pitch = 0.32; started = true; setBuild(false);
-  startPlay(); banner('Подготовка', `5 минут, чтобы укрепить ${MAP === 'base' ? 'базу' : 'бункер'}. Потом пойдут роботы`);
+  startPlay(); banner('Подготовка', `5 минут, чтобы укрепить базу и бункер. Потом пойдут роботы`);
 }
 $('bPlay').onclick = startPlay;
 $('bNew').onclick = () => { sfx('ui'); if(NET.guest){ toast('Новую игру начинает первый игрок', true); return; } if(built.length || G.wave) showPanel('pConfirm'); else newGame(); };
@@ -2454,6 +2701,7 @@ document.querySelectorAll('.back').forEach(b => b.onclick = () => { sfx('ui'); s
 function syncSettings(){
   $('sSens').value = S.sens; $('oSens').textContent = (+S.sens).toFixed(1); $('sFov').value = S.fov; $('oFov').textContent = S.fov + '°';
   $('sShadows').checked = S.shadows; $('sHq').checked = S.hq; $('sSound').checked = S.sound;
+  $('sSharp').value = S.sharp; $('oSharp').textContent = '×' + (+S.sharp).toFixed(2).replace(/0$/, ''); $('sSharp').disabled = !S.hq;
 }
 function applySettings(){
   camera.fov = S.fov; camera.updateProjectionMatrix();
@@ -2464,6 +2712,7 @@ $('sSens').oninput = e => { S.sens = +e.target.value; applySettings(); };
 $('sFov').oninput = e => { S.fov = +e.target.value; applySettings(); };
 $('sShadows').onchange = e => { S.shadows = e.target.checked; applySettings(); };
 $('sHq').onchange = e => { S.hq = e.target.checked; applySettings(); };
+$('sSharp').oninput = e => { S.sharp = +e.target.value; applySettings(); };
 $('sSound').onchange = e => { S.sound = e.target.checked; applySettings(); };
 $('bDefaults').onclick = () => { Object.assign(S, DEF); applySettings(); sfx('ui'); };
 
@@ -2495,7 +2744,7 @@ function netUpdateFlags(){
 }
 function netConnect(){
   if(NET.ws) return;
-  if(location.protocol === 'file:'){ renderNetPanel(); return; }
+  if(noServer){ renderNetPanel(); return; }
   const ws = new WebSocket((location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/ws');
   NET.ws = ws; NET.status = 'подключаюсь…'; renderNetPanel();
   ws.onmessage = e => { let m; try { m = JSON.parse(e.data); } catch(err){ return; } netOnMessage(m); };
@@ -2677,14 +2926,18 @@ function netTick(dt){
 
 // ---- the «Вдвоём по сети» panel in the menu
 let netInfo = null;
+let noServer = location.protocol === 'file:';     // e.g. GitHub Pages: no game server, so only single play
+function updateNetState(){ if(noServer && !NET.ws) $('netState').textContent = 'только с компьютера'; }
 function renderNetPanel(){
   const txt = $('netText'), link = $('netLink'), go = $('bNetGo'), off = $('bNetOff');
-  if(location.protocol === 'file:'){
-    txt.textContent = 'Игра открыта как файл, а для игры вдвоём нужен сервер. Закройте вкладку и запустите игру ярлыком «Играть — Бункер.command» или «Играть — База.command» в папке forpost.';
+  if(noServer){
+    txt.textContent = location.protocol === 'file:'
+      ? 'Игра открыта как файл, а для игры вдвоём нужен сервер. Закройте вкладку и запустите игру ярлыком «Играть.command» в папке игры.'
+      : 'По этой ссылке играют в одиночку — на компьютере или телефоне. Для игры вдвоём игру запускают на компьютере ярлыком «Играть.command» из папки игры: тогда в этом меню появится ссылка для напарника в той же сети Wi‑Fi.';
     link.hidden = true; go.hidden = true; off.hidden = true; return;
   }
   go.hidden = !!NET.ws; off.hidden = !NET.ws;
-  const addr = netInfo && netInfo.ips.length ? netInfo.ips.map(ip => `http://${ip}:${netInfo.port}/?map=${MAP}&net=1`) : [];
+  const addr = netInfo && netInfo.ips.length ? netInfo.ips.map(ip => `http://${ip}:${netInfo.port}/?net=1`) : [];
   if(!NET.ws) txt.textContent = 'Оба компьютера должны быть в одной сети Wi‑Fi. Нажмите «Подключиться». Напарник открывает ссылку ниже в браузере на своём компьютере и сразу попадает к вам.';
   else if(!NET.role) txt.textContent = 'Подключаюсь к серверу игры…';
   else if(!NET.peer) txt.textContent = 'Ждём напарника. Пусть он откроет у себя эту ссылку:';
@@ -2692,7 +2945,7 @@ function renderNetPanel(){
     : 'Вы в игре у напарника. Стены, ресурсы и волны общие. Ремонтный дрон и команды союзникам есть только у первого игрока.';
   link.hidden = !addr.length || NET.guest; link.innerHTML = addr.map(a => `<code>${a}</code>`).join('');
 }
-fetch('/api/info').then(r => r.json()).then(j => { netInfo = j; renderNetPanel(); }).catch(() => {});
+fetch('/api/info').then(r => r.json()).then(j => { netInfo = j; renderNetPanel(); }).catch(() => { noServer = true; renderNetPanel(); updateNetState(); });
 
 // ---------- frame ----------
 const fwd = new THREE.Vector3(), right = new THREE.Vector3(), move = new THREE.Vector3(), tgt = new THREE.Vector3(), camWant = new THREE.Vector3();
@@ -2703,9 +2956,10 @@ function updatePlayer(dt){
   if(state === 'play' && P.dead <= 0){
     if(keys.KeyW || keys.ArrowUp) move.add(fwd); if(keys.KeyS || keys.ArrowDown) move.sub(fwd);
     if(keys.KeyD || keys.ArrowRight) move.add(right); if(keys.KeyA || keys.ArrowLeft) move.sub(right);
+    if(JOY.on && JOY.m > 0.15){ move.addScaledVector(fwd, -JOY.y); move.addScaledVector(right, JOY.x); }
   }
   const moving = move.lengthSq() > 0;
-  const run = (keys.ShiftLeft || keys.ShiftRight) && !build;
+  const run = (keys.ShiftLeft || keys.ShiftRight || (JOY.on && JOY.m > 0.92)) && !build;
   let speed = moving ? (run ? rig.run : rig.walk) : 0;
   // barbed wire: the soldier and light robots get caught and cut, heavy machines crush it
   const wUnder = wireAt(P.pos.x, P.pos.z, P.r*0.7, P.pos.y);
@@ -2749,8 +3003,7 @@ function updatePlayer(dt){
 function updateCamera(dt){
   if(state === 'menu' && !started){
     const a = time*0.05;
-    if(MAP === 'base'){ camera.position.set(Math.sin(a)*115, 46, Math.cos(a)*115); camera.lookAt(0, 4, 0); }
-    else { camera.position.set(Math.sin(a)*62, 30, 20 + Math.cos(a)*62); camera.lookAt(0, 3, 6); }
+    camera.position.set(BX/2 + Math.sin(a)*150, 62, 20 + Math.cos(a)*150); camera.lookAt(BX/2, 4, 0);
     return;
   }
   dist += (distWant - dist)*Math.min(1, 8*dt);
@@ -2764,8 +3017,8 @@ function updateCamera(dt){
   camera.lookAt(tgt);
 }
 function updateWorld(dt){
-  if(MAP !== 'base') updateBunkerWorld(dt);
-  else {
+  updateBunkerWorld(dt); updateLook(camera.position.x);
+  {
   rotor.rotation.y += dt*1.2;
   radarHead.rotation.y += dt*0.6;
   const a = flagGeo.attributes.position.array;
