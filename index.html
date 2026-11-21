@@ -351,6 +351,7 @@ input[type=checkbox]{width:18px;height:18px;accent-color:var(--accent)}
       <div class="netcode" id="netCodeBox" hidden><span>Код игры</span><b id="netCodeShow"></b></div>
       <div class="netlink" id="netLink" hidden></div>
       <button class="btn" id="bNetShare" hidden>Отправить ссылку напарнику</button>
+      <button class="btn primary" id="bNetPlay" hidden>В игру <small>ждать напарника там</small></button>
       <div class="netstart" id="netStart">
         <button class="btn primary" id="bNetHost">Создать игру <small>получить код</small></button>
         <div class="joinrow"><input id="netCode" placeholder="КОД" maxlength="5" autocomplete="off" autocapitalize="characters" spellcheck="false" aria-label="Код игры напарника"><button class="btn" id="bNetJoin">Войти по коду</button></div>
@@ -2756,7 +2757,7 @@ function netUpdateFlags(){
   NET.host = NET.role === 'host' && NET.peer; NET.guest = NET.role === 'guest' && NET.peer;
   if(!NET.peer){ PEER.on = false; PEER.fall = 1; }
   const s = !NET.ws ? 'выкл' : NET.peer ? (NET.host ? 'вы ведёте игру' : 'в игре у напарника') : NET.role === 'host' && NET.code ? 'код ' + NET.code : NET.role ? 'ждём напарника' : 'подключаюсь…';
-  NET.status = s; $('netState').textContent = s; $('netHud').textContent = NET.peer ? 'вдвоём' : '';
+  NET.status = s; $('netState').textContent = s; $('netHud').textContent = NET.peer ? 'вдвоём' : NET.role === 'host' && NET.code ? `код ${NET.code} · ждём напарника` : '';
   renderNetPanel();
 }
 // ---- over the internet: PeerJS. The host's id is ROOM + code, the guest connects to it
@@ -2848,7 +2849,8 @@ function netOnMessage(m){
     case 'joined':                       // a guest came in: tell them the map and send the whole world
       NET.peer = true; netUpdateFlags(); NET.wSig = -1;
       netSend({t:'welcome', map:MAP}); netSendWalls(); netSendSnap();
-      toast('Напарник подключился'); sfx('ui'); break;
+      if(state !== 'play') startPlay();
+      toast('Напарник подключился'); sfx('ui'); banner('Вдвоём', 'Напарник в игре'); break;
     case 'welcome':
       if(m.map !== MAP){ store.set('forpost.map', m.map); location.href = location.pathname + '?map=' + m.map + '&net=1'; return; }
       NET.peer = true;
@@ -3018,7 +3020,7 @@ function renderNetPanel(){
   start.hidden = !!NET.ws; off.hidden = !NET.ws;
   $('bNetGo').hidden = noServer;
   const hostWaiting = NET.kind === 'p2p' && NET.role === 'host' && !NET.peer && NET.code;
-  box.hidden = !hostWaiting; share.hidden = !hostWaiting; $('netCodeShow').textContent = NET.code;
+  box.hidden = !hostWaiting; share.hidden = !hostWaiting; $('bNetPlay').hidden = !hostWaiting; $('netCodeShow').textContent = NET.code;
   let addr = [];
   if(hostWaiting) addr = [joinLink()];
   else if(NET.kind === 'ws' && !NET.peer && NET.role === 'host' && netInfo && netInfo.ips.length) addr = netInfo.ips.map(ip => `http://${ip}:${netInfo.port}/?net=1`);
@@ -3034,6 +3036,7 @@ function renderNetPanel(){
     : 'Вы в игре у напарника. Стены, ресурсы и волны общие. Ремонтный дрон и команды союзникам есть только у первого игрока.';
 }
 $('bNetHost').onclick = () => { sfx('ui'); netHost(); };
+$('bNetPlay').onclick = () => startPlay();
 $('bNetJoin').onclick = () => { sfx('ui'); netJoin($('netCode').value); };
 $('netCode').addEventListener('keydown', e => { e.stopPropagation(); if(e.key === 'Enter') netJoin($('netCode').value); });
 $('netCode').addEventListener('input', e => { const v = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ''); if(v !== e.target.value) e.target.value = v; });
