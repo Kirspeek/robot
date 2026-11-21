@@ -2833,7 +2833,7 @@ $('bDefaults').onclick = () => { Object.assign(S, DEF); applySettings(); sfx('ui
 // The second player (the guest) moves and shoots on their own and asks the host for everything else.
 // Two ways to connect: over the internet from any devices (WebRTC through the free PeerJS service, with a room code),
 // or through server.py on a computer in the same Wi‑Fi. Either way the same messages go back and forth.
-const NET = {kind:'', code:'', p2p:null, conn:null, ws:null, role:'', peer:false, host:false, guest:false, pT:0, sT:0, wT:0, wSig:-1, shots:[], fx:[], units:new Map(), status:'off'};
+const NET = {kind:'', code:'', p2p:null, conn:null, ws:null, mq:null, relay:null, rsid:'', relayTried:false, role:'', peer:false, host:false, guest:false, pT:0, sT:0, wT:0, wSig:-1, shots:[], fx:[], units:new Map(), status:'off'};
 const PEER = {on:false, i:-1, R:null, g:new THREE.Group(), p:new THREE.Vector3(), t:new THREE.Vector3(), face:0, tface:0, walk:0, amt:0, air:0, build:false,
   pitch:0, place:0, dead:true, fall:1, label:null};
 scene.add(PEER.g); PEER.g.visible = false;
@@ -2864,7 +2864,72 @@ function loadPeer(){
     sc.src = 'https://cdnjs.cloudflare.com/ajax/libs/peerjs/1.5.4/peerjs.min.js'; sc.onload = ok; sc.onerror = () => { peerLib = null; bad(); }; document.head.appendChild(sc); }));
 }
 // a WebSocket-like wrapper, so netSend and the rest do not care which way we are connected
-function p2pTransport(){ return {get readyState(){ return NET.conn && NET.conn.open ? 1 : 0; }, send(t){ try { NET.conn.send(t); } catch(e){} }, close(){ netP2PClose(); }}; }
+const direct = () => !!(NET.conn && NET.conn.open);
+function p2pTransport(){ return {get readyState(){ return direct() || (NET.relay && NET.relay.connected) ? 1 : 0; },
+  send(t){ if(direct()){ try { NET.conn.send(t); } catch(e){} } else relaySend(t); }, close(){ netP2PClose(); }}; }
+
+// ---- when a direct connection cannot be made (different providers, mobile internet, strict routers),
+// the messages go through public MQTT brokers over secure WebSocket instead. Both brokers are used at once,
+// so the game still works if one of them is down. Every message carries a session id: «sid|json».
+const RELAY_URLS = ['wss://broker.hivemq.com:8884/mqtt', 'wss://test.mosquitto.org:8081/mqtt'];
+let mqttLib = null;
+function loadMqtt(){
+  if(window.mqtt) return Promise.resolve();
+  return mqttLib || (mqttLib = new Promise((ok, bad) => { const sc = document.createElement('script');
+    sc.src = 'https://cdnjs.cloudflare.com/ajax/libs/mqtt/5.10.1/mqtt.min.js'; sc.onload = ok; sc.onerror = () => { mqttLib = null; bad(); }; document.head.appendChild(sc); }));
+}
+const RT = (code, box) => 'robot-vs-people-v1/' + code + '/' + box;     // «h» — to the host, «g» — to the guest
+function relayOpen(code, inbox, will, onMsg){
+  relayClose();
+  NET.mq = RELAY_URLS.map(url => {
+    const c = mqtt.connect(url, {clientId:'rvp' + Math.random().toString(16).slice(2, 12), keepalive:20, reconnectPeriod:3000, connectTimeout:9000, clean:true,
+      will:{topic:RT(code, inbox === 'h' ? 'g' : 'h'), payload:will, qos:0, retain:false}});
+    c.on('connect', () => { c.subscribe(RT(code, inbox), {qos:0}); onMsg(null, c); });
+    c.on('message', (topic, buf) => { const t = buf.toString(), i = t.indexOf('|'); if(i < 0) return; let m; try { m = JSON.parse(t.slice(i + 1)); } catch(e){ return; } onMsg({sid:t.slice(0, i), m}, c); });
+    c.on('error', () => {});
+    return c;
+  });
+}
+function relayClose(){ for(const c of NET.mq || []) try { c.end(true); } catch(e){} NET.mq = null; NET.relay = null; }
+function relayPub(c, box, sid, m){ if(c && c.connected) c.publish(RT(NET.code, box), sid + '|' + (typeof m === 'string' ? m : JSON.stringify(m)), {qos:0}); }
+function relaySend(t){ relayPub(NET.relay, NET.role === 'host' ? 'g' : 'h', NET.rsid, t); }
+// the host listens on the relay all the time, next to the direct connection
+async function hostRelay(code){
+  try { await loadMqtt(); } catch(e){ return; }
+  if(NET.code !== code) return;
+  relayOpen(code, 'h', '*|{"t":"bye"}', (r, c) => {
+    if(!r) return;                                  // connected to a broker
+    const {sid, m} = r;
+    if(m.t === 'hello'){
+      if(direct() || (NET.peer && NET.rsid !== sid)){ relayPub(c, 'g', sid, {t:'full'}); return; }
+      const again = NET.peer && NET.rsid === sid;
+      NET.rsid = sid; if(!again || !NET.relay || !NET.relay.connected) NET.relay = c; relayPub(c, 'g', sid, {t:'relayok'});   // keep talking through the first broker
+      if(!again) netOnMessage({t:'joined'});
+      return;
+    }
+    if(sid !== NET.rsid) return;
+    if(m.t === 'bye'){ if(NET.peer && !direct()){ NET.relay = null; NET.rsid = ''; netOnMessage({t:'left'}); } return; }
+    netOnMessage(m);
+  });
+}
+// the guest: after a few seconds without a direct connection, or if it is refused, go through the relay
+async function guestRelay(code, done, fail){
+  if(NET.relayTried) return; NET.relayTried = true;
+  try { await loadMqtt(); } catch(e){ fail('Не удалось загрузить сетевой модуль. Проверьте интернет.'); return; }
+  if(NET.code !== code || !NET.ws) return;
+  const sid = Math.random().toString(36).slice(2, 10); NET.rsid = sid;
+  let answered = false;
+  const noAnswer = setTimeout(() => { if(!answered && NET.ws) fail(`Игра с кодом ${code} не найдена. Проверьте код: напарник должен держать игру открытой.`); }, 15000);
+  relayOpen(code, 'g', sid + '|{"t":"bye"}', (r, c) => {
+    if(!r){ if(!answered) relayPub(c, 'h', sid, {t:'hello'}); return; }   // connected: knock
+    if(r.sid !== sid && !(r.sid === '*' && r.m.t === 'bye')) return;
+    const m = r.m;
+    if(m.t === 'relayok'){ if(answered) return; answered = true; clearTimeout(noAnswer); NET.relay = c; done(); return; }
+    if(m.t === 'full'){ clearTimeout(noAnswer); fail('В этой игре уже двое'); return; }
+    if(m.t === 'bye'){ if(answered) netP2PClose(true); return; }
+    if(answered) netOnMessage(m);     // from whichever broker the host uses
+  });
+}
 function netP2PWire(conn){
   NET.conn = conn;
   conn.on('data', d => { let m; try { m = typeof d === 'string' ? JSON.parse(d) : d; } catch(e){ return; } netOnMessage(m); });
@@ -2874,7 +2939,9 @@ function netP2PWire(conn){
 function netP2PFail(msg){ netP2PClose(); $('netText').textContent = msg; toast(msg, true); sfx('err'); }
 function netP2PClose(lost){
   const wasGuest = NET.guest, p = NET.p2p;
-  NET.p2p = null; NET.conn = null; NET.ws = null; NET.kind = ''; NET.role = ''; NET.peer = false; NET.code = '';
+  if(NET.relay && !lost) relaySend('{"t":"bye"}');
+  setTimeout(relayClose, 300);
+  NET.p2p = null; NET.conn = null; NET.ws = null; NET.kind = ''; NET.role = ''; NET.peer = false; NET.code = ''; NET.relayTried = false;
   try { if(p) p.destroy(); } catch(e){}
   netUpdateFlags();
   if(wasGuest){ toast(lost ? 'Связь с напарником потеряна' : 'Вы вышли из игры напарника', !!lost); setTimeout(() => { location.href = location.pathname; }, 1500); }
@@ -2882,19 +2949,21 @@ function netP2PClose(lost){
 async function netHost(){
   if(NET.ws) return;
   NET.kind = 'p2p'; NET.ws = p2pTransport(); NET.status = 'подключаюсь…'; renderNetPanel();
-  try { await loadPeer(); } catch(e){ netP2PFail('Не удалось загрузить сетевой модуль. Проверьте интернет.'); return; }
+  try { await loadPeer(); } catch(e){ const code = Array.from({length:5}, () => CODE_ABC[Math.floor(Math.random()*CODE_ABC.length)]).join(''); NET.code = code; NET.role = 'host'; netUpdateFlags(); hostRelay(code); return; }
   const tryCode = (left) => {
     const code = Array.from({length:5}, () => CODE_ABC[Math.floor(Math.random()*CODE_ABC.length)]).join('');
     const peer = new Peer(ROOM + code); NET.p2p = peer;
-    peer.on('open', () => { NET.code = code; NET.role = 'host'; netUpdateFlags(); });
+    peer.on('open', () => { if(NET.code === code) return; NET.code = code; NET.role = 'host'; netUpdateFlags(); hostRelay(code); });
     peer.on('connection', conn => {
-      if(NET.conn && NET.conn.open){ conn.on('open', () => { conn.send(JSON.stringify({t:'full'})); setTimeout(() => conn.close(), 500); }); return; }
+      if(direct() || NET.peer){ conn.on('open', () => { conn.send(JSON.stringify({t:'full'})); setTimeout(() => conn.close(), 500); }); return; }
       netP2PWire(conn); conn.on('open', () => netOnMessage({t:'joined'}));
     });
     peer.on('disconnected', () => { try { peer.reconnect(); } catch(e){} });   // lost the code service: keep the game going, get the code back
     peer.on('error', err => {
       if(err.type === 'unavailable-id' && left > 0){ try { peer.destroy(); } catch(e){} tryCode(left - 1); return; }
-      if(err.type === 'network' || err.type === 'server-error' || err.type === 'socket-error') { if(!NET.peer) netP2PFail('Нет связи с сервисом кодов. Проверьте интернет и попробуйте ещё раз.'); return; }
+      if((err.type === 'network' || err.type === 'server-error' || err.type === 'socket-error') && !NET.code){   // the code service is down: work through the relay alone
+        NET.code = code; NET.role = 'host'; netUpdateFlags(); hostRelay(code); return; }
+      if(err.type === 'network' || err.type === 'server-error' || err.type === 'socket-error') { if(!NET.peer && !NET.code) netP2PFail('Нет связи с сервисом кодов. Проверьте интернет и попробуйте ещё раз.'); return; }
       if(err.type === 'peer-unavailable') return;
       if(!NET.peer) netP2PFail('Не получилось создать игру: ' + err.type);
     });
@@ -2906,20 +2975,23 @@ async function netJoin(code){
   if(code.length !== 5){ toast('Код — 5 букв и цифр', true); sfx('err'); return; }
   if(NET.ws) return;
   NET.kind = 'p2p'; NET.ws = p2pTransport(); NET.code = code; NET.status = 'подключаюсь…'; renderNetPanel();
-  try { await loadPeer(); } catch(e){ netP2PFail('Не удалось загрузить сетевой модуль. Проверьте интернет.'); return; }
-  const peer = new Peer(); NET.p2p = peer;
   let opened = false;
-  const giveUp = setTimeout(() => { if(!opened && NET.p2p === peer) netP2PFail('Не удалось соединиться. Проверьте код и что напарник не закрыл игру.'); }, 45000);
+  const giveUp = setTimeout(() => { if(!opened && NET.ws && NET.code === code) netP2PFail('Не удалось соединиться. Проверьте код и интернет на обоих устройствах.'); }, 45000);
+  const done = how => { if(opened) return; opened = true; clearTimeout(giveUp); NET.role = 'guest'; netUpdateFlags();
+    if(how === 'relay'){ try { if(NET.p2p) NET.p2p.destroy(); } catch(e){} NET.p2p = null; NET.conn = null; toast('Соединение через интернет-ретранслятор'); } };
+  const fail = msg => { if(opened) return; clearTimeout(giveUp); netP2PFail(msg); };
+  const toRelay = () => { if(!opened) guestRelay(code, () => done('relay'), fail); };
+  setTimeout(toRelay, 7000);          // no direct connection within 7 s: use the relay
+  try { await loadPeer(); } catch(e){ toRelay(); return; }
+  if(opened || !NET.ws) return;
+  const peer = new Peer(); NET.p2p = peer;
   peer.on('open', () => {
+    if(opened) return;
     const conn = peer.connect(ROOM + code, {reliable:true, serialization:'raw'});
     netP2PWire(conn);
-    conn.on('open', () => { opened = true; clearTimeout(giveUp); NET.role = 'guest'; netUpdateFlags(); });
+    conn.on('open', () => { if(NET.relay){ try { conn.close(); } catch(e){} return; } done('direct'); });
   });
-  peer.on('error', err => {
-    clearTimeout(giveUp);
-    if(err.type === 'peer-unavailable') netP2PFail(`Игра с кодом ${code} не найдена. Проверьте код: напарник должен держать игру открытой.`);
-    else if(!NET.peer) netP2PFail('Нет связи: ' + err.type + '. Проверьте интернет.');
-  });
+  peer.on('error', () => toRelay());   // code not found on the code service, or the service is down: try the relay
 }
 
 function netConnect(){
@@ -3102,12 +3174,12 @@ function netTick(dt){
   if(!NET.ws || NET.ws.readyState !== 1) return;
   NET.pT -= dt;
   if(NET.pT <= 0){
-    NET.pT = 1/15;
+    NET.pT = direct() || NET.kind !== 'p2p' ? 1/15 : 1/10;
     netSend({t:'p', x:r2(P.pos.x), y:r2(P.pos.y), z:r2(P.pos.z), f:r2(P.face), w:r2(P.walk), a:r2(Math.min(1, P.speed/rig.walk)), air:P.onGround ? 0 : 1,
       b:build ? 1 : 0, pi:r2(pitch), pl:r2(P.place), c:cur, d:P.dead > 0 ? 1 : 0, s:NET.shots.splice(0)});
   }
   if(!NET.host) return;
-  NET.sT -= dt; if(NET.sT <= 0){ NET.sT = 0.1; netSendSnap(); }
+  NET.sT -= dt; if(NET.sT <= 0){ NET.sT = direct() || NET.kind !== 'p2p' ? 0.1 : 0.15; netSendSnap(); }
   NET.wT -= dt; if(NET.wT <= 0){ NET.wT = 0.25; if(netWallSig() !== NET.wSig) netSendWalls(); }
 }
 
