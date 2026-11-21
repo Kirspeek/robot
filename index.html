@@ -199,6 +199,11 @@ input[type=checkbox]{width:18px;height:18px;accent-color:var(--accent)}
 .dtx b{font:400 36px/1 var(--f-head);color:#7dff6a;font-variant-numeric:tabular-nums}
 .dtx span{font:600 13px var(--f-body);margin-bottom:4px}
 .dtx small{font:500 12px var(--f-body);color:var(--muted);white-space:nowrap}
+.allbtn{justify-self:start;margin-top:5px;font:600 12px var(--f-body);color:var(--accent);background:none;border:1px solid rgba(217,185,62,.45);border-radius:999px;padding:3px 10px;cursor:pointer}
+.allbtn:hover{background:rgba(217,185,62,.12)}
+.alllist{max-height:min(55vh,460px)}
+.alllist .srv{cursor:default}
+.alllist .srv .when{font:500 11px var(--f-body);color:var(--muted);text-align:right;white-space:nowrap}
 @media (max-height:500px){.dial svg{width:84px;height:60px}.dtx b{font-size:26px}}
 .hubhint{display:none;position:absolute;left:50%;bottom:22px;transform:translateX(-50%);background:var(--panel);border:1px solid var(--line);border-radius:999px;padding:7px 16px;font:500 13px var(--f-body);color:var(--fg);white-space:nowrap}
 .hub .hubhint{display:block}
@@ -396,7 +401,7 @@ input.txt:focus{outline:2px solid var(--accent);outline-offset:1px}
         <circle cx="60" cy="58" r="5" fill="#ece6d2"/>
       </svg>
       <div class="dtx"><b id="dialNow">…</b><span>играют сейчас</span>
-        <small id="dialSite">на сайте: …</small><small id="dialTotal">всего заходили: …</small></div>
+        <small id="dialSite">на сайте: …</small><small id="dialTotal">всего заходили: …</small><button class="allbtn" id="bAll" type="button">Все игроки →</button></div>
     </div>
 
     <nav id="pMain">
@@ -497,6 +502,13 @@ input.txt:focus{outline:2px solid var(--accent);outline-offset:1px}
       </div>
       <button class="btn primary" id="bNetPlay" hidden>В игру</button>
       <button class="btn danger" id="bNetOff" hidden>Выйти с сервера</button>
+      <button class="btn back">Назад</button>
+    </section>
+
+    <section class="panel" id="pAll" hidden>
+      <h2>Все игроки</h2>
+      <p class="note" id="allText">Все, кто когда-либо заходил в игру. Зелёная точка — сейчас на сайте.</p>
+      <div class="slist alllist" id="allList"></div>
       <button class="btn back">Назад</button>
     </section>
 
@@ -3019,7 +3031,7 @@ $('bNet').onclick = () => { sfx('ui'); if(NET.on || NET.joining){ renderNetPanel
 $('bNetOff').onclick = () => { sfx('ui'); if(NET.hub) netLeave(); else enterHub(); };
 $('mapList').onclick = e => { const b = e.target.closest('.chr'); if(!b) return; if(b.dataset.map === MAP){ sfx('ui'); showPanel('pMain'); return; } pickMap(b.dataset.map); };
 if(BUNKER_ON) $('lede').textContent = 'У вас 5 минут, чтобы укрепить базу и бункер стенами и колючей проволокой. Потом роботы пойдут с юга на базу и по радиоактивной улице к бункеру: ворота на восток ведут к нему. Не наступайте в зелёные лужи — там радиация.';
-function showPanel(id){ if(id !== 'pNet' && !NET.hub) lobbyClose(); document.querySelector('.card').classList.toggle('wide', id === 'pNet' && !NET.on); for(const p of ['pMain', 'pControls', 'pSettings', 'pConfirm', 'pChar', 'pOver', 'pMap', 'pNet']) $(p).hidden = p !== id; const b = id === 'pMain' ? $('bPlay') : $(id).querySelector('button'); if(b) b.focus({preventScroll:true}); }
+function showPanel(id){ if(id !== 'pNet' && !NET.hub) lobbyClose(); document.querySelector('.card').classList.toggle('wide', id === 'pNet' && !NET.on); for(const p of ['pMain', 'pControls', 'pSettings', 'pConfirm', 'pChar', 'pOver', 'pMap', 'pNet', 'pAll']) $(p).hidden = p !== id; const b = id === 'pMain' ? $('bPlay') : $(id).querySelector('button'); if(b) b.focus({preventScroll:true}); }
 function openMenu(){
   state = 'menu'; $('menu').hidden = false; $('hud').classList.add('off'); $('lock').hidden = true; ghost.visible = false;
   $('menu').classList.toggle('paused', started);
@@ -3879,7 +3891,7 @@ function renderNetPanel(){
   nm.placeholder = myName();
 }
 $('netName').addEventListener('keydown', e => e.stopPropagation());
-$('netName').addEventListener('change', e => { store.set('forpost.name', e.target.value.trim().slice(0, 18)); if(NET.on) announce(); renderNetPanel(); });
+$('netName').addEventListener('change', e => { store.set('forpost.name', e.target.value.trim().slice(0, 18)); if(NET.on) announce(); siteHello(); renderNetPanel(); });
 $('bWorld').onclick = () => { sfx('ui'); const q = hubPortals()[0]; goRoom(q.room, 'Мир ' + q.room.slice(1)); };
 $('bSrvMake').onclick = () => { sfx('ui'); netMakeServer(); };
 $('srvName').addEventListener('keydown', e => { e.stopPropagation(); if(e.key === 'Enter') netMakeServer(); });
@@ -4024,23 +4036,33 @@ loadWalls(); setBuild(false); syncSettings(); openMenu(); netUpdateFlags();
 // Every visitor says «I am here» with a retained message that the broker removes when they leave (topic «site/pr/…»);
 // players are counted from the presence messages of all rooms. The total is one retained number: each device adds
 // itself once, on its first visit (if two devices come in the very same second, one of them may be missed).
-const SITE = {cs:null, id:'', pres:new Map(), total:new Map(), shown:-1};
+const SITE = {cs:null, id:'', pres:new Map(), total:new Map(), users:new Map(), shown:-1};
+// this device, for the list of everyone who ever came
+const DEV = store.get('forpost.dev') || (() => { const d = rid(12); store.set('forpost.dev', d); store.set('forpost.first', Date.now()); return d; })();
 function siteRaw(topic, text, c){
   const parts = topic.slice(NET_ROOT.length).split('/'), room = parts[0];
   if(room === 'site' && parts[1] === 'total'){ const n = parseInt(text, 10); if(n > 0) SITE.total.set(c.bi, n); renderDial(); return; }
+  if(room === 'site' && parts[1] === 'u'){
+    const d = parts[2]; if(!text){ SITE.users.delete(d); return; }
+    try { const u = JSON.parse(text), old = SITE.users.get(d);
+      SITE.users.set(d, {n:String(u.n || 'Игрок').slice(0, 18), f:Math.min(+u.f || Date.now(), old ? old.f : Infinity), l:Math.max(+u.l || 0, old ? old.l : 0)}); } catch(e){}
+    clearTimeout(SITE.rt); SITE.rt = setTimeout(renderDial, 300); return;
+  }
   if(parts[1] !== 'pr') return;
   const key = room + '/' + parts[2], old = SITE.pres.get(key);
   if(!text){ if(old){ old.b.delete(c.bi); if(!old.b.size) SITE.pres.delete(key); } }
-  else { let h = Date.now(); try { h = +JSON.parse(text).h || h; } catch(e){} SITE.pres.set(key, {room, h, b:new Set([...(old ? old.b : []), c.bi])}); }
+  else { let h = Date.now(), d = ''; try { const j = JSON.parse(text); h = +j.h || h; d = j.d || ''; } catch(e){} SITE.pres.set(key, {room, h, d, b:new Set([...(old ? old.b : []), c.bi])}); }
   clearTimeout(SITE.rt); SITE.rt = setTimeout(renderDial, 300);
 }
 function renderDial(){
   const now = Date.now(); let play = 0, site = 0;
   for(const p of SITE.pres.values()){ if(now - p.h > 180000) continue; if(p.room === 'site') site++; else if(/^(w\d+|hub\d+|s[A-Z0-9]{5}|r[A-Z0-9]{5})$/.test(p.room)) play++; }
-  const total = Math.max(0, ...SITE.total.values());
+  const total = Math.max(SITE.users.size, ...SITE.total.values(), 0);
   $('dialNow').textContent = SITE.cs ? play : '…';
   $('dialSite').textContent = SITE.cs ? `на сайте сейчас: ${Math.max(1, site)}` : 'подключаюсь к счётчику…';
   $('dialTotal').textContent = SITE.cs ? `всего заходили: ${Math.max(total, 1)}` : '';
+  $('bAll').textContent = `Все игроки (${Math.max(SITE.users.size, 1)}) →`;
+  if(!$('pAll').hidden) renderAll();
   // the scale grows with the crowd: 10, 20, 50, 100, 200…
   const top = [10, 20, 50, 100, 200, 500, 1000, 5000].find(v => play <= v) || play;
   const k = Math.min(1, play/top);
@@ -4051,19 +4073,40 @@ function renderDial(){
       t.setAttribute('x', (60 + Math.cos(a)*34).toFixed(1)); t.setAttribute('y', (58 + Math.sin(a)*34 + 3).toFixed(1)); t.setAttribute('text-anchor', 'middle');
       t.setAttribute('font-size', '8'); t.setAttribute('fill', '#a29d86'); t.textContent = v; g.appendChild(t); } }
 }
+// this device in the list of everyone: name, first and last visit (kept on the broker for good)
+function siteHello(c){
+  const u = JSON.stringify({n:myName(), f:store.get('forpost.first') || Date.now(), l:Date.now()});
+  for(const x of c ? [c] : SITE.cs || []) if(x.connected) x.publish(NET_ROOT + 'site/u/' + DEV, u, {qos:0, retain:true});
+}
+function ago(t){
+  const m = Math.round((Date.now() - t)/60000);
+  if(m < 2) return 'только что'; if(m < 60) return m + ' мин назад';
+  const h = Math.round(m/60); if(h < 24) return h + ' ч назад';
+  const d = Math.round(h/24); return d < 31 ? d + ' дн назад' : new Date(t).toLocaleDateString('ru-RU');
+}
+function renderAll(){
+  const now = Date.now(), here = new Set(); for(const p of SITE.pres.values()) if(p.d && now - p.h < 180000) here.add(p.d);
+  here.add(DEV);
+  const list = [...SITE.users.entries()].sort((a, b) => here.has(b[0]) - here.has(a[0]) || b[1].l - a[1].l);
+  const box = $('allList'); box.textContent = '';
+  for(const [d, u] of list.slice(0, 500)){
+    const el = document.createElement('div'); el.className = 'srv' + (here.has(d) ? ' live' : '');
+    const info = document.createElement('div'), nm = document.createElement('b'), sm = document.createElement('small'), dot = document.createElement('i');
+    dot.className = 'dot'; nm.append(dot, document.createTextNode(u.n + (d === DEV ? ' (вы)' : '')));
+    sm.textContent = 'впервые: ' + new Date(u.f).toLocaleDateString('ru-RU'); info.append(nm, sm);
+    const w = document.createElement('span'); w.className = 'when'; w.textContent = here.has(d) ? 'в сети' : ago(u.l);
+    el.append(info, document.createElement('span'), w); box.appendChild(el);
+  }
+  $('allText').textContent = `Все, кто когда-либо заходил в игру: ${SITE.users.size}. Зелёная точка — сейчас на сайте.` + (SITE.users.size > 500 ? ' Показаны последние 500.' : '');
+}
+$('bAll').onclick = () => { sfx('ui'); renderAll(); showPanel('pAll'); };
 async function siteCount(){
   try { await loadMqtt(); } catch(e){ renderDial(); return; }
   SITE.id = rid(8);
-  const me = NET_ROOT + 'site/pr/' + SITE.id, hi = c => c.connected && c.publish(me, JSON.stringify({h:Date.now()}), {qos:0, retain:true});
-  try { SITE.cs = await brokersConnect({topic:me, payload:'', qos:0, retain:true}, siteRaw, c => { c.subscribe([NET_ROOT + '+/pr/+', NET_ROOT + 'site/total'], {qos:0}); hi(c); }); }
+  const me = NET_ROOT + 'site/pr/' + SITE.id, hi = c => { if(!c.connected) return; c.publish(me, JSON.stringify({h:Date.now(), d:DEV}), {qos:0, retain:true}); siteHello(c); };
+  try { SITE.cs = await brokersConnect({topic:me, payload:'', qos:0, retain:true}, siteRaw, c => { c.subscribe([NET_ROOT + '+/pr/+', NET_ROOT + 'site/total', NET_ROOT + 'site/u/+'], {qos:0}); hi(c); }); }
   catch(e){ renderDial(); setTimeout(siteCount, 20000); return; }     // no answer: try again a bit later
   renderDial();
-  // a new device adds itself to the total once
-  if(!store.get('forpost.counted')) setTimeout(() => {
-    const n = Math.max(0, ...SITE.total.values()) + 1;
-    for(const c of SITE.cs) if(c.connected) c.publish(NET_ROOT + 'site/total', String(n), {qos:0, retain:true});
-    SITE.total.set(-1, n); store.set('forpost.counted', 1); renderDial();
-  }, 4000);
   setInterval(() => { for(const c of SITE.cs) hi(c); }, 60000);
   setInterval(renderDial, 5000);
   addEventListener('pagehide', () => { for(const c of SITE.cs || []) try { c.connected && c.publish(me, '', {qos:0, retain:true}); } catch(e){} });
