@@ -644,13 +644,14 @@ const rr = (a, b) => a + rnd()*(b - a);
 const HALF_PI = Math.PI/2;
 
 // ---------- settings (saved in the browser) ----------
-const DEF = {sens:1, fov:70, shadows:true, hq:true, sound:true, sharp:TOUCH ? 1.5 : 2, fp:false};
+const DEF = {sens:1, fov:70, shadows:true, hq:true, sound:true, sharp:TOUCH ? 1.25 : 1.25, fp:false};
 const S = {...DEF};
 const store = {
   get(k){ try{ return JSON.parse(localStorage.getItem(k)); }catch(e){ return null; } },
   set(k, v){ try{ localStorage.setItem(k, JSON.stringify(v)); }catch(e){} }
 };
 Object.assign(S, store.get('forpost.settings') || {});
+if(!store.get('forpost.perf1')){ S.sharp = Math.min(+S.sharp || 1.25, 1.25); store.set('forpost.perf1', 1); store.set('forpost.settings', S); }     // one-time: older saves had ×2
 // one world: the military base, and east of it a ruined radioactive street with bunker № 7 at its north end.
 // The bunker part is built in its own coordinates and shifted by BX metres to the east.
 const MAP = 'world', BX = 140;
@@ -663,11 +664,11 @@ const MAP_NAME = BUNKER_ON ? 'База и бункер' : 'Военная баз
 const canvas = $('c');
 const renderer = new THREE.WebGLRenderer({canvas, antialias:true});
 renderer.shadowMap.enabled = S.shadows;
-renderer.shadowMap.type = TOUCH ? THREE.PCFShadowMap : THREE.PCFSoftShadowMap;
+renderer.shadowMap.type = THREE.PCFShadowMap;
 const MAX_ANISO = Math.min(16, renderer.capabilities.getMaxAnisotropy() || 8);
 const scene = new THREE.Scene();
 scene.fog = new THREE.Fog(0xc9d2d2, 150, 640);
-const camera = new THREE.PerspectiveCamera(S.fov, 1, 0.1, 1600);
+const camera = new THREE.PerspectiveCamera(S.fov, 1, 0.1, 850);
 function resize(){
   // «Резкость»: how many real pixels per screen point. Above the screen's own density the picture is supersampled (smoother, crisper edges)
   renderer.setPixelRatio(S.hq ? Math.min(+S.sharp || 2, Math.max(devicePixelRatio || 1, 1)*1.5, TOUCH ? 2 : 3) : 1);
@@ -698,7 +699,7 @@ function updateLook(x){
   hemi.color.copy(LOOK_A.sky).lerp(LOOK_B.sky, k); hemi.groundColor.copy(LOOK_A.gnd).lerp(LOOK_B.gnd, k); hemi.intensity = LOOK_A.hi + (LOOK_B.hi - LOOK_A.hi)*k;
   sun.color.copy(LOOK_A.sun).lerp(LOOK_B.sun, k); sun.intensity = LOOK_A.si + (LOOK_B.si - LOOK_A.si)*k;
 }
-sun.castShadow = true; sun.shadow.mapSize.set(TOUCH ? 1024 : 4096, TOUCH ? 1024 : 4096);
+sun.castShadow = true; sun.shadow.mapSize.set(TOUCH ? 1024 : 2048, TOUCH ? 1024 : 2048);
 Object.assign(sun.shadow.camera, {left:-50, right:50, top:50, bottom:-50, near:1, far:260});
 sun.shadow.bias = -0.0005; sun.shadow.normalBias = 0.04;
 scene.add(sun, sun.target);
@@ -778,6 +779,7 @@ const MAT = {
 
 // ---------- colliders: axis-aligned boxes, walked into and stood on ----------
 const COLS = [], solids = [];
+const BASE_INST = [], HUB_INST = [];     // instanced trees and wire that are never culled by distance: shown only where you are
 let WOX = 0, WOZ = 0;      // while the bunker part is built, everything placed in the scene is shifted by this
 function addCol(x0, x1, y0, y1, z0, z1, o = {}){ const c = {x0:x0 + WOX, x1:x1 + WOX, y0, y1, z0:z0 + WOZ, z1:z1 + WOZ, ...o}; COLS.push(c); return c; }
 function colFor(x, z, w, d, y0, h, ry = 0){ const q = Math.round(ry/HALF_PI) % 2 !== 0, hw = (q ? d : w)/2, hd = (q ? w : d)/2; return addCol(x - hw, x + hw, y0, y0 + h, z - hd, z + hd); }
@@ -929,10 +931,10 @@ const radarHead = new THREE.Group();
   box(PER - GATE + 0.5, 4, 1, texMat(TEX.concrete, 16, 1), -(PER + GATE)/2 - 0.25, 0, PER);
   box(PER - GATE + 0.5, 4, 1, texMat(TEX.concrete, 16, 1), (PER + GATE)/2 + 0.25, 0, PER);
   { // concertina coil along the top of the wall
-    const coil = mergeParts(coilParts(4, .36, 20, 0, 0, 30, 8, 3)), segs = [];
+    const coil = mergeParts(coilParts(4, .36, 9, 0, 0, 8, 5, 3)), segs = [];     // light: 137 of these line the walls
     for(let t = -PER + 2; t < PER; t += 4){ segs.push([t, -PER, 0], [-PER, t, 1]); if(!BUNKER_ON || Math.abs(t) > GATE + 1) segs.push([PER, t, 1]); if(Math.abs(t) > GATE + 1) segs.push([t, PER, 0]); }
     const im = new THREE.InstancedMesh(coil, new THREE.MeshStandardMaterial({vertexColors:true, metalness:.75, roughness:.38}), segs.length), m4 = new THREE.Matrix4();
-    segs.forEach(([x, z, r], i) => im.setMatrixAt(i, m4.makeRotationY(r ? HALF_PI : 0).setPosition(x, 4.36, z))); im.frustumCulled = false; im.castShadow = true; scene.add(im);
+    segs.forEach(([x, z, r], i) => im.setMatrixAt(i, m4.makeRotationY(r ? HALF_PI : 0).setPosition(x, 4.36, z))); im.frustumCulled = false; im.castShadow = false; scene.add(im); BASE_INST.push(im);
   }
   // gate posts, guard booths and a barrier arm that lifts when you come close
   box(1.2, 5, 1.2, MAT.concrete, -GATE - 0.6, 0, PER); box(1.2, 5, 1.2, MAT.concrete, GATE + 0.6, 0, PER);
@@ -1112,7 +1114,7 @@ const radarHead = new THREE.Group();
       m4.compose(new THREE.Vector3(x, 0, z), q, new THREE.Vector3(s, s*rr(.85, 1.2), s));
       trunks.setMatrixAt(i, m4); crowns.setMatrixAt(i, m4); addCol(x - .3*s, x + .3*s, 0, 7*s, z - .3*s, z + .3*s, {tree:true});
     }
-    for(const im of [trunks, crowns]){ im.castShadow = im.receiveShadow = true; im.frustumCulled = false; scene.add(im); }
+    for(const im of [trunks, crowns]){ im.castShadow = im.receiveShadow = true; im.frustumCulled = false; scene.add(im); BASE_INST.push(im); }
     for(let i = 0; i < 18; i++){ const a = i/18*Math.PI*2 + rr(-.1, .1), r = rr(470, 600);
       const h = new THREE.Mesh(new THREE.SphereGeometry(1, 18, 10), std(i % 2 ? 0x7d7d55 : 0x8c8460, 1)); h.position.set(Math.cos(a)*r, -6, Math.sin(a)*r); h.scale.set(rr(70, 140), rr(22, 55), rr(70, 140)); scene.add(h); }
   }
@@ -2181,12 +2183,12 @@ function touchLabels(){
 // phones: keep the frame rate up by lowering the render resolution when frames get slow, and raising it back when there is room
 const AQ = {t:0, n:0, slow:0};
 function autoQuality(dt){
-  if(!TOUCH || state !== 'play' || document.hidden) return;
+  if(state !== 'play' || document.hidden) return;
   AQ.t += dt; AQ.n++; if(AQ.t < 1.5) return;
   const ms = AQ.t/AQ.n*1000; AQ.t = 0; AQ.n = 0;
   const pr = renderer.getPixelRatio(), top = S.hq ? Math.min(+S.sharp || 2, Math.max(devicePixelRatio || 1, 1)*1.5, 2) : 1;
   let next = pr;
-  if(ms > 26) next = Math.max(0.75, pr - (ms > 40 ? 0.3 : 0.15));
+  if(ms > 22) next = Math.max(0.6, pr - (ms > 40 ? 0.3 : 0.15));
   else if(ms < 17 && pr < top) next = Math.min(top, pr + 0.1);
   if(Math.abs(next - pr) > 0.01){ renderer.setPixelRatio(next); renderer.setSize(innerWidth, innerHeight, false); }
 }
@@ -3862,6 +3864,7 @@ function netMakeServer(){
 // ---------- the 3D lobby: a military camp far north of the base ----------
 // A walled compound with a parade ground: players meet by the flagpole, talk (chat and microphone) and go through
 // the armoured checkpoint gates into the servers.
+const HUB_N0 = scene.children.length;
 const HUB = {x:0, z:-1000, r:22, portals:[], flag:null, flagBase:null, radar:null, signT:0, lastGo:0, look:false};
 {
   const X = HUB.x, Z = HUB.z, H = 25;            // the compound is 50 × 50 m
@@ -3874,7 +3877,7 @@ const HUB = {x:0, z:-1000, r:22, portals:[], flag:null, flagBase:null, radar:nul
   const wallM = texMat(TEX.concrete, 12, 1, {color:0xa9a69c});
   box(2*H + 1, 3.6, .8, wallM, X, 0, Z - H); box(2*H + 1, 3.6, .8, wallM, X, 0, Z + H);
   box(.8, 3.6, 2*H + 1, wallM, X - H, 0, Z); box(.8, 3.6, 2*H + 1, wallM, X + H, 0, Z);
-  { const coil = mergeParts(coilParts(4, .32, 18, 0, 0, 24, 8, 3)), segs = [];
+  { const coil = mergeParts(coilParts(4, .32, 9, 0, 0, 8, 5, 3)), segs = [];
     for(let t = -H + 2; t < H; t += 4) segs.push([t, -H, 0], [t, H, 0], [-H, t, 1], [H, t, 1]);
     const im = new THREE.InstancedMesh(coil, new THREE.MeshStandardMaterial({vertexColors:true, metalness:.7, roughness:.4}), segs.length), m4 = new THREE.Matrix4(), q = new THREE.Quaternion();
     segs.forEach(([a, b, r], i) => { q.setFromAxisAngle(new THREE.Vector3(0, 1, 0), r ? HALF_PI : 0); m4.compose(new THREE.Vector3(X + (r ? b : a), 3.9, Z + (r ? a : b)), q, new THREE.Vector3(1, 1, 1)); im.setMatrixAt(i, m4); });
@@ -3945,6 +3948,7 @@ const HUB = {x:0, z:-1000, r:22, portals:[], flag:null, flagBase:null, radar:nul
     HUB.portals.push({g, glow, sign, c, tex, x, z, face, col:cols[k], what:null, key:''});
   }
 }
+for(let i = HUB_N0; i < scene.children.length; i++){ const o = scene.children[i]; if(o.isInstancedMesh){ HUB_INST.push(o); o.visible = false; } }
 function drawSign(P_, title, line2, line3){
   const g = P_.c.getContext('2d'), w = P_.c.width, h = P_.c.height;
   g.clearRect(0, 0, w, h); g.fillStyle = 'rgba(38,46,28,.92)'; g.beginPath(); g.roundRect ? g.roundRect(6, 6, w - 12, h - 12, 22) : g.rect(6, 6, w - 12, h - 12); g.fill();
@@ -3975,6 +3979,7 @@ function hubPortals(){
 function hubSpawn(){ P.pos.set(HUB.x + rr(-3, 3), 0, HUB.z + 11 + rr(-1, 1)); P.vel.set(0, 0, 0); P.face = Math.PI; yaw = 0; pitch = 0.25; heroGroup.position.copy(P.pos); }
 function setHubLook(on){
   if(HUB.look === on) return; HUB.look = on;
+  for(const o of HUB_INST) o.visible = on; for(const o of BASE_INST) o.visible = !on;
   document.documentElement.classList.toggle('hub', on);
   scene.fog.near = on ? 70 : 150; scene.fog.far = on ? 260 : 640;
 }
