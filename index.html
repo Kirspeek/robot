@@ -150,7 +150,10 @@ input[type=range]{width:100%;accent-color:var(--accent)}
 label.chk{display:flex;justify-content:space-between;align-items:center;font-size:14px;cursor:pointer}
 input[type=checkbox]{width:18px;height:18px;accent-color:var(--accent)}
 .stats{font:500 12px var(--f-mono);color:var(--muted)}
-.menu{overflow-y:auto}
+.menu{overflow-y:auto;overscroll-behavior:contain;scrollbar-width:thin;scrollbar-color:rgba(217,185,62,.55) transparent}
+.menu::-webkit-scrollbar{width:10px}
+.menu::-webkit-scrollbar-thumb{background:rgba(217,185,62,.5);border-radius:5px;border:2px solid transparent;background-clip:padding-box}
+.menu::-webkit-scrollbar-track{background:transparent}
 .card{padding:24px 0;margin:auto 0}
 .menu{align-items:flex-start}
 .chars{display:grid;grid-template-columns:1fr 1fr;gap:6px}
@@ -1986,20 +1989,38 @@ document.addEventListener('mousedown', e => {
 });
 document.addEventListener('mouseup', e => { if(e.button === 0) firing = false; });
 document.addEventListener('contextmenu', e => e.preventDefault());
-// the wheel scrolls whatever list or panel is under the cursor; in the game (mouse captured) it zooms the camera
-function scrollable(el){
-  for(; el && el !== document.body; el = el.parentElement){ const cs = getComputedStyle(el); if(/(auto|scroll)/.test(cs.overflowY) && el.scrollHeight > el.clientHeight + 1) return el; }
+// the wheel scrolls the list under the cursor; when that list is at its end (or there is none), the whole menu.
+// In the game, with the mouse captured, it zooms the camera.
+function canScroll(el, dy){
+  const cs = getComputedStyle(el);
+  if(!/(auto|scroll)/.test(cs.overflowY) || el.scrollHeight <= el.clientHeight + 1) return false;
+  return dy < 0 ? el.scrollTop > 0 : el.scrollTop + el.clientHeight < el.scrollHeight - 1;
+}
+function scrollTarget(start, dy){
+  for(let el = start; el && el !== document.documentElement; el = el.parentElement) if(el.nodeType === 1 && canScroll(el, dy)) return el;
+  const menu = $('menu');
+  if(!menu.hidden && canScroll(menu, dy)) return menu;
   return null;
 }
 addEventListener('wheel', e => {
   if(state === 'play' && locked && !(document.activeElement && document.activeElement.id === 'chatIn')){
     distWant = clamp(distWant + Math.sign(e.deltaY)*0.7*rig.camDist/5.5, rig.camDist*0.4, rig.camDist*2); return; }
-  let el = scrollable(e.target);
-  if(!el && state === 'play') el = $('chatLog');               // in the game without the mouse captured: the chat
+  const dy = e.deltaY*(e.deltaMode === 1 ? 32 : e.deltaMode === 2 ? innerHeight*.9 : 1);
+  if(!dy) return;
+  let el = scrollTarget(e.target, dy);
+  if(!el && state === 'play' && canScroll($('chatLog'), dy)) el = $('chatLog');   // in the game without the mouse captured: the chat
   if(!el) return;
-  const k = e.deltaMode === 1 ? 32 : e.deltaMode === 2 ? el.clientHeight : 1;
-  el.scrollTop += e.deltaY*k; e.preventDefault();
-}, {passive:false});
+  el.scrollTop += dy; e.preventDefault();
+}, {passive:false, capture:true});
+// the keyboard scrolls the menu too: ↑ ↓, PageUp, PageDown, Home, End
+addEventListener('keydown', e => {
+  if(state !== 'menu' || $('menu').hidden) return;
+  const a = document.activeElement; if(a && (a.tagName === 'INPUT' || a.tagName === 'TEXTAREA')) return;
+  const m = $('menu'), step = {ArrowDown:60, ArrowUp:-60, PageDown:m.clientHeight*.85, PageUp:-m.clientHeight*.85}[e.code];
+  if(step){ m.scrollTop += step; e.preventDefault(); }
+  else if(e.code === 'Home'){ m.scrollTop = 0; e.preventDefault(); }
+  else if(e.code === 'End'){ m.scrollTop = m.scrollHeight; e.preventDefault(); }
+});
 canvas.addEventListener('click', () => { if(state === 'play' && !locked) lock(); });
 $('lock').addEventListener('click', () => lock());
 
