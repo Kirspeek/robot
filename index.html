@@ -677,7 +677,7 @@ function resize(){
 }
 addEventListener('resize', resize); resize();
 
-const sky = new THREE.Mesh(new THREE.SphereGeometry(1200, 32, 16), new THREE.ShaderMaterial({
+const sky = new THREE.Mesh(new THREE.SphereGeometry(800, 32, 16), new THREE.ShaderMaterial({
   side:THREE.BackSide, depthWrite:false, fog:false,
   vertexShader:'varying vec3 vP; void main(){ vP = normalize(position); gl_Position = projectionMatrix*modelViewMatrix*vec4(position,1.); }',
   fragmentShader:'varying vec3 vP; void main(){ float h = vP.y; ' + 'vec3 top = vec3(.30,.50,.76), hor = vec3(.79,.82,.82), gnd = vec3(.60,.57,.48);'
@@ -1561,29 +1561,70 @@ function mkSoldier(){
   const s = makeSoldier();     // the red lenses glow on their own: no light per soldier, so big waves stay fast
   return finish(s, {h:1.85, r:.33, hipY:.98, legSwing:.75, kneeBend:1.1, armSwing:.6, elBase:-.25, armOut:.1, walk:4.4, run:8.5, jump:7.2, camH:1.65, camDist:5.5, step:.45, gunPose:true});
 }
-// «Сокол»: an armoured flying suit — jets in the boots, energy emitters in the palms
+// «Сокол»: an armoured flying suit — layered plates, a helmet with a faceplate, a chest core,
+// energy emitters in the palms, jets in the boots and a thruster pack on the back
 function mkFalcon(){
-  const o = biped({hipX:.13, hipY:.98, thighL:.44, shinL:.44, shX:.27, shY:1.46, armL:.3, headY:1.58}), {root, k, legs, arms, head} = o, {B, C, S} = k;
-  const steel = pm(0x5d7088, {metalness:.75, roughness:.32}), dark = pm(0x232a33, {metalness:.6, roughness:.4}), trim = pm(0xc9d2dc, {metalness:.8, roughness:.25}), glow = glowM(0x6fe8ff, 1.8);
-  B(.42, .5, .26, steel, 0, 1.2, 0); B(.36, .18, .24, dark, 0, .92, 0); B(.3, .14, .02, trim, 0, 1.33, .14);
-  C(.07, .07, .03, glow, 0, 1.24, .135, root, HALF_PI);                     // the power core on the chest
-  for(const s of [-1, 1]) B(.16, .1, .28, steel, s*.2, 1.47, 0);             // shoulder plates
-  B(.18, .32, .1, dark, 0, 1.2, -.17); for(const s of [-1, 1]) C(.045, .055, .3, trim, s*.07, 1.12, -.22);   // back pack with two thrusters
-  S(.13, steel, 0, .12, 0, head, 1, 1.1, 1.05); B(.17, .05, .02, glow, 0, .13, .125, head);                   // helmet and visor
-  B(.2, .05, .2, trim, 0, .24, 0, head);
-  const jets = [], hands = [];
+  const o = biped({hipX:.12, hipY:.98, thighL:.45, shinL:.43, shX:.25, shY:1.47, armL:.3, headY:1.6}), {root, k, legs, arms, head} = o, {B, C, S, add} = k;
+  // not too metallic: there is no environment to reflect, and full metal looks black
+  const plate = pm(0x9aabc0, {metalness:.35, roughness:.38}), plate2 = pm(0x6a7b90, {metalness:.35, roughness:.4}), under = pm(0x3a414b, {metalness:.2, roughness:.6});
+  const trim = pm(0xe0e6ee, {metalness:.4, roughness:.3}), glow = glowM(0x7fe9ff, 2), visor = glowM(0x9ff2ff, 1.6);
+  const fl = () => new THREE.MeshBasicMaterial({color:0x9ff4ff, transparent:true, opacity:.85, blending:THREE.AdditiveBlending, depthWrite:false});
+  const bev = (w, h, d, r) => { const g = new THREE.BoxGeometry(w, h, d, 2, 2, 2), p = g.attributes.position;   // a box with softened edges
+    for(let i = 0; i < p.count; i++){ const x = p.getX(i), y = p.getY(i), z = p.getZ(i), ex = Math.abs(x) > w/2 - .001, ey = Math.abs(y) > h/2 - .001, ez = Math.abs(z) > d/2 - .001;
+      if((ex && ey) || (ex && ez) || (ey && ez)){ p.setX(i, x*(1 - r/w)); p.setY(i, y*(1 - r/h)); p.setZ(i, z*(1 - r/d)); } }
+    g.computeVertexNormals(); return g; };
+  const P = (w, h, d, mat, x, y, z, par = root, rx = 0, ry = 0, rz = 0, r = .03) => add(bev(w, h, d, r), mat, x, y, z, par, rx, ry, rz);
+  // torso: under-suit, layered chest plates, the core, abdomen segments, belt and hip plates
+  B(.34, .62, .22, under, 0, 1.18, 0);
+  P(.44, .3, .25, plate, 0, 1.34, .01, root, 0, 0, 0, .06);
+  for(const s of [-1, 1]){ P(.2, .16, .05, plate2, s*.11, 1.36, .13, root, -.1, s*.12, 0); P(.12, .2, .2, plate, s*.21, 1.22, 0, root, 0, 0, s*.12); }
+  C(.075, .075, .035, trim, 0, 1.31, .145, root, HALF_PI); C(.055, .055, .04, glow, 0, 1.31, .15, root, HALF_PI);
+  for(let i = 0; i < 3; i++) P(.24 - i*.02, .065, .2, i % 2 ? plate2 : plate, 0, 1.14 - i*.075, .02, root, -.05);
+  P(.34, .07, .23, trim, 0, .93, 0); for(const s of [-1, 1]) P(.13, .16, .2, plate2, s*.13, .86, 0, root, 0, 0, s*.15);
+  // shoulders and the collar
+  for(const s of [-1, 1]){ P(.2, .1, .26, plate, s*.24, 1.5, 0, root, 0, 0, -s*.25, .05); P(.16, .06, .22, plate2, s*.25, 1.43, 0, root, 0, 0, -s*.35); }
+  C(.08, .1, .1, under, 0, 1.53, 0);
+  // the back: a thruster pack with two nozzles and folded flaps
+  P(.3, .36, .1, plate2, 0, 1.25, -.16); for(const s of [-1, 1]){ C(.05, .065, .22, trim, s*.09, 1.08, -.2); P(.06, .3, .04, plate, s*.2, 1.25, -.17, root, 0, s*.3, 0); }
+  const back = []; for(const s of [-1, 1]){ const f = C(0, .055, .5, fl(), s*.09, .72, -.2, root, Math.PI); f.visible = false; back.push(f); }
+  // helmet: shell, faceplate, glowing eye slits, cheek and chin plates
+  C(.06, .07, .08, under, 0, .02, 0, head);
+  S(.13, plate, 0, .14, -.01, head, 1, 1.12, 1.08);
+  P(.2, .17, .06, plate2, 0, .12, .1, head, 0, 0, 0, .03); for(const s of [-1, 1]) P(.07, .1, .11, plate, s*.1, .1, .05, head, 0, s*.35, 0);
+  P(.1, .04, .06, plate, 0, .03, .1, head);
+  for(const s of [-1, 1]) B(.065, .018, .02, visor, s*.045, .16, .135, head, 0, 0, -s*.12);
+  P(.05, .2, .2, trim, 0, .26, 0, head, 0, 0, 0, .02);
+  // legs: thigh and shin plates, knee caps, boots with thruster nozzles
+  const jets = [];
   for(const L of legs){
-    B(.15, .44, .16, steel, 0, -.22, 0, L.hip); B(.13, .44, .15, dark, 0, -.22, 0, L.knee); B(.15, .07, .24, steel, 0, -.035, .04, L.foot);
-    const f = C(.0, .07, .4, new THREE.MeshBasicMaterial({color:0x8ff0ff, transparent:true, opacity:.8, blending:THREE.AdditiveBlending, depthWrite:false}), 0, -.27, 0, L.foot, Math.PI);
-    f.visible = false; jets.push(f);
+    B(.12, .44, .13, under, 0, -.22, 0, L.hip); P(.16, .32, .17, plate, 0, -.17, .01, L.hip, 0, 0, 0, .04); P(.1, .12, .04, plate2, 0, -.12, .1, L.hip);
+    B(.11, .42, .12, under, 0, -.21, 0, L.knee); P(.14, .3, .15, plate, 0, -.23, .01, L.knee, 0, 0, 0, .04); P(.12, .1, .09, trim, 0, -.02, .07, L.knee);
+    P(.15, .12, .28, plate, 0, -.035, .04, L.foot, 0, 0, 0, .03); P(.13, .05, .1, plate2, 0, .03, .13, L.foot);
+    C(.045, .06, .05, trim, 0, -.09, -.03, L.foot);
+    const f = C(0, .065, .5, fl(), 0, -.36, -.03, L.foot, Math.PI); f.visible = false; jets.push(f);
   }
+  // arms: upper plates, forearm gauntlets, the palm emitters
+  const hands = [], palms = [];
   for(const A of arms){
-    B(.12, .3, .12, steel, 0, -.15, 0, A.sh); B(.11, .28, .11, dark, 0, -.14, 0, A.el); B(.13, .06, .13, trim, 0, -.29, 0, A.el);
-    S(.04, glow, 0, -.33, .03, A.el); hands.push(A.el);
+    B(.1, .3, .1, under, 0, -.15, 0, A.sh); P(.14, .22, .14, plate, 0, -.12, 0, A.sh, 0, 0, 0, .04);
+    B(.09, .28, .09, under, 0, -.14, 0, A.el); P(.13, .2, .13, plate2, 0, -.12, .005, A.el, 0, 0, 0, .04); P(.14, .05, .14, trim, 0, -.24, 0, A.el);
+    P(.1, .09, .07, plate, 0, -.31, 0, A.el); const pm_ = glowM(0x7fe9ff, 1.4); C(.03, .03, .02, pm_, 0, -.31, .036, A.el, HALF_PI); palms.push(pm_);
+    hands.push(A.el);
   }
-  const muzzle = new THREE.Object3D(); muzzle.position.set(0, -.36, .05); arms[0].el.add(muzzle);
+  const muzzle = new THREE.Object3D(); muzzle.position.set(0, -.33, .06); arms[0].el.add(muzzle);
   root.traverse(x => { if(x.isMesh) x.receiveShadow = true; });
-  return finish({root, legs, arms, head, muzzle, jets, hands}, {h:1.85, r:.33, hipY:.98, legSwing:.7, kneeBend:1, armSwing:.45, elBase:-.2, armOut:.08, walk:4.6, run:9, jump:7.5, camH:1.65, camDist:6, step:.45});
+  return finish({root, legs, arms, head, muzzle, jets, back, hands, palms}, {h:1.9, r:.34, hipY:.98, legSwing:.7, kneeBend:1, armSwing:.45, elBase:-.2, armOut:.08, walk:4.6, run:9, jump:7.5, camH:1.68, camDist:6, step:.45});
+}
+// in the air the suit flies like a jet: legs straight, body leaning into the flight, flames from the boots and the back
+function poseFlight(R, air, speed, dt, firing_){
+  R.flyK = (R.flyK || 0) + ((air ? 1 : 0) - (R.flyK || 0))*Math.min(1, 6*dt);
+  const f = R.flyK;
+  for(const j of R.jets) { j.visible = f > .3; j.scale.set(1, .6 + .6*Math.random(), 1); }
+  if(R.back) for(const j of R.back){ j.visible = f > .3 && speed > 3; j.scale.set(1, .7 + .5*Math.random(), 1); }
+  if(f < .02) return;
+  for(const L of R.legs){ L.hip.rotation.x *= 1 - f; L.knee.rotation.x *= 1 - f*.85; if(L.foot) L.foot.rotation.x = f*.5; }
+  R.root.rotation.x = f*Math.min(.9, speed*.06);
+  if(!firing_) for(const A of R.arms){ A.sh.rotation.x = A.sh.rotation.x*(1 - f) + f*.35; A.sh.rotation.z = A.s*(.12 + .1*f); A.el.rotation.x *= 1 - f; }
 }
 // camouflage walker with a twin cannon and a long rifle
 function mkGroza(){
@@ -3542,8 +3583,8 @@ function updatePeer(dt){
     let d = q.tface - q.face; d = Math.atan2(Math.sin(d), Math.cos(d)); q.face += d*Math.min(1, 10*dt);
     const R = q.R;
     animateRig(R, q.walk, q.amt, q.air, q.place, q.build, q.pitch);
-    if(R.jets) for(const j of R.jets){ j.visible = !!q.air; j.scale.set(1, .7 + .5*Math.random(), 1); }
     if(q.dead){ R.root.rotation.x = -HALF_PI*0.92; R.root.position.y = R.r*0.5; } else { R.root.rotation.x = R.lean || 0; R.root.position.y = 0; }
+    if(R.jets && !q.dead) poseFlight(R, !!q.air, q.amt*8, dt, false);
     q.g.position.copy(q.p); q.g.rotation.y = q.face;
     q.label.position.set(q.p.x, q.p.y + R.h + 0.9, q.p.z);
     q.label.material.color.setHex(q.talk && now - q.talk < 600 ? 0x9fffa0 : 0xffffff);      // green while they talk
@@ -4156,9 +4197,11 @@ function updatePlayer(dt){
   const air = P.onGround ? 0 : 1;
   P.place = Math.max(0, P.place - dt*3);
   animateRig(rig, P.walk, amt, air, P.place, build, pitch);
-  if(rig.jets){ const on = !P.onGround; for(const j of rig.jets){ j.visible = on; j.scale.set(1, .7 + .5*Math.random(), 1); } }
-  if(rig.hands && (P.aimT > 0 || firing) && !build) for(const A of rig.arms){ A.sh.rotation.set(-1.45 - (pitch - .3)*.6, 0, 0); A.el.rotation.x = 0; }
   rig.root.rotation.x = rig.lean + (run && moving ? 0.12 : 0.02*amt)*(rig.h > 3 ? 0.35 : 1);
+  const aiming = rig.hands && (P.aimT > 0 || firing) && !build;
+  if(rig.jets) poseFlight(rig, !P.onGround, Math.hypot(P.vel.x, P.vel.z), dt, aiming);
+  if(aiming) for(const A of rig.arms){ A.sh.rotation.set(-1.45 - (pitch - .3)*.6, 0, 0); A.el.rotation.x = 0; }
+  if(rig.palms){ const k = P.fireCD > 0 ? 3.5 : 1.4; for(const m of rig.palms) m.emissiveIntensity += (k - m.emissiveIntensity)*Math.min(1, 12*dt); }
   if(P.dead > 0){ rig.root.rotation.x = -HALF_PI*0.92; rig.root.position.y = rig.r*0.5; return; }
   if(P.onGround && amt > 0.3 && Math.floor(P.walk/Math.PI) !== stepT){ stepT = Math.floor(P.walk/Math.PI); sfx(rig.h > 3 ? 'stomp' : 'step'); }
 }
