@@ -182,7 +182,7 @@ input[type=checkbox]{width:18px;height:18px;accent-color:var(--accent)}
 .touch .phase b{font-size:11px}
 .touch .phase span{font-size:21px}
 .touch .phase small{display:none}
-.touch .vitals{top:max(8px,env(safe-area-inset-top));bottom:auto;right:calc(max(8px,env(safe-area-inset-right)) + 52px);width:150px;padding:7px 10px;gap:5px}
+.touch .vitals{top:max(8px,env(safe-area-inset-top));bottom:auto;right:calc(max(8px,env(safe-area-inset-right)) + 102px);width:150px;padding:7px 10px;gap:5px}
 .touch .ammo b{font-size:20px}
 .touch .toast{top:86px;font-size:13px;max-width:80vw;white-space:normal;text-align:center}
 .touch .banner b{font-size:30px}
@@ -207,7 +207,8 @@ input[type=checkbox]{width:18px;height:18px;accent-color:var(--accent)}
 .tb.bld{width:56px;height:56px;right:calc(max(18px,env(safe-area-inset-right)) + 22px);bottom:calc(max(26px,env(safe-area-inset-bottom)) + 110px)}
 .tb.use{width:56px;height:56px;right:calc(max(18px,env(safe-area-inset-right)) + 172px);bottom:calc(max(22px,env(safe-area-inset-bottom)) + 40px)}
 .tc.build .tb.use{display:none}
-.side{position:absolute;right:max(8px,env(safe-area-inset-right));top:max(8px,env(safe-area-inset-top));display:grid;gap:6px}
+.side{position:absolute;right:max(8px,env(safe-area-inset-right));top:max(8px,env(safe-area-inset-top));display:grid;grid-template-columns:repeat(2,44px);gap:6px;direction:rtl}
+.side .tb{direction:ltr}
 .side .tb{position:static;width:44px;height:44px;border-radius:12px;font-size:10px}
 .side .tb.bo{display:none}
 .tc.build .side .tb.bo{display:grid}
