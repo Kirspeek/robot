@@ -164,6 +164,8 @@ input[type=checkbox]{width:18px;height:18px;accent-color:var(--accent)}
 .ioshint b{font:400 14px var(--f-head);letter-spacing:.03em;color:var(--accent)}
 .ioshint ol{margin:0;padding-left:18px;display:grid;gap:4px;color:var(--fg)}
 .ioshint .btn{justify-content:center;padding:8px 12px}
+.inst .btn{justify-content:space-between;text-decoration:none;padding:10px 14px}
+.inst .btn small{margin-left:8px}
 @media (max-height:500px){h1{font-size:34px}.lede{display:none}.card{gap:14px}}
 .shr{display:inline-block;width:12px;height:14px;border:1.5px solid currentColor;border-top:none;border-radius:2px;position:relative;vertical-align:-2px;margin-left:2px}
 .shr::before{content:"";position:absolute;left:50%;top:-6px;width:1.5px;height:11px;background:currentColor;transform:translateX(-50%)}
@@ -330,6 +332,10 @@ input[type=checkbox]{width:18px;height:18px;accent-color:var(--accent)}
         <ol><li>В Safari нажмите «Поделиться» <span class="shr" aria-hidden="true"></span></li><li>Выберите «На экран „Домой“» и нажмите «Добавить»</li><li>Откройте игру с новой иконки «Робот» — без адресной строки, на весь экран</li></ol>
         <button class="btn" id="bIosHint">Понятно</button>
       </div>
+      <div class="row inst" id="instRow">
+        <button class="btn" id="bInstall" hidden>Установить <small>на рабочий стол</small></button>
+        <a class="btn" id="bDownload" href="https://github.com/Kirspeek/robot/archive/refs/heads/main.zip" download>Скачать <small>.zip</small></a>
+      </div>
       <button class="btn primary" id="bPlay">Играть <small>Enter</small></button>
       <button class="btn" id="bNew">Новая игра <small>с начала</small></button>
       <button class="btn" id="bNet">Вдвоём по сети <small id="netState">выкл</small></button>
@@ -436,7 +442,7 @@ input[type=checkbox]{width:18px;height:18px;accent-color:var(--accent)}
   </div>
 </div>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="vendor/three.min.js"></script>
 <script>
 'use strict';
 const $ = id => document.getElementById(id);
@@ -1930,6 +1936,22 @@ const IOS = /iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === '
 const STANDALONE = navigator.standalone === true || matchMedia('(display-mode: standalone), (display-mode: fullscreen)').matches;
 if(IOS && !STANDALONE && !store.get('forpost.iosHintSeen')) $('iosHint').hidden = false;
 $('bIosHint').onclick = () => { $('iosHint').hidden = true; store.set('forpost.iosHintSeen', true); sfx('ui'); };
+// ---- installing on the desktop / home screen and playing offline
+let installEv = null;
+addEventListener('beforeinstallprompt', e => { e.preventDefault(); installEv = e; $('bInstall').hidden = false; });
+addEventListener('appinstalled', () => { installEv = null; $('bInstall').hidden = true; toast('Игра установлена: ищите «Робот» на рабочем столе или в меню приложений'); });
+$('bInstall').onclick = async () => {
+  sfx('ui');
+  if(installEv){ installEv.prompt(); try { await installEv.userChoice; } catch(e){} installEv = null; $('bInstall').hidden = true; return; }
+};
+if(STANDALONE) $('instRow').hidden = true;
+else if(IOS) $('bInstall').hidden = true;
+// Safari on a Mac has no install prompt: explain the menu item
+else if(/Macintosh/.test(navigator.userAgent) && /Version\/\d+.*Safari/.test(navigator.userAgent)){
+  $('bInstall').hidden = false; $('bInstall').onclick = () => { sfx('ui'); toast('В Safari: меню «Файл» → «Добавить в Dock»'); };
+}
+if('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === '127.0.0.1' || location.hostname === 'localhost'))
+  addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
 function goFullscreen(){
   if(!TOUCH || document.fullscreenElement || document.webkitFullscreenElement) return;
   const el = document.documentElement, f = el.requestFullscreen || el.webkitRequestFullscreen;
@@ -2988,7 +3010,7 @@ let peerLib = null;
 function loadPeer(){
   if(window.Peer) return Promise.resolve();
   return peerLib || (peerLib = new Promise((ok, bad) => { const sc = document.createElement('script');
-    sc.src = 'https://cdnjs.cloudflare.com/ajax/libs/peerjs/1.5.4/peerjs.min.js'; sc.onload = ok; sc.onerror = () => { peerLib = null; bad(); }; document.head.appendChild(sc); }));
+    sc.src = 'vendor/peerjs.min.js'; sc.onload = ok; sc.onerror = () => { peerLib = null; bad(); }; document.head.appendChild(sc); }));
 }
 // a WebSocket-like wrapper, so netSend and the rest do not care which way we are connected
 const direct = () => !!(NET.conn && NET.conn.open);
@@ -3003,7 +3025,7 @@ let mqttLib = null;
 function loadMqtt(){
   if(window.mqtt) return Promise.resolve();
   return mqttLib || (mqttLib = new Promise((ok, bad) => { const sc = document.createElement('script');
-    sc.src = 'https://cdnjs.cloudflare.com/ajax/libs/mqtt/5.10.1/mqtt.min.js'; sc.onload = ok; sc.onerror = () => { mqttLib = null; bad(); }; document.head.appendChild(sc); }));
+    sc.src = 'vendor/mqtt.min.js'; sc.onload = ok; sc.onerror = () => { mqttLib = null; bad(); }; document.head.appendChild(sc); }));
 }
 const RT = (code, box) => 'robot-vs-people-v1/' + code + '/' + box;     // «h» — to the host, «g» — to the guest
 function relayOpen(code, inbox, will, onMsg){
