@@ -1565,18 +1565,30 @@ function nearSlot(){
 
 // ---------- climbing into your own (blue) robots ----------
 function nearAlly(){
-  let best = null, bd = 2.2;
+  let best = null, bd = 3.5;
   for(const a of allies){ if(a.dead || a.fall > 0) continue; const d = Math.hypot(a.p.x - P.pos.x, a.p.z - P.pos.z) - a.R.r - P.r; if(d < bd){ bd = d; best = a; } }
   return best;
 }
 function hideBody(i, on){ const s = slots[i]; RIGS[i].root.visible = !on; if(on){ s.label.visible = false; if(s.col){ COLS.splice(COLS.indexOf(s.col), 1); s.col = null; } } }
-function pilotIn(a){
-  if(NET.guest){ toast('В игре вдвоём в роботов залезает первый игрок', true); sfx('err'); return; }
-  const c = a.T.c, prev = cur;
-  PILOT = {prev, prevHp:P.hp, prevMax:P.maxHp, type:a.type, max:a.max};
-  const pos = a.p.clone(), face = a.face, hp = a.state === 'wreck' ? a.max*0.4 : a.hp;
+// take a robot out of the world for a pilot; returns what the pilot needs, or null
+function takeRobot(a){
+  if(!a || a.dead && a.state !== 'wreck') return null;
+  const d = {type:a.type, max:a.max, hp:a.state === 'wreck' ? a.max*0.4 : a.hp, x:a.p.x, z:a.p.z, face:a.face};
   if(a.state === 'wreck' && DR.task && DR.task.ref === a) DR.task = null;
-  removeUnit(a);
+  removeUnit(a); return d;
+}
+function pilotIn(a){
+  if(PILOT_ASK > time) return;
+  if(NET.guest){ PILOT_ASK = time + 2; netSend({t:'pilot', id:a.id}); return; }   // the host owns the robots: ask for this one
+  const d = takeRobot(a); if(d && !pilotStart(d)) dropRobot({...d, d:0});
+}
+let PILOT_ASK = 0;
+function pilotStart(d){
+  if(PILOT || P.dead > 0) return false;
+  PILOT_ASK = 0;
+  const c = ETYPES[d.type].c, prev = cur;
+  PILOT = {prev, prevHp:P.hp, prevMax:P.maxHp, type:d.type, max:d.max};
+  const pos = new THREE.Vector3(d.x, 0, d.z), face = d.face, hp = d.hp;
   if(c === prev){ PILOT.same = true; }
   else { setCharacter(c); hideBody(prev, true); }
   P.maxHp = PILOT.max; P.hp = Math.max(1, hp); P.ammo = CHARS[c].w.mag; P.reload = 0;
@@ -1584,30 +1596,37 @@ function pilotIn(a){
   setGlowRig(rig, true);
   sfx('stomp'); emit(SPARK, pos.x, rig.h*.6, pos.z, 25, 0x6fe0ff, 4, .5);
   banner(CHARS[c].name, 'Вы внутри робота. E — вылезти'); updateCharUI();
+  return true;
 }
 // leave the robot: it stays an ally (or a wreck, if it was destroyed) and you step out next to it
 function pilotOut(destroyed){
   if(!PILOT) return;
   const pl = PILOT, c = cur, R = rig;
-  const u = makeUnit(pl.type); u.id = ++UNIT_ID;
-  u.p.set(P.pos.x, 0, P.pos.z); u.v.set(0, 0, 0);
-  Object.assign(u, {state:'ally', hp:Math.max(1, P.hp), max:pl.max, face:P.face, walk:0, cd:1, dead:false, fall:0, hx:u.p.x, hz:u.p.z,
-    sideT:0, side:1, chkT:1.2, cx:u.p.x, cz:u.p.z, punch:0, smokeT:0});
-  setGlow(u, 'ally'); tintRig(u.R, 1); u.R.root.rotation.set(0, 0, 0); u.R.root.position.y = 0;
-  u.g.position.copy(u.p); u.g.rotation.y = u.face; u.bg.visible = u.fill.visible = false;
-  scene.add(u.g, u.bg, u.fill); allies.push(u);
-  if(destroyed){ u.hp = 0; makeWreck(u); }
+  // the robot goes back into the world where it stands; in a game for two the host keeps all robots
+  const back = {type:pl.type, hp:Math.max(1, P.hp), max:pl.max, x:P.pos.x, z:P.pos.z, face:P.face, d:destroyed ? 1 : 0};
+  if(NET.guest) netSend({t:'unpilot', ...back}); else dropRobot(back);
   setGlowRig(R, false);
   PILOT = null;
   if(!pl.same){ hideBody(pl.prev, false); setCharacter(pl.prev); }
   P.maxHp = pl.prevMax; P.hp = Math.max(1, pl.prevHp); P.ammo = curW().mag; P.reload = 0; P.dead = 0;
   // step out to the side of the robot
-  const side = u.R.r + P.r + 0.6;
+  const side = RIGS[c].r + P.r + 0.6;
   P.pos.x += Math.cos(P.face)*side; P.pos.z -= Math.sin(P.face)*side; P.pos.y = 0; P.vel.set(0, 0, 0);
   collideXZ(P.pos); heroGroup.position.copy(P.pos);
   store.set('forpost.char', cur); updateCharUI();
   if(destroyed){ toast('Робот разбит, вы успели выбраться. Его можно починить', true); }
   else { toast(`${CHARS[c].name} снова воюет за вас`); sfx('stomp'); }
+}
+function dropRobot(b){
+  const u = makeUnit(b.type); u.id = ++UNIT_ID;
+  u.p.set(b.x, 0, b.z); u.v.set(0, 0, 0);
+  Object.assign(u, {state:'ally', hp:b.hp, max:b.max, face:b.face, walk:0, cd:1, dead:false, fall:0, hx:u.p.x, hz:u.p.z,
+    sideT:0, side:1, chkT:1.2, cx:u.p.x, cz:u.p.z, punch:0, smokeT:0});
+  setGlow(u, 'ally'); tintRig(u.R, 1); u.R.root.rotation.set(0, 0, 0); u.R.root.position.y = 0;
+  u.g.position.copy(u.p); u.g.rotation.y = u.face; u.bg.visible = u.fill.visible = false;
+  scene.add(u.g, u.bg, u.fill); allies.push(u);
+  if(b.d){ u.hp = 0; makeWreck(u); }
+  return u;
 }
 // a piloted robot keeps its blue lights so it is clear it is yours
 function setGlowRig(R, on){ if(!R || !R.glow) return; for(const m of R.glow){ if(on){ m.userData.c0 = m.userData.c0 ?? m.color.getHex(); m.color.setHex(0x3fd6ff); m.emissive.setHex(0x3fd6ff); } else if(m.userData.c0 !== undefined){ m.color.setHex(m.userData.c0); m.emissive.setHex(m.userData.c0); delete m.userData.c0; } } }
@@ -2874,6 +2893,11 @@ function netOnMessage(m){
     case 'feed': feed(m.x, m.w, m.c); if(m.k) hitMark(true); break;
     case 'hurt': damagePlayer(m.d); break;
     // requests from the guest, carried out by the host
+    case 'pilot': if(NET.host){ const a = allies.find(u => u.id === m.id) || wrecks.find(u => u.id === m.id);
+      const d = a && Math.hypot(a.p.x - PEER.p.x, a.p.z - PEER.p.z) < a.R.r + 6 ? takeRobot(a) : null;
+      netSend(d ? {t:'pilotok', ...d} : {t:'toast', m:'Этот робот уже занят или далеко', bad:1}); } break;
+    case 'pilotok': if(NET.guest && !pilotStart(m)) netSend({...m, t:'unpilot', d:0}); break;
+    case 'unpilot': if(NET.host) dropRobot(m); break;
     case 'hit': if(NET.host){ const e = enemies.find(u => u.id === m.id); if(e) damageEnemy(e, m.d, 'peer'); } break;
     case 'wallhit': if(NET.host){ const b = built.find(w => w.id === m.id); if(b) hitWall(b, m.d, null); } break;
     case 'place': if(NET.host){
