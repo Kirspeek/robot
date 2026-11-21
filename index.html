@@ -356,7 +356,7 @@ input.txt:focus{outline:2px solid var(--accent);outline-offset:1px}
   <div class="toast" id="toast" role="status"></div>
   <div class="chat" id="chat"><div class="chatlog" id="chatLog" aria-live="polite"></div><input id="chatIn" maxlength="160" hidden placeholder="Сообщение — Enter отправить, Esc отмена" autocomplete="off" aria-label="Сообщение в чат"></div>
   <div class="mic" id="micHud" hidden></div>
-  <div class="hubhint" id="hubHint">Лобби · войдите в светящийся портал, чтобы попасть на сервер<span class="nt"> · Enter — чат · M — микрофон · Esc — список серверов</span></div>
+  <div class="hubhint" id="hubHint">Лобби · пройдите через ворота КПП, чтобы попасть на сервер<span class="nt"> · Enter — чат · M — микрофон · Esc — список серверов</span></div>
   <div class="tc" id="tc">
     <div class="joy" id="joy"><i id="joyKnob"></i></div>
     <div class="joyhint">палец сюда —<br>идти</div>
@@ -3190,7 +3190,7 @@ async function netJoinRoom(room, label, max){
   electLeader();
   if(state !== 'play') startPlay();
   sfx('ui');
-  if(NET.hub){ banner('Лобби', 'Подойдите к светящемуся порталу, чтобы войти на сервер'); chatLine('', `Вы в лобби. ${TOUCH ? '💬 — чат, 🎤 — микрофон' : 'Enter — чат, M — микрофон, Esc — список серверов'}.`); }
+  if(NET.hub){ banner('Лобби', 'Пройдите через ворота КПП, чтобы попасть на сервер'); chatLine('', `Вы в лобби. ${TOUCH ? '💬 — чат, 🎤 — микрофон' : 'Enter — чат, M — микрофон, Esc — список серверов'}.`); }
   else { toast(`Вы на сервере: ${label}`); chatLine('', `Вы на сервере «${label}». Enter — написать в чат${TOUCH ? ', 🎤 — микрофон' : ', M — включить микрофон'}. Esc → «В лобби» — вернуться в лобби.`); }
 }
 function announce(){ pub('pr/' + NET.myId, JSON.stringify({n:myName(), t:NET.joinT, h:Date.now()}), true); NET.presT = 60;
@@ -3706,67 +3706,95 @@ function netMakeServer(){
   NET.hub = false; setHubLook(false); lobbyClose(); netJoinRoom('s' + code, name, WORLD_MAX);
 }
 
-// ---------- the 3D lobby: a night clearing in a pine forest, far north of the base ----------
-// Players gather round a campfire, talk (chat and microphone) and walk through glowing portals into the servers.
-const HUB = {x:0, z:-1000, r:22, portals:[], fire:null, fireLight:null, signT:0, lastGo:0, look:false};
+// ---------- the 3D lobby: a military camp far north of the base ----------
+// A walled compound with a parade ground: players meet by the flagpole, talk (chat and microphone) and go through
+// the armoured checkpoint gates into the servers.
+const HUB = {x:0, z:-1000, r:22, portals:[], flag:null, flagBase:null, radar:null, signT:0, lastGo:0, look:false};
 {
-  const X = HUB.x, Z = HUB.z;
-  const floor = canvasTex(256, 256, (g, w, h) => { g.fillStyle = '#2a3320'; g.fillRect(0, 0, w, h);
-    for(let i = 0; i < 60; i++){ g.fillStyle = `rgba(${rnd() < .5 ? '60,45,28' : '30,48,24'},${rr(.2, .5)})`; g.beginPath(); g.arc(rnd()*w, rnd()*h, rr(6, 26), 0, 7); g.fill(); }
-    speckle(g, w, h, 6000, ['rgba(15,20,10,.45)', 'rgba(90,110,60,.25)', 'rgba(70,55,35,.3)']); });
-  slab(440, 440, X, Z, texMat(floor, 70, 70, {color:0x9aa58a}), 0.02);
-  const dirt = canvasTex(128, 128, (g, w, h) => { const gr = g.createRadialGradient(w/2, h/2, 0, w/2, h/2, w/2); gr.addColorStop(0, 'rgba(70,52,34,1)'); gr.addColorStop(.7, 'rgba(62,48,32,.8)'); gr.addColorStop(1, 'rgba(62,48,32,0)'); g.fillStyle = gr; g.fillRect(0, 0, w, h); speckle(g, w, h, 900, ['rgba(30,22,14,.4)', 'rgba(120,100,70,.25)']); });
-  { const m = new THREE.Mesh(new THREE.PlaneGeometry(46, 46), new THREE.MeshStandardMaterial({map:dirt, transparent:true, depthWrite:false, roughness:1})); m.rotation.x = -HALF_PI; m.position.set(X, 0.03, Z); m.receiveShadow = true; scene.add(m); }
-  // pines: three stacked cones on a trunk, hundreds of them round the clearing
-  const pine = mergeParts([[part(new THREE.CylinderGeometry(.18, .3, 3, 6), 0, 1.5, 0), 0x4a3424],
-    [part(new THREE.ConeGeometry(2.6, 4.2, 8), 0, 3.6, 0), 0x1f3a26], [part(new THREE.ConeGeometry(2.1, 3.6, 8), 0, 5.6, 0), 0x24432b], [part(new THREE.ConeGeometry(1.5, 3, 8), 0, 7.4, 0), 0x2a4b30]]);
-  const n = 520, im = new THREE.InstancedMesh(pine, new THREE.MeshStandardMaterial({vertexColors:true, roughness:.95}), n), m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler();
-  for(let i = 0; i < n; i++){
-    const a = rnd()*Math.PI*2, r = i < 70 ? rr(HUB.r + 2, HUB.r + 9) : rr(HUB.r + 6, 150), x = X + Math.cos(a)*r, z = Z + Math.sin(a)*r, s = rr(.8, 1.6);
-    q.setFromEuler(e.set(0, rnd()*6, 0)); m4.compose(new THREE.Vector3(x, 0, z), q, new THREE.Vector3(s, s*rr(.9, 1.25), s)); im.setMatrixAt(i, m4);
-    addCol(x - .35*s, x + .35*s, 0, 9*s, z - .35*s, z + .35*s, {tree:true});
+  const X = HUB.x, Z = HUB.z, H = 25;            // the compound is 50 × 50 m
+  slab(440, 440, X, Z, texMat(TEX.sand, 110, 110), 0.015);
+  slab(2*H, 2*H, X, Z, texMat(TEX.gravel, 12, 12), 0.022);
+  slab(26, 20, X, Z - 3, texMat(TEX.concrete, 7, 5, {color:0xb8b5aa}), 0.03);           // the parade ground
+  for(const dx of [-6, 6]) slab(.25, 18, X + dx, Z - 3, std(0xe8e3cf, .8), 0.034);
+  slab(8, 10, X, Z + 13, texMat(TEX.asphalt, 2, 3), 0.031);                                // the path from where you arrive
+  // the wall round the camp, with barbed wire on top
+  const wallM = texMat(TEX.concrete, 12, 1, {color:0xa9a69c});
+  box(2*H + 1, 3.6, .8, wallM, X, 0, Z - H); box(2*H + 1, 3.6, .8, wallM, X, 0, Z + H);
+  box(.8, 3.6, 2*H + 1, wallM, X - H, 0, Z); box(.8, 3.6, 2*H + 1, wallM, X + H, 0, Z);
+  { const coil = mergeParts(coilParts(4, .32, 18, 0, 0, 24, 8, 3)), segs = [];
+    for(let t = -H + 2; t < H; t += 4) segs.push([t, -H, 0], [t, H, 0], [-H, t, 1], [H, t, 1]);
+    const im = new THREE.InstancedMesh(coil, new THREE.MeshStandardMaterial({vertexColors:true, metalness:.7, roughness:.4}), segs.length), m4 = new THREE.Matrix4(), q = new THREE.Quaternion();
+    segs.forEach(([a, b, r], i) => { q.setFromAxisAngle(new THREE.Vector3(0, 1, 0), r ? HALF_PI : 0); m4.compose(new THREE.Vector3(X + (r ? b : a), 3.9, Z + (r ? a : b)), q, new THREE.Vector3(1, 1, 1)); im.setMatrixAt(i, m4); });
+    im.frustumCulled = false; scene.add(im); }
+  // watchtowers in the corners
+  for(const [sx, sz] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]){
+    const tx = X + sx*(H - 2.5), tz = Z + sz*(H - 2.5);
+    for(const [lx, lz] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) cyl(.1, .14, 6.5, MAT.dark, tx + lx*1.1, 0, tz + lz*1.1, 6);
+    box(3, .25, 3, MAT.wood, tx, 6.5, tz, {col:false}); box(3, 1, .1, MAT.wood, tx, 6.75, tz - 1.45, {col:false}); box(3, 1, .1, MAT.wood, tx, 6.75, tz + 1.45, {col:false});
+    box(.1, 1, 3, MAT.wood, tx - 1.45, 6.75, tz, {col:false}); box(.1, 1, 3, MAT.wood, tx + 1.45, 6.75, tz, {col:false});
+    mesh(new THREE.ConeGeometry(2.4, 1.4, 4), MAT.roof, tx, 8.9, tz).rotation.y = Math.PI/4;
+    addCol(tx - 1.3, tx + 1.3, 0, 6.5, tz - 1.3, tz + 1.3);
   }
-  im.castShadow = im.receiveShadow = true; im.frustumCulled = false; scene.add(im);
-  // a ring of logs round the edge keeps you in the clearing
-  for(let i = 0; i < 40; i++){ const a = i/40*Math.PI*2, x = X + Math.cos(a)*(HUB.r + 1.2), z = Z + Math.sin(a)*(HUB.r + 1.2);
-    addCol(x - 1.9, x + 1.9, 0, 3, z - 1.9, z + 1.9); }
-  // the campfire: a ring of stones, crossed logs, a flame that flickers and throws light
-  const stone = std(0x6d6a62, .95), logM = texMat(TEX.wood, 1, 1, {color:0x6b4a2e});
-  for(let i = 0; i < 12; i++){ const a = i/12*Math.PI*2; const s = mesh(new THREE.DodecahedronGeometry(.32, 0), stone, X + Math.cos(a)*1.25, .18, Z + Math.sin(a)*1.25); s.rotation.set(rnd()*3, rnd()*3, 0); }
-  for(let i = 0; i < 4; i++){ const l = mesh(new THREE.CylinderGeometry(.13, .15, 1.9, 7), logM, X, .25, Z); l.rotation.set(HALF_PI, i*Math.PI/4, .35); }
-  addCol(X - 1.5, X + 1.5, 0, .5, Z - 1.5, Z + 1.5);
-  const flameMat = new THREE.MeshBasicMaterial({color:0xffa030, transparent:true, opacity:.9, blending:THREE.AdditiveBlending, depthWrite:false});
-  HUB.fire = new THREE.Group(); HUB.fire.position.set(X, .3, Z); scene.add(HUB.fire);
-  for(const [s, c, y] of [[1, 0xff7a1a, .6], [.7, 0xffb340, .75], [.4, 0xfff0a0, .85]]){
-    const f = new THREE.Mesh(new THREE.ConeGeometry(.55*s, 1.6*s, 8, 1, true), flameMat.clone()); f.material.color.setHex(c); f.position.y = y*s; HUB.fire.add(f); }
-  HUB.fireLight = new THREE.PointLight(0xff9a40, 2.2, 30, 1.6); HUB.fireLight.position.set(X, 1.6, Z); scene.add(HUB.fireLight);
-  // log benches round the fire
-  for(let i = 0; i < 5; i++){ const a = i/5*Math.PI*2 + .3, x = X + Math.cos(a)*5, z = Z + Math.sin(a)*5;
-    const b = mesh(new THREE.CylinderGeometry(.35, .38, 3.2, 9), logM, x, .35, z); b.rotation.set(0, -a, HALF_PI);
-    const c = Math.abs(Math.cos(a)) > .7; addCol(x - (c ? .45 : 1.6), x + (c ? .45 : 1.6), 0, .7, z - (c ? 1.6 : .45), z + (c ? 1.6 : .45)); }
-  // lanterns on posts (they glow, no extra lights)
-  const lampM = new THREE.MeshStandardMaterial({color:0xffd27a, emissive:0xffb040, emissiveIntensity:1.6});
-  for(let i = 0; i < 6; i++){ const a = i/6*Math.PI*2 + Math.PI/6, x = X + Math.cos(a)*(HUB.r - 2), z = Z + Math.sin(a)*(HUB.r - 2);
-    cyl(.07, .09, 3, MAT.dark, x, 0, z, 6); mesh(new THREE.BoxGeometry(.4, .5, .4), lampM, x, 3.1, z, {shadow:false}); addCol(x - .15, x + .15, 0, 3, z - .15, z + .15); }
-  // the portals: stone arches on the north side, each with a glowing door and a sign
-  const archM = std(0x7b786f, .9), cols = [0x5ad1ff, 0x7dff8a, 0xffd15a, 0xff8a5a, 0xc08aff, 0x5affd8, 0xff5ab0];
+  // the flagpole in the middle of the parade ground, with a ring of sandbags round it
+  cyl(.09, .12, 12, MAT.steel, X, 0, Z - 3, 8); cyl(.6, .8, .5, MAT.concrete, X, 0, Z - 3, 10);
+  HUB.flag = new THREE.PlaneGeometry(3.2, 2, 16, 8); HUB.flag.translate(1.6, 0, 0); HUB.flagBase = HUB.flag.attributes.position.array.slice();
+  mesh(HUB.flag, new THREE.MeshStandardMaterial({map:TEX.flag, side:THREE.DoubleSide, roughness:.9}), X + .1, 10.8, Z - 3);
+  addCol(X - .8, X + .8, 0, 12, Z - 3.8, Z - 2.2);
+  for(let i = 0; i < 6; i++){ const a = i/6*Math.PI*2, w = WT[3], x = X + Math.cos(a)*3.2, z = Z - 3 + Math.sin(a)*3.2;
+    const m = mesh(w.geo, w.mat, x, 0, z, {ry:-a + HALF_PI}); m.scale.set(.42, .7, .7); }
+  // the briefing table with a map, crates of ammunition to sit on
+  box(3, .9, 1.8, MAT.oliveD, X + 7, 0, Z + 3);
+  { const mapT = canvasTex(256, 160, (g, w, h) => { g.fillStyle = '#c9bd95'; g.fillRect(0, 0, w, h); g.strokeStyle = 'rgba(70,60,30,.35)';
+      for(let x = 0; x < w; x += 16){ g.beginPath(); g.moveTo(x, 0); g.lineTo(x, h); g.stroke(); } for(let y = 0; y < h; y += 16){ g.beginPath(); g.moveTo(0, y); g.lineTo(w, y); g.stroke(); }
+      g.strokeStyle = '#3c4a2a'; g.lineWidth = 6; g.strokeRect(70, 30, 110, 100); g.fillStyle = '#b3261e';
+      for(const [x, y] of [[40, 140], [200, 145], [125, 150]]){ g.beginPath(); g.moveTo(x, y - 14); g.lineTo(x + 9, y); g.lineTo(x - 9, y); g.fill(); } });
+    const top = mesh(new THREE.PlaneGeometry(2.9, 1.7), new THREE.MeshStandardMaterial({map:mapT, roughness:.85}), X + 7, .91, Z + 3, {shadow:false}); top.rotation.x = -HALF_PI; }
+  for(const [x, z] of [[-7, 2], [-8.2, 3.4], [-6.8, 4.6], [10.5, 1.5], [10.5, 4.5], [-15, 12], [-16.2, 12], [15.5, 12.5], [16, 11.2]]) box(1.1, .9, 1.1, MAT.crate, X + x, 0, Z + z);
+  // tents along the sides, a parked truck, floodlights on poles
+  for(const [x, z, r] of [[-19, -6, HALF_PI], [-19, 4, HALF_PI], [19, -6, -HALF_PI], [19, 4, -HALF_PI]]){
+    const g = new THREE.Group(); g.position.set(X + x, 0, Z + z); g.rotation.y = r; scene.add(g);
+    mesh(gableGeo(5, 6, 3), MAT.camo, 0, 0, 0, {parent:g}); addCol(X + x - 3, X + x + 3, 0, 3, Z + z - 3, Z + z + 3);
+  }
+  { const tx = X - 12, tz = Z + 18, g = new THREE.Group(); g.position.set(tx, 0, tz); g.rotation.y = .1; scene.add(g); const o = {parent:g};
+    mesh(new THREE.BoxGeometry(2.4, 1, 6.5), MAT.oliveD, 0, 1, 0, o); mesh(new THREE.BoxGeometry(2.4, 1.6, 2), MAT.olive, 0, 2.2, 2.2, o);
+    mesh(new THREE.BoxGeometry(2.5, 2, 4.2), MAT.camo, 0, 2.5, -1, o);
+    for(const sx of [-1, 1]) for(const sz of [-2.2, 0, 2.2]){ const w = mesh(new THREE.CylinderGeometry(.5, .5, .35, 12), MAT.dark, sx*1.2, .5, sz, o); w.rotation.z = HALF_PI; }
+    addCol(tx - 1.4, tx + 1.4, 0, 3.5, tz - 3.4, tz + 3.4); }
+  const lampM = new THREE.MeshStandardMaterial({color:0xfff2c0, emissive:0xffe9a8, emissiveIntensity:.9});
+  for(const [x, z] of [[-22, -22], [22, -22], [-22, 22], [22, 22], [-22, 0], [22, 0]].map(([a, b]) => [a*.9, b*.9])){
+    cyl(.1, .14, 7, MAT.dark, X + x, 0, Z + z, 6); box(.9, .45, .5, lampM, X + x, 7, Z + z, {col:false}); addCol(X + x - .2, X + x + .2, 0, 7, Z + z - .2, Z + z + .2); }
+  // a radar dish turning on a mast by the gates
+  cyl(.15, .2, 6, MAT.steel, X + 20, 0, Z - 18, 8);
+  HUB.radar = new THREE.Group(); HUB.radar.position.set(X + 20, 6.2, Z - 18); scene.add(HUB.radar);
+  { const dish = new THREE.Mesh(new THREE.SphereGeometry(1.3, 16, 8, 0, Math.PI*2, 0, Math.PI*.35), MAT.white); dish.rotation.x = -HALF_PI - .4; dish.position.z = .2; HUB.radar.add(dish); }
+  addCol(X + 19.7, X + 20.3, 0, 6, Z - 18.3, Z - 17.7);
+  // pines and hills beyond the wall
+  { const n = 160, trunks = new THREE.InstancedMesh(new THREE.CylinderGeometry(.22, .32, 2.2, 6).translate(0, 1.1, 0), std(0x5a4430, .95), n);
+    const crowns = new THREE.InstancedMesh(new THREE.ConeGeometry(2.2, 6, 7).translate(0, 5, 0), std(0x3f5a2e, .95), n), m4 = new THREE.Matrix4(), q = new THREE.Quaternion();
+    for(let i = 0; i < n; i++){ const a = rnd()*Math.PI*2, r = rr(36, 150), s_ = rr(.7, 1.4); q.setFromAxisAngle(new THREE.Vector3(0, 1, 0), rnd()*6);
+      m4.compose(new THREE.Vector3(X + Math.cos(a)*r, 0, Z + Math.sin(a)*r), q, new THREE.Vector3(s_, s_, s_)); trunks.setMatrixAt(i, m4); crowns.setMatrixAt(i, m4); }
+    for(const im of [trunks, crowns]){ im.castShadow = true; im.frustumCulled = false; scene.add(im); } }
+  // the checkpoint gates: armoured doors in a concrete frame, a coloured screen and a sign with the server
+  const frameM = texMat(TEX.concrete, 1, 2, {color:0x9a978b}), hz = texMat(TEX.hazard, 3, 1), cols = [0x7dff6a, 0xffd15a, 0x5ad1ff, 0xff8a5a, 0x5affd8, 0xc0b0ff, 0xff5a5a];
   for(let k = 0; k < 7; k++){
     const a = -Math.PI/2 + (k - 3)*0.36, x = X + Math.cos(a)*(HUB.r - 5), z = Z + Math.sin(a)*(HUB.r - 5), face = Math.atan2(X - x, Z - z);
     const g = new THREE.Group(); g.position.set(x, 0, z); g.rotation.y = face; scene.add(g);
-    for(const s of [-1, 1]){ mesh(new THREE.BoxGeometry(.6, 4.2, .7), archM, s*1.75, 2.1, 0, {parent:g}); }
-    mesh(new THREE.BoxGeometry(4.1, .6, .8), archM, 0, 4.4, 0, {parent:g});
-    const glow = new THREE.Mesh(new THREE.PlaneGeometry(2.9, 3.9), new THREE.MeshBasicMaterial({color:cols[k], transparent:true, opacity:.55, blending:THREE.AdditiveBlending, depthWrite:false, side:THREE.DoubleSide}));
-    glow.position.y = 1.95; g.add(glow);
+    for(const sx of [-1, 1]){ mesh(new THREE.BoxGeometry(.7, 4.4, .9), frameM, sx*1.8, 2.2, 0, {parent:g}); mesh(new THREE.PlaneGeometry(.7, 4.2), hz, sx*1.8, 2.1, .46, {parent:g, shadow:false}); }
+    mesh(new THREE.BoxGeometry(4.3, .8, 1), frameM, 0, 4.6, 0, {parent:g}); mesh(new THREE.PlaneGeometry(4.3, .5), hz, 0, 4.6, .51, {parent:g, shadow:false});
+    // the doors stand open to the sides; the passage glows in the server's colour
+    for(const sx of [-1, 1]){ const d = mesh(new THREE.BoxGeometry(1.5, 3.9, .12), MAT.door, sx*2.6, 1.95, .35, {parent:g}); d.rotation.y = sx*.9; }
+    const glow = new THREE.Mesh(new THREE.PlaneGeometry(2.9, 4), new THREE.MeshBasicMaterial({color:cols[k], transparent:true, opacity:.4, blending:THREE.AdditiveBlending, depthWrite:false, side:THREE.DoubleSide}));
+    glow.position.y = 2; g.add(glow);
     const c = document.createElement('canvas'); c.width = 512; c.height = 256;
     const tex = new THREE.CanvasTexture(c), sign = new THREE.Sprite(new THREE.SpriteMaterial({map:tex, transparent:true, depthWrite:false}));
-    sign.scale.set(4.4, 2.2, 1); sign.position.set(x, 6.3, z); scene.add(sign);
-    for(const s of [-1, 1]){ const px = x + Math.cos(face)*s*1.75, pz = z - Math.sin(face)*s*1.75; addCol(px - .4, px + .4, 0, 4.2, pz - .4, pz + .4); }
+    sign.scale.set(4.4, 2.2, 1); sign.position.set(x, 6.4, z); scene.add(sign);
+    for(const sx of [-1, 1]){ const px = x + Math.cos(face)*sx*1.8, pz = z - Math.sin(face)*sx*1.8; addCol(px - .5, px + .5, 0, 4.4, pz - .5, pz + .5); }
     HUB.portals.push({g, glow, sign, c, tex, x, z, face, col:cols[k], what:null, key:''});
   }
 }
 function drawSign(P_, title, line2, line3){
   const g = P_.c.getContext('2d'), w = P_.c.width, h = P_.c.height;
-  g.clearRect(0, 0, w, h); g.fillStyle = 'rgba(12,16,12,.82)'; g.beginPath(); g.roundRect ? g.roundRect(6, 6, w - 12, h - 12, 22) : g.rect(6, 6, w - 12, h - 12); g.fill();
+  g.clearRect(0, 0, w, h); g.fillStyle = 'rgba(38,46,28,.92)'; g.beginPath(); g.roundRect ? g.roundRect(6, 6, w - 12, h - 12, 22) : g.rect(6, 6, w - 12, h - 12); g.fill();
   g.strokeStyle = '#' + P_.col.toString(16).padStart(6, '0'); g.lineWidth = 5; g.stroke();
   g.textAlign = 'center'; g.textBaseline = 'middle';
   g.fillStyle = '#ece6d2'; g.font = '400 54px "Russo One", Impact, sans-serif'; g.fillText(title, w/2, 70, w - 40);
@@ -3795,18 +3823,17 @@ function hubSpawn(){ P.pos.set(HUB.x + rr(-3, 3), 0, HUB.z + 11 + rr(-1, 1)); P.
 function setHubLook(on){
   if(HUB.look === on) return; HUB.look = on;
   document.documentElement.classList.toggle('hub', on);
-  sky.visible = !on; scene.background = on ? new THREE.Color(0x060b0a) : null;
-  if(on){ scene.fog.color.setHex(0x09120f); scene.fog.near = 12; scene.fog.far = 95; hemi.color.setHex(0x7d8fbd); hemi.groundColor.setHex(0x2a2216); hemi.intensity = .75; sun.color.setHex(0xb0c2ff); sun.intensity = .5; }
-  else { scene.fog.color.setHex(0xc9d2d2); scene.fog.near = 150; scene.fog.far = 640; hemi.color.setHex(0xd8e6f0); hemi.groundColor.setHex(0x6f6448); hemi.intensity = .62; sun.color.setHex(0xfff1dc); sun.intensity = .95; }
+  scene.fog.near = on ? 70 : 150; scene.fog.far = on ? 260 : 640;
 }
 function updateHub(dt){
   const on = NET.hub && NET.on;
-  // the fire flickers whether you are there or not (it is cheap)
-  const fl = .85 + .15*Math.sin(time*9) + .1*Math.sin(time*23.7);
-  HUB.fire.scale.set(1, fl, 1); HUB.fireLight.intensity = on ? 2 + .5*Math.sin(time*11) : 0;
   if(!on) return;
-  if(rnd() < dt*6) emit(SPARK, HUB.x + rr(-.3, .3), 1.2, HUB.z + rr(-.3, .3), 2, 0xffb050, 1.2, 1.2, 2);
-  for(const p of HUB.portals) p.glow.material.opacity = p.what ? .45 + .15*Math.sin(time*2.5 + p.x) : .12;
+  // the flag waves and the radar turns
+  const fa = HUB.flag.attributes.position.array;
+  for(let i = 0; i < fa.length; i += 3){ const x = HUB.flagBase[i]; fa[i + 2] = Math.sin(x*1.8 - time*5 + HUB.flagBase[i + 1]*0.4)*0.22*(x/3.2); }
+  HUB.flag.attributes.position.needsUpdate = true; HUB.flag.computeVertexNormals();
+  HUB.radar.rotation.y += dt*0.8;
+  for(const p of HUB.portals) p.glow.material.opacity = p.what ? .32 + .12*Math.sin(time*2.5 + p.x) : .06;
   HUB.signT -= dt;
   if(HUB.signT <= 0){
     HUB.signT = 1.5;
@@ -3882,7 +3909,7 @@ function renderNetPanel(){
   $('netTitle').textContent = NET.on && !NET.hub ? NET.label : 'Лобби';
   document.querySelector('.card').classList.toggle('wide', !$('pNet').hidden && (!NET.on || NET.hub));
   $('netText').textContent = NET.joining ? 'Подключаюсь к серверу…'
-    : NET.hub ? 'Вы в 3D-лобби. Порталы на поляне ведут на серверы — или выберите сервер здесь. Ниже — кто сейчас играет: «К нему» перенесёт вас на тот же сервер.'
+    : NET.hub ? 'Вы в 3D-лобби — военном лагере. Ворота КПП ведут на серверы — или выберите сервер здесь. Ниже — кто сейчас играет: «К нему» перенесёт вас на тот же сервер.'
     : !NET.on ? 'Выберите сервер или нажмите «Быстрая игра». Игроки со всего мира, с любых устройств, до 16 человек на карте. Можно создать свой сервер — он появится в списке у всех.'
     : NET.room.startsWith('s') ? `Вы на сервере «${NET.label}». Он виден в лобби у всех игроков. Стены и волны сохраняются. Enter — чат, M — микрофон.`
     : priv ? 'Скажите друзьям этот код: они вводят его в этом же меню на своих устройствах. Или отправьте ссылку. Enter — чат, M — включить / выключить микрофон, C (держать) — говорить, пока держите.'
