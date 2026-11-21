@@ -235,6 +235,7 @@ input[type=checkbox]{width:18px;height:18px;accent-color:var(--accent)}
 .nickmsg.ok{color:var(--ok)}
 .namerow{display:flex;justify-content:space-between;align-items:center;gap:10px}
 .namerow b{font:600 16px var(--f-body)}
+.upd{position:fixed;left:50%;bottom:max(14px,env(safe-area-inset-bottom));transform:translateX(-50%);z-index:70;display:flex;gap:12px;align-items:center;background:rgba(40,36,14,.95);border:1px solid var(--accent);border-radius:999px;padding:8px 10px 8px 18px;font:600 14px var(--f-body);box-shadow:0 6px 24px rgba(0,0,0,.45)}
 .allbtn{justify-self:start;margin-top:5px;font:600 12px var(--f-body);color:var(--accent);background:none;border:1px solid rgba(217,185,62,.45);border-radius:999px;padding:3px 10px;cursor:pointer}
 .allbtn:hover{background:rgba(217,185,62,.12)}
 .alllist{max-height:min(55vh,460px)}
@@ -431,6 +432,7 @@ input.txt:focus{outline:2px solid var(--accent);outline-offset:1px}
     <div class="row"><button class="btn primary" id="bNickOk">Готово</button><button class="btn" id="bNickCancel" hidden>Отмена</button></div>
   </div>
 </div>
+<div class="upd" id="updBar" hidden role="status"><span>Вышло обновление игры</span><button class="mini ok" id="bUpd">Обновить</button></div>
 <div class="rotate"><div><b>⟲</b>Поверните телефон горизонтально</div></div>
 
 <div class="lock" id="lock" hidden><div>Кликните, чтобы управлять персонажем</div></div>
@@ -628,6 +630,9 @@ input.txt:focus{outline:2px solid var(--accent);outline-offset:1px}
 <script src="vendor/three.min.js"></script>
 <script>
 'use strict';
+const VERSION = '2026-11-22c';     // must match version.json: when the site has a newer one, the game offers to update
+// the old LAN link (http://192.168…) has no secure context, so friends and encryption cannot work there: go to the site
+if(location.protocol === 'http:' && !/^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname)) location.replace('https://kirspeek.github.io/robot/' + location.search);
 const $ = id => document.getElementById(id);
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const TOUCH = /[?&]touch=1/.test(location.search) || (matchMedia('(pointer:coarse)').matches && navigator.maxTouchPoints > 0);
@@ -2174,7 +2179,7 @@ else if(/Macintosh/.test(navigator.userAgent) && /Version\/\d+.*Safari/.test(nav
   $('bInstall').hidden = false; $('bInstall').onclick = () => { sfx('ui'); toast('В Safari: меню «Файл» → «Добавить в Dock»'); };
 }
 if('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === '127.0.0.1' || location.hostname === 'localhost'))
-  addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
+  addEventListener('load', () => navigator.serviceWorker.register('sw.js', {updateViaCache:'none'}).then(r => r.update()).catch(() => {}));
 function goFullscreen(){
   if(!TOUCH || document.fullscreenElement || document.webkitFullscreenElement) return;
   const el = document.documentElement, f = el.requestFullscreen || el.webkitRequestFullscreen;
@@ -4242,7 +4247,7 @@ function renderAll(){
     sm.textContent = 'впервые: ' + new Date(u.f).toLocaleDateString('ru-RU'); info.append(nm, sm);
     const w = document.createElement('span'); w.className = 'when'; w.textContent = here.has(d) ? 'в сети' : ago(u.l);
     const act = document.createElement('span');
-    if(d !== DEV) act.appendChild(FR.friends[d] ? Object.assign(document.createElement('span'), {className:'when', textContent:'друг ✓'}) : FR.out[d] ? Object.assign(document.createElement('span'), {className:'when', textContent:'запрос отправлен'}) : u.k ? smallBtn('В друзья', () => askFriend(d), 'ok') : Object.assign(document.createElement('span'), {className:'when', textContent:''}));
+    if(d !== DEV) act.appendChild(FR.friends[d] ? Object.assign(document.createElement('span'), {className:'when', textContent:'друг ✓'}) : FR.out[d] ? Object.assign(document.createElement('span'), {className:'when', textContent:'запрос отправлен'}) : smallBtn('В друзья', () => askFriend(d), 'ok'));
     if(d !== DEV){ el.style.cursor = 'pointer'; el.onclick = () => { sfx('ui'); openCard(d, u.n); }; }
     el.append(info, act, w); box.appendChild(el);
   }
@@ -4336,9 +4341,9 @@ function whereIs(d){
 // ---- sending: a sealed envelope to the device's mailbox (kept until read), or a live one (calls)
 async function dmSend(d, obj, keep = true){
   const pub = (FR.friends[d] || {}).k || userOf(d).k;
-  if(!pub){ toast('Этот игрок ещё не обновил игру: связаться с ним пока нельзя', true); return false; }
+  if(!pub){ toast(`У игрока «${frName(d)}» старая версия игры. Попросите его обновить страницу (или открыть kirspeek.github.io/robot) — тогда запрос дойдёт`, true); sfx('err'); return false; }
   if(!anyUp(SITE.cs)){ toast('Нет связи с сервером', true); return false; }
-  if(!await keysReady()){ toast('Этот браузер не умеет шифровать сообщения', true); return false; }
+  if(!await keysReady()){ toast('Этот браузер не даёт шифровать сообщения. Откройте игру по ссылке https://kirspeek.github.io/robot/ в Chrome или Safari', true); sfx('err'); return false; }
   const id = rid(10), env = JSON.stringify({f:DEV, k:KEYS.pub, ...(await seal(pub, {...obj, id, ts:Date.now()}))});
   for(const c of SITE.cs) if(c.connected) c.publish(NET_ROOT + 'dm/' + d + '/' + id, env, {qos:0, retain:keep});
   return id;
@@ -4539,7 +4544,6 @@ function renderCard(){
     if(w.room && !w.room.startsWith('hub') && !w.room.startsWith('r') && w.room !== NET.room) btn('Зайти к нему на сервер', () => goRoom(w.room, w.label.replace(/^.*«|»$/g, '') || 'Сервер'));
   } else if(FR.inc[d]){ btn('✓ Принять запрос в друзья', () => { acceptFriend(d); renderCard(); }, 'primary'); btn('Отклонить', () => { declineFriend(d); renderCard(); }); }
   else if(FR.out[d]) btn('Запрос отправлен — ждём ответа', () => {});
-  else if(!u.k && !(FR.friends[d] || {}).k) $('cardInfo').textContent += ' · Добавить в друзья можно, когда он обновит игру.';
   else btn('➕ Добавить в друзья', async () => { await askFriend(d); renderCard(); }, 'primary');
 }
 // the other player under the crosshair (a ray from the camera through the middle of the screen)
@@ -4680,6 +4684,20 @@ setTimeout(function recheck(){
 
 if(navigator.onLine !== false) siteCount(); else renderDial();
 setTimeout(renderFriends, 0);
+// ---------- updates: every minute ask the site for its version; in the menu the game reloads by itself ----------
+async function checkUpdate(){
+  if(location.protocol === 'file:') return;
+  try {
+    const r = await fetch('version.json?t=' + Date.now(), {cache:'no-store'}); if(!r.ok) return;
+    const v = (await r.json()).v;
+    if(v && v !== VERSION){
+      $('updBar').hidden = false;
+      if(state === 'menu' && !NET.on && CALL.state === 'idle' && $('nickDlg').hidden && !store.get('forpost.updTried.' + v)){ store.set('forpost.updTried.' + v, 1); location.reload(); }
+    }
+  } catch(e){}
+}
+$('bUpd').onclick = () => location.reload();
+setTimeout(checkUpdate, 4000); setInterval(checkUpdate, 60000);
 try { const q = new URLSearchParams(location.search); if(q.get('join')) netJoin(q.get('join')); else if(q.get('server')) netPlayWorld(); } catch(e){}
 requestAnimationFrame(frame);
 </script>
