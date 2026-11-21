@@ -38,6 +38,10 @@ async def index(request):
     return web.FileResponse(HERE / "index.html", headers={"Cache-Control": "no-store"})
 
 
+async def manifest(request):
+    return web.FileResponse(HERE / "manifest.webmanifest", headers={"Content-Type": "application/manifest+json"})
+
+
 async def info(request):
     return web.json_response({"ips": lan_ips(), "port": PORT, "players": len(clients)})
 
@@ -74,6 +78,7 @@ async def ws_handler(request):
 def main():
     app = web.Application()
     app.add_routes([web.get("/", index), web.get("/index.html", index),
+                    web.get("/manifest.webmanifest", manifest), web.static("/icons", HERE / "icons"),
                     web.get("/api/info", info), web.get("/ws", ws_handler)])
     ips = lan_ips()
     print(f"Игра: http://127.0.0.1:{PORT}/")

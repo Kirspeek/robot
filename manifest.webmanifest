@@ -1,0 +1,17 @@
+{
+  "name": "Робот против людей",
+  "short_name": "Робот",
+  "description": "Оборона военной базы от роботов: стройте стены, отстреливайтесь, залезайте в роботов. Можно вдвоём по сети.",
+  "lang": "ru",
+  "start_url": "./",
+  "scope": "./",
+  "display": "fullscreen",
+  "orientation": "landscape",
+  "background_color": "#12150e",
+  "theme_color": "#12150e",
+  "icons": [
+    {"src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png"},
+    {"src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png"},
+    {"src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable"}
+  ]
+}
