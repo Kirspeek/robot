@@ -4406,7 +4406,7 @@ $('bRec').addEventListener('pointerdown', e => { e.preventDefault(); recStart();
 for(const ev of ['pointerup', 'pointercancel', 'pointerleave']) $('bRec').addEventListener(ev, () => recEnd());
 $('bCallOk').onclick = () => callAnswer();
 $('bCallEnd').onclick = () => callDecline();
-$('bCallMute').onclick = () => { CALL.mute = !CALL.mute; callUi(); };
+$('bCallMute').onclick = () => { CALL.mute = !CALL.mute; if(CALL.rtcStream) CALL.rtcStream.getTracks().forEach(t => t.enabled = !CALL.mute); callUi(); };
 async function siteCount(){
   try { await loadMqtt(); } catch(e){ renderDial(); return; }
   await keysReady();
@@ -4527,6 +4527,7 @@ function dmHandle(d, pub, m){
     case 'callok': if(CALL.state === 'out' && CALL.dev === d && CALL.id === m.cid) callLive(); break;
     case 'callno': if(CALL.dev === d && CALL.id === m.cid){ toast(m.busy ? `${frName(d)} сейчас разговаривает` : `${frName(d)} не ответил`, true); callEnd(false); } break;
     case 'hang': if(CALL.dev === d && CALL.id === m.cid){ toast('Звонок завершён'); callEnd(false); } break;
+    case 'rtc': if(CALL.dev === d) rtcSignal(m); break;
   }
 }
 function notifyMsg(d, text){
@@ -4601,11 +4602,11 @@ async function recEnd(){
 }
 
 // ---- calls
-const CALL = {state:'idle', dev:'', id:'', stop:null, seq:0, last:-1, at:0, t0:0, ring:0, timer:0, mute:false};
+const CALL = {state:'idle', dev:'', id:'', stop:null, seq:0, t0:0, ring:0, timer:0, mute:false, out:false, buf:new Map(), next:0, playAt:0, started:false, pc:null, direct:false, sig:[], ice:[]};
 async function callStart(d){
   if(CALL.state !== 'idle'){ toast('Вы уже в звонке', true); return; }
   if(!FR.friends[d]) return;
-  CALL.state = 'out'; CALL.dev = d; CALL.id = rid(8);
+  CALL.state = 'out'; CALL.dev = d; CALL.id = rid(8); CALL.out = true;
   if(!await dmSend(d, {t:'call', cid:CALL.id, n:myName()}, false)){ callEnd(false); return; }
   callUi(); CALL.ring = setTimeout(() => { if(CALL.state === 'out'){ dmSend(d, {t:'hang', cid:CALL.id}, false); toast(`${frName(d)} не ответил`, true); callEnd(false); } }, 30000);
 }
@@ -4619,37 +4620,96 @@ function callIncoming(d, m){
 }
 function callAnswer(){ if(CALL.state !== 'in') return; dmSend(CALL.dev, {t:'callok', cid:CALL.id}, false); callLive(); }
 function callDecline(){ if(CALL.state === 'idle') return; dmSend(CALL.dev, {t:CALL.state === 'in' ? 'callno' : 'hang', cid:CALL.id}, false); callEnd(true); }
+// A call has two ways for the sound. Direct (WebRTC, Opus, echo cancellation) when the two devices can reach each other —
+// it is set up through the sealed messages. Otherwise, and until then, sound goes through the broker: 8 kHz μ-law in
+// 250 ms pieces, put back in order in a jitter buffer that keeps ~0.3 s in hand and drops pieces when it falls behind.
+const RTC_CFG = {iceServers:[{urls:['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302']}]};
 async function callLive(){
-  clearTimeout(CALL.ring); CALL.state = 'live'; CALL.t0 = performance.now(); CALL.seq = 0; CALL.last = -1; CALL.at = 0; callUi();
+  clearTimeout(CALL.ring); CALL.state = 'live'; CALL.t0 = performance.now(); CALL.seq = 0; callUi();
+  Object.assign(CALL, {buf:new Map(), next:0, playAt:0, started:false, direct:false, sig:[]});
   const d = CALL.dev, id = CALL.id, pub = (FR.friends[d] || {}).k;
+  rtcStart(CALL.out).catch(() => {});
   const stop = await capture(async ch => {
-    if(CALL.state !== 'live' || CALL.id !== id || CALL.mute) return;
-    const env = JSON.stringify({f:DEV, ...(await seal(pub, {cid:id, s:++CALL.seq, d:b64e(packMu(ch))}))});
+    if(CALL.state !== 'live' || CALL.id !== id || CALL.mute || CALL.direct) return;
+    const s_ = ++CALL.seq, env = JSON.stringify({f:DEV, ...(await seal(pub, {cid:id, s:s_, d:b64e(packMu(ch))}))});
     for(const c of SITE.cs || []) if(c.connected) c.publish(NET_ROOT + 'ca/' + d, env, {qos:0});
-  });
+  }, 2000);     // 250 ms pieces: 4 messages a second is what the free brokers let through steadily
   if(CALL.state !== 'live' || CALL.id !== id){ stop && stop(); return; }
   CALL.stop = stop;
   CALL.timer = setInterval(callUi, 1000);
 }
+async function rtcStart(caller){
+  if(!window.RTCPeerConnection || !navigator.mediaDevices) return;
+  const id = CALL.id, pc = new RTCPeerConnection(RTC_CFG); CALL.pc = pc;
+  let stream; try { stream = await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true, noiseSuppression:true, autoGainControl:true}}); } catch(e){ return; }
+  if(CALL.id !== id || CALL.pc !== pc){ stream.getTracks().forEach(t => t.stop()); pc.close(); return; }
+  CALL.rtcStream = stream; for(const t of stream.getTracks()){ t.enabled = !CALL.mute; pc.addTrack(t, stream); }
+  pc.onicecandidate = e => { if(e.candidate) dmSend(CALL.dev, {t:'rtc', cid:id, ice:e.candidate.toJSON()}, false); };
+  pc.ontrack = e => { const a = CALL.audio || (CALL.audio = Object.assign(document.createElement('audio'), {autoplay:true, playsInline:true})); a.srcObject = e.streams[0]; a.play().catch(() => {}); };
+  pc.onconnectionstatechange = () => { const st = pc.connectionState; CALL.direct = st === 'connected'; if(st === 'connected') CALL.buf.clear(); callUi(); };
+  if(caller){ const o = await pc.createOffer(); await pc.setLocalDescription(o); dmSend(CALL.dev, {t:'rtc', cid:id, sdp:pc.localDescription.toJSON()}, false); }
+  for(const m of CALL.sig.splice(0)) await rtcSignal(m);
+}
+async function rtcSignal(m){
+  const pc = CALL.pc; if(m.cid !== CALL.id || CALL.state !== 'live') return;
+  if(!pc || !CALL.rtcStream){ CALL.sig.push(m); return; }     // not ready yet: rtcStart replays these
+  try {
+    if(m.sdp){
+      await pc.setRemoteDescription(m.sdp);
+      if(m.sdp.type === 'offer'){ const a = await pc.createAnswer(); await pc.setLocalDescription(a); dmSend(CALL.dev, {t:'rtc', cid:CALL.id, sdp:pc.localDescription.toJSON()}, false); }
+      for(const x of (CALL.ice || []).splice(0)) await pc.addIceCandidate(x).catch(() => {});
+    } else if(m.ice){ if(pc.remoteDescription) await pc.addIceCandidate(m.ice).catch(() => {}); else (CALL.ice = CALL.ice || []).push(m.ice); }
+  } catch(e){}
+}
+// the relay: a little sound chain (no rumble, no hiss above the phone band) and a jitter buffer
+function callOut(){
+  const ctx = audioCtx();
+  if(!CALL.chain || CALL.chain.context !== ctx){ const lp = ctx.createBiquadFilter(), hp = ctx.createBiquadFilter(), g = ctx.createGain();
+    lp.type = 'lowpass'; lp.frequency.value = 3400; hp.type = 'highpass'; hp.frequency.value = 120; g.gain.value = 1.3; lp.connect(hp); hp.connect(g); g.connect(ctx.destination); CALL.chain = lp; }
+  return CALL.chain;
+}
+function playPiece(u8, when){
+  const ctx = audioCtx(), n = u8.length, rate = ctx.sampleRate, up = rate/8000, out = Math.floor(n*up);
+  const buf = ctx.createBuffer(1, out, rate), dd = buf.getChannelData(0), pcm = new Float32Array(n);
+  for(let i = 0; i < n; i++) pcm[i] = mulawDec(u8[i]);
+  for(let i = 0; i < out; i++){ const x = i/up, j = Math.floor(x), f = x - j; dd[i] = pcm[j]*(1 - f) + pcm[Math.min(n - 1, j + 1)]*f; }
+  const fade = Math.min(out >> 3, Math.floor(rate*.004)); for(let i = 0; i < fade; i++){ const k = i/fade; dd[i] *= k; dd[out - 1 - i] *= k; }   // no clicks at the joins
+  const src = ctx.createBufferSource(); src.buffer = buf; src.connect(callOut()); src.start(when);
+  return when + buf.duration;
+}
+function callPump(){
+  const ctx = audioCtx(), b = CALL.buf, now = ctx.currentTime;
+  if(!CALL.started){ if(b.size < 2) return; CALL.started = true; CALL.playAt = now + .12; if(!CALL.next) CALL.next = Math.min(...b.keys()); }
+  for(let guard = 0; guard < 50; guard++){
+    let u = b.get(CALL.next);
+    if(!u){ if(b.size >= 3 && Math.max(...b.keys()) > CALL.next){ CALL.next++; continue; } break; }   // lost piece: skip it once later ones are waiting
+    b.delete(CALL.next); CALL.next++;
+    if(CALL.playAt - now > .7) continue;                         // fell too far behind: drop to catch up
+    if(CALL.playAt < now + .02){ CALL.playAt = now + .1; }      // ran dry: start again with a small cushion
+    CALL.playAt = playPiece(u, CALL.playAt);
+  }
+}
 async function callAudio(text){
-  if(CALL.state !== 'live') return;
+  if(CALL.state !== 'live' || CALL.direct) return;
   let env; try { env = JSON.parse(text); } catch(e){ return; }
   if(env.f !== CALL.dev) return;
   let m; try { m = await unseal(FR.friends[CALL.dev].k, env.iv, env.c); } catch(e){ return; }
-  if(m.cid !== CALL.id || m.s <= CALL.last) return;           // a late copy from the second broker
-  CALL.last = m.s;
-  CALL.at = playMu(b64d(m.d), CALL.at);
+  if(m.cid !== CALL.id || (CALL.next && m.s < CALL.next) || CALL.buf.has(m.s)) return;   // too late, or a copy from the second broker
+  CALL.buf.set(m.s, b64d(m.d)); callPump();
 }
 function callEnd(){
   clearTimeout(CALL.ring); clearInterval(CALL.timer);
   if(CALL.stop) CALL.stop();
-  Object.assign(CALL, {state:'idle', dev:'', id:'', stop:null, mute:false});
+  if(CALL.pc) try { CALL.pc.close(); } catch(e){}
+  if(CALL.rtcStream) CALL.rtcStream.getTracks().forEach(t => t.stop());
+  if(CALL.audio){ CALL.audio.srcObject = null; }
+  Object.assign(CALL, {state:'idle', dev:'', id:'', stop:null, mute:false, pc:null, rtcStream:null, direct:false, out:false, buf:new Map(), ice:[]});
   callUi();
 }
 function callUi(){
   const box = $('callBox'); box.hidden = CALL.state === 'idle'; if(box.hidden) return;
   const n = frName(CALL.dev), secs = Math.floor((performance.now() - CALL.t0)/1000);
-  $('callText').textContent = CALL.state === 'out' ? `📞 Звоним: ${n}…` : CALL.state === 'in' ? `📞 Звонит ${n}` : `📞 ${n} · ${Math.floor(secs/60)}:${String(secs % 60).padStart(2, '0')}`;
+  $('callText').textContent = CALL.state === 'out' ? `📞 Звоним: ${n}…` : CALL.state === 'in' ? `📞 Звонит ${n}` : `📞 ${n} · ${Math.floor(secs/60)}:${String(secs % 60).padStart(2, '0')} · ${CALL.direct ? 'прямая связь' : 'через сервер'}`;
   $('bCallOk').hidden = CALL.state !== 'in';
   $('bCallMute').hidden = CALL.state !== 'live'; $('bCallMute').textContent = CALL.mute ? '🔇 Микрофон выключен' : '🎤 Выключить микрофон';
   $('bCallEnd').textContent = CALL.state === 'in' ? 'Отклонить' : 'Завершить';
