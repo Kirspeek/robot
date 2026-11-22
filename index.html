@@ -223,6 +223,10 @@ input[type=checkbox]{width:18px;height:18px;accent-color:var(--accent)}
 .msg small{font:500 10px var(--f-mono);color:var(--muted);justify-self:end}
 #bRec{justify-content:center}
 #bRec.rec{background:var(--bad);border-color:var(--bad);color:#fff}
+.reach{margin:0;font-size:12px}
+.reach.warn{color:#ffcf7a}
+#bInvite{justify-content:center}
+.pushbox.nudge{border-color:#ffcf7a}
 .pushbox{display:grid;gap:8px;border:1px solid var(--line);border-radius:12px;padding:10px 12px;background:rgba(255,255,255,.03)}
 .pushbox .steps{margin:0;padding-left:18px;display:grid;gap:4px;font-size:13px}
 .pushbox a{color:var(--accent)}
@@ -642,7 +646,9 @@ input.txt:focus{outline:2px solid var(--accent);outline-offset:1px}
           <p class="note" id="dmEmpty">Выберите друга слева, чтобы написать ему, отправить голосовое или позвонить.</p>
           <div id="dmBox" class="dmbox" hidden>
             <div class="lhead"><b id="dmName"></b><span id="dmWhere"></span></div>
+            <p class="note reach" id="dmReach"></p>
             <div class="row"><button class="btn primary" id="bCall">📞 Позвонить</button><button class="btn" id="bUnfriend">Удалить из друзей</button></div>
+            <button class="btn" id="bInvite" hidden>📨 Позвать через мессенджер (WhatsApp, Telegram, СМС)</button>
             <div class="llog dmlog" id="dmLog"></div>
             <div class="joinrow"><input class="txt" id="dmIn" maxlength="1000" placeholder="Сообщение" autocomplete="off" aria-label="Сообщение другу"><button class="btn" id="bDmSend">→</button></div>
             <button class="btn" id="bRec">🎙 Держать — голосовое</button>
@@ -4422,6 +4428,7 @@ $('bFind').onclick = () => { sfx('ui'); renderAll(); showPanel('pAll'); };
 $('bDmSend').onclick = () => sendText();
 $('dmIn').addEventListener('keydown', e => { e.stopPropagation(); if(e.key === 'Enter') sendText(); });
 $('bCall').onclick = () => { sfx('ui'); callStart(FR.open); };
+$('bInvite').onclick = () => { sfx('ui'); inviteFriend(FR.open); };
 $('bUnfriend').onclick = () => { if(confirm('Удалить ' + frName(FR.open) + ' из друзей?')) removeFriend(FR.open); };
 $('bRec').addEventListener('pointerdown', e => { e.preventDefault(); recStart(); });
 for(const ev of ['pointerup', 'pointercancel', 'pointerleave']) $('bRec').addEventListener(ev, () => recEnd());
@@ -4627,9 +4634,18 @@ async function recEnd(){
 
 // ---- calls
 const CALL = {state:'idle', dev:'', id:'', stop:null, seq:0, t0:0, ring:0, timer:0, mute:false, out:false, buf:new Map(), next:0, playAt:0, started:false, pc:null, direct:false, sig:[], ice:[]};
+async function inviteFriend(d){
+  const url = `${location.origin}${location.pathname}?chat=${DEV}`, text = `${myName()} зовёт тебя в «Робот против людей» — заходи, поговорим: ${url}`;
+  try { if(navigator.share){ await navigator.share({title:'Робот против людей', text, url}); return; } } catch(e){ if(e && e.name === 'AbortError') return; }
+  try { await navigator.clipboard.writeText(text); toast('Приглашение скопировано — вставьте его другу в мессенджер'); } catch(e){ prompt('Скопируйте и отправьте другу:', text); }
+}
 async function callStart(d){
   if(CALL.state !== 'idle'){ toast('Вы уже в звонке', true); return; }
   if(!FR.friends[d]) return;
+  if(!whereIs(d).on && !FR.friends[d].nt){
+    if(confirm(`${frName(d)} сейчас не в игре и не подключил уведомления — звонок до него не дойдёт.\n\nОтправить ему приглашение через мессенджер, чтобы он зашёл?`)) inviteFriend(d);
+    return;
+  }
   CALL.state = 'out'; CALL.dev = d; CALL.id = rid(8); CALL.out = true;
   const inv = await dmSend(d, {t:'call', cid:CALL.id, n:myName()}, true);
   if(!inv){ callEnd(false); return; }
@@ -4753,7 +4769,8 @@ const myTopic = () => store.get('forpost.ntfy') || '';
 async function ntfySend(msg){ try { const r = await fetch(NTFY, {method:'POST', body:JSON.stringify(msg)}); return r.ok; } catch(e){ return false; } }
 function pushUi(){
   const t = myTopic();
-  $('pushOff').hidden = !!t; $('pushOn').hidden = !t; $('pushState').textContent = t ? 'включено' : 'выкл';
+  $('pushOff').hidden = !!t; $('pushOn').hidden = !t; $('pushState').textContent = t ? 'включено' : (Object.keys(FR.friends).length ? 'выкл — друзья не дозвонятся, когда игра закрыта' : 'выкл');
+  $('pushBox').classList.toggle('nudge', !t && Object.keys(FR.friends).length > 0);
   if(t){ $('pushTopic').textContent = t; $('bPushOpen').href = NTFY + t; }
   $('bNotif').hidden = !('Notification' in window) || Notification.permission === 'granted';
 }
@@ -4843,7 +4860,7 @@ function renderFriends(){
     const extra = [];
     if(FR.unread[d]){ const u = document.createElement('span'); u.className = 'unread'; u.textContent = FR.unread[d]; extra.push(u); }
     if(w.room && !w.room.startsWith('hub') && !w.room.startsWith('r')) extra.push(smallBtn('К нему', () => goRoom(w.room, w.label.replace(/^.*«|»$/g, '') || 'Сервер')));
-    const el = friendRow(d, frName(d), w.label, w.on, extra);
+    const el = friendRow(d, frName(d), w.label + (!w.on && FR.friends[d].nt ? ' · 📲' : ''), w.on, extra);
     el.style.cursor = 'pointer'; el.onclick = () => { FR.open = d; delete FR.unread[d]; frSave(); renderFriends(); };
     box.appendChild(el);
   }
@@ -4857,6 +4874,9 @@ function renderChat(){
   if(!has) return;
   const w = whereIs(d);
   $('dmName').textContent = frName(d); $('dmWhere').textContent = w.label;
+  const nt = !!(FR.friends[d] || {}).nt;
+  $('dmReach').textContent = w.on ? '' : nt ? '📲 Уведомления включены — звонок дойдёт, даже когда игра у друга закрыта' : '⚠ У друга не подключены уведомления: пока он не в игре, звонок до него не дойдёт. Позовите его ссылкой или попросите нажать «📲 Подключить» в «Друзья и чаты».';
+  $('dmReach').classList.toggle('warn', !w.on && !nt); $('bInvite').hidden = w.on;
   const log = $('dmLog'); log.textContent = '';
   for(const m of chatOf(d)){
     const el = document.createElement('div'); el.className = 'msg' + (m.me ? ' me' : '');
