@@ -514,6 +514,7 @@ input.txt:focus{outline:2px solid var(--accent);outline-offset:1px}
       <ol class="steps">
         <li>Поставьте бесплатное приложение <b>ntfy</b>: <a href="https://play.google.com/store/apps/details?id=io.heckel.ntfy" target="_blank" rel="noopener">Android</a> · <a href="https://apps.apple.com/app/ntfy/id1625396347" target="_blank" rel="noopener">iPhone</a>. На компьютере приложение не нужно.</li>
         <li>Подпишитесь на свой личный канал — нажмите кнопку ниже (или в ntfy «+» и вставьте название):</li>
+        <li>Чтобы телефон звонил, пока не ответите (Android): в настройках ntfy включите повтор звука для максимального приоритета («Keep alerting» / «Insistent»).</li>
       </ol>
       <code class="topic" id="paTopic"></code>
       <div class="row"><a class="btn primary" id="bPaApp">Подписаться в приложении</a><a class="btn" id="bPaWeb" target="_blank" rel="noopener">В браузере</a></div>
@@ -663,6 +664,7 @@ input.txt:focus{outline:2px solid var(--accent);outline-offset:1px}
               <ol class="steps">
                 <li>Поставьте приложение <b>ntfy</b> на телефон (<a href="https://play.google.com/store/apps/details?id=io.heckel.ntfy" target="_blank" rel="noopener">Android</a>, <a href="https://apps.apple.com/app/ntfy/id1625396347" target="_blank" rel="noopener">iPhone</a>) — или на компьютере просто откройте ссылку ниже.</li>
                 <li>Подпишитесь на свой личный канал: в приложении «+» → вставьте название, или откройте ссылку и нажмите «Subscribe».</li>
+                <li>Чтобы телефон звонил, пока не ответите (Android): в ntfy откройте настройки и включите повтор звука для максимального приоритета («Keep alerting» / «Insistent»).</li>
               </ol>
               <code class="topic" id="pushTopic"></code>
               <div class="row"><a class="btn" id="bPushOpen" target="_blank" rel="noopener">Открыть канал</a><button class="btn" id="bPushCopy">Копировать</button></div>
@@ -4693,15 +4695,25 @@ async function callStart(d){
   const inv = await dmSend(d, {t:'call', cid:CALL.id, n:myName()}, true);
   if(!inv){ callEnd(false); return; }
   CALL.inv = 'dm/' + d + '/' + inv;
-  const pushed = !whereIs(d).on && await pushTo(d, '📞 Вам звонят', `${myName()} звонит вам в «Робот против людей» — нажмите, чтобы ответить`, `${location.origin}${location.pathname}?chat=${DEV}`);
+  let pushed = false;
+  if(!whereIs(d).on){
+    // a one-off reply channel: the «Decline» button in the notification posts to it, and we listen
+    const reply = 'rvp-r-' + rid(16), game = `${location.origin}${location.pathname}?chat=${DEV}`;
+    pushed = await pushTo(d, '📞 Входящий звонок', `${myName()} звонит вам в «Робот против людей»`, `${game}&answer=${CALL.id}`, {tags:['telephone_receiver'],
+      actions:[{action:'view', label:'📞 Ответить', url:`${game}&answer=${CALL.id}`, clear:true}, {action:'http', label:'Отклонить', url:NTFY + reply, method:'POST', body:'decline', clear:true}]});
+    if(pushed){ try { const es = new EventSource(NTFY + reply + '/sse'); CALL.replyEs = es;
+      es.onmessage = e => { try { if(JSON.parse(e.data).message === 'decline' && CALL.state === 'out' && CALL.dev === d){ toast(`${frName(d)} отклонил звонок`, true); dmSend(d, {t:'hang', cid:CALL.id}, false); callEnd(false); } } catch(x){} }; } catch(e){} }
+  }
   if(pushed) toast(`${frName(d)} сейчас не в игре — отправил уведомление на телефон`);
   callUi(); CALL.ring = setTimeout(() => { if(CALL.state === 'out'){ dmSend(d, {t:'hang', cid:CALL.id}, false); toast(`${frName(d)} не ответил`, true); callEnd(false); } }, 60000);
 }
+const AUTO_ANSWER = (() => { try { return new URLSearchParams(location.search).get('answer') || ''; } catch(e){ return ''; } })();
 function callIncoming(d, m){
   if(!FR.friends[d]) return;
   if(Date.now() - m.ts > 60000) return;                       // an old ring that waited on the broker
   if(CALL.state !== 'idle'){ dmSend(d, {t:'callno', cid:m.cid, busy:1}, false); return; }
   CALL.state = 'in'; CALL.dev = d; CALL.id = m.cid; callUi();
+  if(AUTO_ANSWER && AUTO_ANSWER === m.cid){ history.replaceState(null, '', location.pathname); setTimeout(callAnswer, 300); return; }     // «Ответить» in the notification
   localNotify('📞 Звонит ' + frName(d), 'Откройте игру, чтобы ответить');
   const ring = () => { if(CALL.state === 'in'){ sfx('alarm'); CALL.ring = setTimeout(ring, 2200); } }; ring();
   setTimeout(() => { if(CALL.state === 'in' && CALL.id === m.cid){ dmSend(d, {t:'callno', cid:m.cid}, false); callEnd(false); } }, Math.max(5000, 60000 - (Date.now() - m.ts)));
@@ -4787,6 +4799,7 @@ async function callAudio(text){
 }
 function callEnd(){
   clearTimeout(CALL.ring); clearInterval(CALL.timer);
+  if(CALL.replyEs){ try { CALL.replyEs.close(); } catch(e){} CALL.replyEs = null; }
   if(CALL.inv){ for(const c of SITE.cs || []) if(c.connected) c.publish(NET_ROOT + CALL.inv, '', {qos:0, retain:true}); CALL.inv = ''; }
   if(CALL.stop) CALL.stop();
   if(CALL.pc) try { CALL.pc.close(); } catch(e){}
@@ -4818,9 +4831,9 @@ function pushUi(){
   $('bNotif').hidden = !('Notification' in window) || Notification.permission === 'granted';
 }
 function pushShare(d){ const t = myTopic(); if(t && FR.friends[d]) dmSend(d, {t:'nt', topic:t}); }
-async function pushTo(d, title, message, click){
+async function pushTo(d, title, message, click, extra){
   const t = (FR.friends[d] || {}).nt; if(!t || !/^rvp-[A-Za-z0-9]{12,40}$/.test(t)) return false;
-  return ntfySend({topic:t, title, message, click:click || location.origin + location.pathname, priority:5, tags:['video_game']});
+  return ntfySend({topic:t, title, message, click:click || location.origin + location.pathname, priority:5, tags:['video_game'], ...(extra || {})});
 }
 function localNotify(title, body){
   if(!document.hidden || !('Notification' in window) || Notification.permission !== 'granted') return;
