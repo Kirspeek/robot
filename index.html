@@ -600,7 +600,7 @@ input.txt:focus{outline:2px solid var(--accent);outline-offset:1px}
         <kbd>F</kbd><span>починить стену под прицелом</span>
         <span class="sep">Прочее</span>
         <kbd>E</kbd><span>на площадке техники — пересесть в другого персонажа</span>
-        <kbd>E</kbd><span>у любого своего или подбитого робота — залезть в него и управлять; ещё раз E — вылезти</span>
+        <kbd>E</kbd><span>у своего починенного (синего) робота — залезть в него и управлять; ещё раз E — вылезти. В подбитого сначала почините (F)</span>
         <kbd>F</kbd><span>у подбитого робота — починить за запчасти ⚙, он станет союзником</span>
         <kbd>Esc</kbd><span>меню и пауза</span>
       </div>
@@ -2160,7 +2160,7 @@ function keyAction(code){
   else if(e.code === 'KeyE' && P.dead <= 0){
     if(P.repair) cancelRepair('Ремонт отменён, запчасти возвращены');
     else if(PILOT) pilotOut(false);
-    else { const w = nearWreck(), a = w ? null : nearAlly(), h = w || a ? null : nearHatch(); if(w) pilotIn(w); else if(a) pilotIn(a); else if(h) toggleHatch(h);
+    else { const a = nearAlly(), w = a ? null : nearWreck(), h = w || a ? null : nearHatch(); if(a) pilotIn(a); else if(w){ toast(`Сначала почините робота: F (⚙ ${repairCost(w)}). Залезть можно только в починенного`, true); sfx('err'); } else if(h) toggleHatch(h);
       else { const n = nearSlot(); if(n){ setCharacter(n.i, true); sfx('stomp'); toast(`Вы управляете: ${CHARS[n.i].name}`); } } }
   }
   else if(e.code === 'KeyG') toggleAllyMode();
@@ -2321,8 +2321,8 @@ if(TOUCH){
     if(state === 'play' && P.dead <= 0 && !build){
       if(P.repair) use = 'Отмена';
       else if(PILOT) use = 'Вылезти';
-      else { const w = nearWreck(), a = w ? null : nearAlly(), h = w || a ? null : nearHatch(), n = w || a || h ? null : nearSlot();
-        use = w || a ? 'Залезть' : h ? (h.open ? 'Закрыть люк' : 'Открыть люк') : n ? 'Пересесть' : ''; fix = !!w; }
+      else { const a = nearAlly(), w = a ? null : nearWreck(), h = w || a ? null : nearHatch(), n = w || a || h ? null : nearSlot();
+        use = a ? 'Залезть' : h ? (h.open ? 'Закрыть люк' : 'Открыть люк') : n ? 'Пересесть' : ''; fix = !!w; }
     }
     const key = use + fix; if(key === ctxKey) return; ctxKey = key;
     $('tUse').hidden = !use; if(use) $('tUse').firstChild.textContent = use;
@@ -2545,8 +2545,8 @@ function updateGhost(){
     if(state === 'play'){
       if(P.repair) t = `Ремонт: ${CHARS[P.repair.w.T.c].name} ${Math.floor(P.repair.t/P.repair.total*100)}% · E — отменить`;
       else if(PILOT) t = '';
-      else { const w = nearWreck(), a = w ? null : nearAlly(), h = w || a ? null : nearHatch(), n = w || a || h ? null : nearSlot();
-        t = h ? (h.open ? 'E — закрыть люк' + (onLadder(P.pos) ? ' · вперёд или пробел — лезть' : '') : 'E — открыть люк') : w ? `E — залезть: ${CHARS[w.T.c].name} · F — починить в союзника (⚙ ${repairCost(w)})` : a ? `E — залезть в робота: ${CHARS[a.T.c].name}` : n ? `E — пересесть: ${CHARS[n.i].name}` : ''; }
+      else { const a = nearAlly(), w = a ? null : nearWreck(), h = w || a ? null : nearHatch(), n = w || a || h ? null : nearSlot();
+        t = h ? (h.open ? 'E — закрыть люк' + (onLadder(P.pos) ? ' · вперёд или пробел — лезть' : '') : 'E — открыть люк') : a ? `E — залезть в робота: ${CHARS[a.T.c].name}` : w ? `F — починить: ${CHARS[w.T.c].name} (⚙ ${repairCost(w)}) — потом в него можно залезть` : n ? `E — пересесть: ${CHARS[n.i].name}` : ''; }
     }
     if(TOUCH && !P.repair) t = '';     // on a phone the yellow buttons say it
     if($('tip').textContent !== t) $('tip').textContent = t;
@@ -3623,7 +3623,7 @@ function netOnMessage(m, from){
     case 'hurt': damagePlayer(m.d); break;
     case 'pilotok': if(NET.guest && !pilotStart(m)) netSend({...m, t:'unpilot', d:0}); break;
     // requests to the leader
-    case 'pilot': if(NET.host){ const a = allies.find(u => u.id === m.id) || wrecks.find(u => u.id === m.id), q = PEERS.get(from);
+    case 'pilot': if(NET.host){ const a = allies.find(u => u.id === m.id), q = PEERS.get(from);
       const d = a && q && Math.hypot(a.p.x - q.p.x, a.p.z - q.p.z) < a.R.r + 6 ? takeRobot(a) : null;
       netSendTo(from, d ? {t:'pilotok', ...d} : {t:'toast', m:'Этот робот уже занят или далеко', bad:1}); } break;
     case 'unpilot': if(NET.host) dropRobot(m); break;
