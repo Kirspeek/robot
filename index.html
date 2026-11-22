@@ -226,6 +226,14 @@ input[type=checkbox]{width:18px;height:18px;accent-color:var(--accent)}
 .reach{margin:0;font-size:12px}
 .reach.warn{color:#ffcf7a}
 #bInvite{justify-content:center}
+#paQ,#paSteps{display:grid;gap:12px}
+#paQ[hidden],#paSteps[hidden]{display:none}
+#pushAsk a.btn{color:var(--fg)}
+#pushAsk .steps{margin:0;padding-left:18px;display:grid;gap:6px;font-size:14px}
+#pushAsk a{color:var(--accent)}
+#pushAsk .btn{justify-content:center;text-decoration:none}
+#pushAsk a.btn.primary{color:#1a1606}
+#pushAsk .topic{font:500 14px var(--f-mono);background:rgba(255,255,255,.06);border:1px solid var(--line);border-radius:8px;padding:8px 10px;user-select:all;-webkit-user-select:all;word-break:break-all}
 .pushbox.nudge{border-color:#ffcf7a}
 .pushbox{display:grid;gap:8px;border:1px solid var(--line);border-radius:12px;padding:10px 12px;background:rgba(255,255,255,.03)}
 .pushbox .steps{margin:0;padding-left:18px;display:grid;gap:4px;font-size:13px}
@@ -488,6 +496,25 @@ input.txt:focus{outline:2px solid var(--accent);outline-offset:1px}
       <input class="txt" id="vCap" maxlength="150" placeholder="Подпись (по желанию)" autocomplete="off" aria-label="Подпись к видео">
       <p class="nickmsg" id="vMsg" aria-live="polite"></p>
       <div class="row"><button class="btn primary" id="bVPost">Опубликовать</button><button class="btn" id="bVCancel">Отмена</button></div>
+    </div>
+  </div>
+</div>
+<div class="nick" id="pushAsk" hidden role="dialog" aria-modal="true" aria-labelledby="paTitle">
+  <div class="nickcard">
+    <div id="paQ">
+      <h2 id="paTitle">Разрешить звонки, когда вас нет на сайте?</h2>
+      <p class="note">Друзья смогут дозвониться и написать вам, даже когда игра закрыта: на телефон придёт уведомление «📞 Вам звонят». Это бесплатно, через приложение ntfy. Можно включить позже в «Друзья и чаты».</p>
+      <div class="row"><button class="btn primary" id="bPaYes">Разрешить</button><button class="btn" id="bPaNo">Не сейчас</button></div>
+    </div>
+    <div id="paSteps" hidden>
+      <h2>Ещё два шага</h2>
+      <ol class="steps">
+        <li>Поставьте бесплатное приложение <b>ntfy</b>: <a href="https://play.google.com/store/apps/details?id=io.heckel.ntfy" target="_blank" rel="noopener">Android</a> · <a href="https://apps.apple.com/app/ntfy/id1625396347" target="_blank" rel="noopener">iPhone</a>. На компьютере приложение не нужно.</li>
+        <li>Подпишитесь на свой личный канал — нажмите кнопку ниже (или в ntfy «+» и вставьте название):</li>
+      </ol>
+      <code class="topic" id="paTopic"></code>
+      <div class="row"><a class="btn primary" id="bPaApp">Подписаться в приложении</a><a class="btn" id="bPaWeb" target="_blank" rel="noopener">В браузере</a></div>
+      <div class="row"><button class="btn" id="bPaTest">Проверить</button><button class="btn" id="bPaDone">Готово</button></div>
     </div>
   </div>
 </div>
@@ -3313,6 +3340,7 @@ function openMenu(){
   showPanel('pMain');
 }
 function startPlay(){
+  if(!$('pushAsk').hidden) return;
   document.documentElement.classList.add('playing');     // «turn the phone» only while playing; the menu and the video feed work upright
   if(!$('nickDlg').hidden){ $('nickIn').focus(); return; }
   if(document.activeElement && document.activeElement.tagName === 'INPUT') document.activeElement.blur();     // keys go to the game, not to a field left in the menu
@@ -4788,6 +4816,27 @@ $('bPushOffBtn').onclick = () => { if(!confirm('Отключить уведом�
 $('bPushCopy').onclick = async () => { try { await navigator.clipboard.writeText(myTopic()); toast('Название канала скопировано'); } catch(e){ toast('Выделите и скопируйте название'); } };
 $('bPushTest').onclick = async () => { sfx('ui'); const ok = await ntfySend({topic:myTopic(), title:'Робот против людей: проверка', message:'Так будут приходить звонки и сообщения друзей', priority:4, tags:['white_check_mark']}); toast(ok ? 'Отправил проверку — уведомление должно прийти' : 'Не получилось отправить', !ok); };
 $('bNotif').onclick = async () => { try { await Notification.requestPermission(); } catch(e){} pushUi(); };
+// ---- asked once, when a player comes in (after the nickname): may friends call you when you are not on the site?
+function pushAskOpen(){
+  if(store.get('forpost.pushAsked') || myTopic() || !$('nickDlg').hidden || !$('pushAsk').hidden) return;
+  if(document.pointerLockElement) document.exitPointerLock();
+  $('paQ').hidden = false; $('paSteps').hidden = true; $('pushAsk').hidden = false;
+}
+function pushAskSteps(){
+  const t = myTopic(); $('paTopic').textContent = t;
+  $('bPaApp').href = 'ntfy://ntfy.sh/' + t; $('bPaWeb').href = NTFY + t;
+  $('paQ').hidden = true; $('paSteps').hidden = false;
+}
+$('bPaYes').onclick = async () => {
+  sfx('ui'); store.set('forpost.pushAsked', 1);
+  if(!myTopic()){ store.set('forpost.ntfy', 'rvp-' + rid(24)); for(const d of Object.keys(FR.friends)) pushShare(d); }
+  if('Notification' in window && Notification.permission === 'default') try { await Notification.requestPermission(); } catch(e){}
+  pushUi(); pushAskSteps();
+};
+$('bPaNo').onclick = () => { sfx('ui'); store.set('forpost.pushAsked', 1); $('pushAsk').hidden = true; toast('Включить можно позже: «Друзья и чаты» → «📲 Подключить»'); };
+$('bPaTest').onclick = () => $('bPushTest').click();
+$('bPaDone').onclick = () => { sfx('ui'); $('pushAsk').hidden = true; toast('Готово: друзья смогут дозвониться, даже когда игра закрыта'); };
+setTimeout(pushAskOpen, 2500);
 
 // ---- the «Друзья» panel
 function friendRow(d, title, sub, live, extra){
@@ -5132,7 +5181,7 @@ async function nickSave(){
     }
     store.set('forpost.name', s); store.set('forpost.nickOk', online ? 1 : 0);
     siteHello(); if(NET.on) announce();
-    $('nickDlg').hidden = true; NICK.must = false;
+    $('nickDlg').hidden = true; NICK.must = false; setTimeout(pushAskOpen, 600);
     toast(online ? `Ваш ник: ${s}` : `Ваш ник: ${s}. Проверим, что он свободен, когда появится интернет`); sfx('ui');
     renderNetPanel(); renderDial();
   } finally { NICK.busy = false; }
