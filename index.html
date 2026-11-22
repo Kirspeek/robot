@@ -223,6 +223,11 @@ input[type=checkbox]{width:18px;height:18px;accent-color:var(--accent)}
 .msg small{font:500 10px var(--f-mono);color:var(--muted);justify-self:end}
 #bRec{justify-content:center}
 #bRec.rec{background:var(--bad);border-color:var(--bad);color:#fff}
+.pushbox{display:grid;gap:8px;border:1px solid var(--line);border-radius:12px;padding:10px 12px;background:rgba(255,255,255,.03)}
+.pushbox .steps{margin:0;padding-left:18px;display:grid;gap:4px;font-size:13px}
+.pushbox a{color:var(--accent)}
+.pushbox .topic{font:500 13px var(--f-mono);background:rgba(255,255,255,.06);border:1px solid var(--line);border-radius:8px;padding:7px 9px;user-select:all;-webkit-user-select:all;word-break:break-all}
+.pushbox .btn{justify-content:center;padding:8px 10px;text-decoration:none;color:var(--fg)}
 .callbox{position:fixed;left:50%;top:max(14px,env(safe-area-inset-top));transform:translateX(-50%);z-index:60;display:grid;gap:10px;justify-items:center;background:rgba(16,40,22,.95);border:1px solid #7dff6a;border-radius:16px;padding:14px 18px;box-shadow:0 8px 30px rgba(0,0,0,.5);min-width:min(340px,92vw)}
 .callbox b{font:400 18px var(--f-head);letter-spacing:.03em}
 .callbox .btn{justify-content:center;padding:9px 14px}
@@ -616,6 +621,22 @@ input.txt:focus{outline:2px solid var(--accent);outline-offset:1px}
           <div class="lhead"><b>Друзья</b><button class="mini" id="bFind">Найти игроков</button></div>
           <div class="slist frlist" id="frList"></div>
           <p class="note">Сообщения, голосовые и звонки зашифрованы: их видите и слышите только вы и друг.</p>
+          <div class="pushbox" id="pushBox">
+            <div class="lhead"><b>Звонки, когда игра закрыта</b><span id="pushState">выкл</span></div>
+            <div id="pushOff"><p class="note">Чтобы звонки и сообщения друзей доходили, даже когда игра закрыта, подключите бесплатные уведомления ntfy.</p>
+              <button class="btn" id="bPushOn">📲 Подключить</button></div>
+            <div id="pushOn" hidden>
+              <ol class="steps">
+                <li>Поставьте приложение <b>ntfy</b> на телефон (<a href="https://play.google.com/store/apps/details?id=io.heckel.ntfy" target="_blank" rel="noopener">Android</a>, <a href="https://apps.apple.com/app/ntfy/id1625396347" target="_blank" rel="noopener">iPhone</a>) — или на компьютере просто откройте ссылку ниже.</li>
+                <li>Подпишитесь на свой личный канал: в приложении «+» → вставьте название, или откройте ссылку и нажмите «Subscribe».</li>
+              </ol>
+              <code class="topic" id="pushTopic"></code>
+              <div class="row"><a class="btn" id="bPushOpen" target="_blank" rel="noopener">Открыть канал</a><button class="btn" id="bPushCopy">Копировать</button></div>
+              <div class="row"><button class="btn" id="bPushTest">Проверить</button><button class="btn" id="bPushOffBtn">Отключить</button></div>
+              <p class="note">Никому, кроме друзей, это название не давайте. Через ntfy идёт только «вам звонит / пишет …», без текста сообщений.</p>
+            </div>
+            <button class="btn" id="bNotif" hidden>🔔 Уведомления, когда игра в другой вкладке</button>
+          </div>
         </div>
         <div class="lcol">
           <p class="note" id="dmEmpty">Выберите друга слева, чтобы написать ему, отправить голосовое или позвонить.</p>
@@ -4515,6 +4536,7 @@ function dmHandle(d, pub, m){
     case 'facc': if(FR.out[d] || FR.friends[d]){ addFriend(d, name, pub); toast(`${name} теперь ваш друг`); sfx('ui'); } break;
     case 'fno': if(FR.out[d]){ delete FR.out[d]; frSave(); renderFriends(); } break;
     case 'unf': if(FR.friends[d]){ delete FR.friends[d]; frSave(); renderFriends(); } break;
+    case 'nt': if(FR.friends[d]){ FR.friends[d].nt = typeof m.topic === 'string' ? m.topic.slice(0, 48) : ''; frSave(); } break;
     case 'msg': if(!FR.friends[d]) break; chatPush(d, {me:false, t:'msg', x:String(m.x || '').slice(0, 1000), ts:m.ts}); notifyMsg(d, String(m.x || '')); break;
     case 'voice': {
       if(!FR.friends[d]) break;
@@ -4531,11 +4553,12 @@ function dmHandle(d, pub, m){
   }
 }
 function notifyMsg(d, text){
+  localNotify('💬 ' + frName(d), 'Новое сообщение');
   if(FR.open === d && !$('pFriends').hidden){ renderChat(); return; }
   FR.unread[d] = (FR.unread[d] || 0) + 1; frSave();
   toast(`💬 ${frName(d)}: ${text.slice(0, 60)}`); sfx('tick'); renderFriends();
 }
-function addFriend(d, n, k){ FR.friends[d] = {n, k, since:Date.now()}; delete FR.inc[d]; delete FR.out[d]; frSave(); renderFriends(); }
+function addFriend(d, n, k){ FR.friends[d] = {...(FR.friends[d] || {}), n, k, since:Date.now()}; delete FR.inc[d]; delete FR.out[d]; frSave(); renderFriends(); setTimeout(() => pushShare(d), 500); }
 async function askFriend(d){
   if(d === DEV || FR.friends[d]) return;
   if(await dmSend(d, {t:'freq', n:myName()})){ FR.out[d] = {n:frName(d), ts:Date.now()}; frSave(); toast(`Запрос в друзья отправлен: ${frName(d)}`); sfx('ui'); renderFriends(); if(!$('pAll').hidden) renderAll(); }
@@ -4546,7 +4569,8 @@ function removeFriend(d){ if(!FR.friends[d]) return; dmSend(d, {t:'unf'}); delet
 async function sendText(){
   const d = FR.open, inp = $('dmIn'), x = inp.value.trim().slice(0, 1000);
   if(!d || !x) return;
-  if(await dmSend(d, {t:'msg', x})){ inp.value = ''; chatPush(d, {me:true, t:'msg', x, ts:Date.now()}); renderChat(); sfx('tick'); }
+  if(await dmSend(d, {t:'msg', x})){ inp.value = ''; chatPush(d, {me:true, t:'msg', x, ts:Date.now()}); renderChat(); sfx('tick');
+    if(!whereIs(d).on) pushTo(d, '💬 Новое сообщение', `${myName()} написал вам в «Робот против людей»`, `${location.origin}${location.pathname}?chat=${DEV}`); }
 }
 
 // ---- recording from the microphone (voice messages and calls): 8 kHz samples handed to onChunk
@@ -4607,16 +4631,21 @@ async function callStart(d){
   if(CALL.state !== 'idle'){ toast('Вы уже в звонке', true); return; }
   if(!FR.friends[d]) return;
   CALL.state = 'out'; CALL.dev = d; CALL.id = rid(8); CALL.out = true;
-  if(!await dmSend(d, {t:'call', cid:CALL.id, n:myName()}, false)){ callEnd(false); return; }
-  callUi(); CALL.ring = setTimeout(() => { if(CALL.state === 'out'){ dmSend(d, {t:'hang', cid:CALL.id}, false); toast(`${frName(d)} не ответил`, true); callEnd(false); } }, 30000);
+  const inv = await dmSend(d, {t:'call', cid:CALL.id, n:myName()}, true);
+  if(!inv){ callEnd(false); return; }
+  CALL.inv = 'dm/' + d + '/' + inv;
+  const pushed = !whereIs(d).on && await pushTo(d, '📞 Вам звонят', `${myName()} звонит вам в «Робот против людей» — нажмите, чтобы ответить`, `${location.origin}${location.pathname}?chat=${DEV}`);
+  if(pushed) toast(`${frName(d)} сейчас не в игре — отправил уведомление на телефон`);
+  callUi(); CALL.ring = setTimeout(() => { if(CALL.state === 'out'){ dmSend(d, {t:'hang', cid:CALL.id}, false); toast(`${frName(d)} не ответил`, true); callEnd(false); } }, 60000);
 }
 function callIncoming(d, m){
   if(!FR.friends[d]) return;
-  if(Date.now() - m.ts > 30000) return;                       // an old ring that waited on the broker
+  if(Date.now() - m.ts > 60000) return;                       // an old ring that waited on the broker
   if(CALL.state !== 'idle'){ dmSend(d, {t:'callno', cid:m.cid, busy:1}, false); return; }
   CALL.state = 'in'; CALL.dev = d; CALL.id = m.cid; callUi();
+  localNotify('📞 Звонит ' + frName(d), 'Откройте игру, чтобы ответить');
   const ring = () => { if(CALL.state === 'in'){ sfx('alarm'); CALL.ring = setTimeout(ring, 2200); } }; ring();
-  setTimeout(() => { if(CALL.state === 'in' && CALL.id === m.cid){ dmSend(d, {t:'callno', cid:m.cid}, false); callEnd(false); } }, 30000);
+  setTimeout(() => { if(CALL.state === 'in' && CALL.id === m.cid){ dmSend(d, {t:'callno', cid:m.cid}, false); callEnd(false); } }, Math.max(5000, 60000 - (Date.now() - m.ts)));
 }
 function callAnswer(){ if(CALL.state !== 'in') return; dmSend(CALL.dev, {t:'callok', cid:CALL.id}, false); callLive(); }
 function callDecline(){ if(CALL.state === 'idle') return; dmSend(CALL.dev, {t:CALL.state === 'in' ? 'callno' : 'hang', cid:CALL.id}, false); callEnd(true); }
@@ -4699,6 +4728,7 @@ async function callAudio(text){
 }
 function callEnd(){
   clearTimeout(CALL.ring); clearInterval(CALL.timer);
+  if(CALL.inv){ for(const c of SITE.cs || []) if(c.connected) c.publish(NET_ROOT + CALL.inv, '', {qos:0, retain:true}); CALL.inv = ''; }
   if(CALL.stop) CALL.stop();
   if(CALL.pc) try { CALL.pc.close(); } catch(e){}
   if(CALL.rtcStream) CALL.rtcStream.getTracks().forEach(t => t.stop());
@@ -4714,6 +4744,33 @@ function callUi(){
   $('bCallMute').hidden = CALL.state !== 'live'; $('bCallMute').textContent = CALL.mute ? '🔇 Микрофон выключен' : '🎤 Выключить микрофон';
   $('bCallEnd').textContent = CALL.state === 'in' ? 'Отклонить' : 'Завершить';
 }
+
+// ---- when the game is closed: a push through ntfy.sh to the friend's secret channel (they subscribe in the ntfy app
+// or the ntfy web page). The channel name goes to friends only inside sealed messages.
+const NTFY = 'https://ntfy.sh/';
+const myTopic = () => store.get('forpost.ntfy') || '';
+// published as JSON: HTTP headers only allow Latin letters, and the titles here are in Russian with emoji
+async function ntfySend(msg){ try { const r = await fetch(NTFY, {method:'POST', body:JSON.stringify(msg)}); return r.ok; } catch(e){ return false; } }
+function pushUi(){
+  const t = myTopic();
+  $('pushOff').hidden = !!t; $('pushOn').hidden = !t; $('pushState').textContent = t ? 'включено' : 'выкл';
+  if(t){ $('pushTopic').textContent = t; $('bPushOpen').href = NTFY + t; }
+  $('bNotif').hidden = !('Notification' in window) || Notification.permission === 'granted';
+}
+function pushShare(d){ const t = myTopic(); if(t && FR.friends[d]) dmSend(d, {t:'nt', topic:t}); }
+async function pushTo(d, title, message, click){
+  const t = (FR.friends[d] || {}).nt; if(!t || !/^rvp-[A-Za-z0-9]{12,40}$/.test(t)) return false;
+  return ntfySend({topic:t, title, message, click:click || location.origin + location.pathname, priority:5, tags:['video_game']});
+}
+function localNotify(title, body){
+  if(!document.hidden || !('Notification' in window) || Notification.permission !== 'granted') return;
+  try { const n = new Notification(title, {body, tag:'rvp', requireInteraction:true}); n.onclick = () => { focus(); n.close(); }; } catch(e){}
+}
+$('bPushOn').onclick = () => { sfx('ui'); store.set('forpost.ntfy', 'rvp-' + rid(24)); for(const d of Object.keys(FR.friends)) pushShare(d); pushUi(); };
+$('bPushOffBtn').onclick = () => { if(!confirm('Отключить уведомления, когда игра закрыта?')) return; store.set('forpost.ntfy', ''); for(const d of Object.keys(FR.friends)) dmSend(d, {t:'nt', topic:''}); pushUi(); };
+$('bPushCopy').onclick = async () => { try { await navigator.clipboard.writeText(myTopic()); toast('Название канала скопировано'); } catch(e){ toast('Выделите и скопируйте название'); } };
+$('bPushTest').onclick = async () => { sfx('ui'); const ok = await ntfySend({topic:myTopic(), title:'Робот против людей: проверка', message:'Так будут приходить звонки и сообщения друзей', priority:4, tags:['white_check_mark']}); toast(ok ? 'Отправил проверку — уведомление должно прийти' : 'Не получилось отправить', !ok); };
+$('bNotif').onclick = async () => { try { await Notification.requestPermission(); } catch(e){} pushUi(); };
 
 // ---- the «Друзья» panel
 function friendRow(d, title, sub, live, extra){
@@ -4770,6 +4827,7 @@ function updatePeerHint(){
   if(TOUCH){ $('tWho').hidden = !q; $('tWhoN').textContent = q ? q.name.slice(0, 8) : ''; }
 }
 function renderFriends(){
+  pushUi();
   if(FR.open && FR.unread[FR.open] && !$('pFriends').hidden){ delete FR.unread[FR.open]; frSave(); }     // the open chat is read
   const unread = Object.values(FR.unread).reduce((a, b) => a + b, 0), inc = Object.keys(FR.inc).length;
   $('frBadge').textContent = unread + inc ? `${unread ? '💬 ' + unread : ''}${unread && inc ? ' · ' : ''}${inc ? '👤 ' + inc : ''}` : `${Object.keys(FR.friends).length}`;
@@ -5078,6 +5136,7 @@ setTimeout(function recheck(){
 
 if(navigator.onLine !== false) siteCount(); else renderDial();
 setTimeout(renderFriends, 0);
+try { const ch = new URLSearchParams(location.search).get('chat'); if(ch && /^[A-Z0-9]{12}$/.test(ch)) setTimeout(() => { if(FR.friends[ch]){ FR.open = ch; delete FR.unread[ch]; frSave(); showPanel('pFriends'); renderFriends(); } }, 600); } catch(e){}
 // ---------- updates: every minute ask the site for its version; in the menu the game reloads by itself ----------
 async function checkUpdate(){
   if(location.protocol === 'file:') return;
