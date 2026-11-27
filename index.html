@@ -1821,12 +1821,39 @@ function liftPaint(m){
     if(x.isMeshStandardMaterial){ x.envMapIntensity = x.metalness > .3 ? 1.15 : .7; if(x.roughness > .7) x.roughness = .62; }
   }
 }
+// extra armour on the walking robots: shoulder plates, knee and elbow caps, hydraulic rams, exhausts with a glow, an antenna
+function decorate(R){
+  if(!R.legs || !R.legs.length || !R.legs[0].knee || !R.arms || !R.arms.length || R.update || R.gunPose || R.jets) return;
+  const r = R.r, h = R.h;
+  let paint = 0x6d7068; R.root.traverse(o => { if(paint === 0x6d7068 && o.isMesh && o.material && o.material.color && !(o.material.emissive && o.material.emissive.getHex())) paint = o.material.color.getHex(); });
+  const plate = pm(shade(paint, .92), {roughness:.38}), joint = std(0x34383b, .45, .7), chrome = std(0xc9ced2, .18, .9), glow = R.glow[0] || glowM(0x7fe9ff, 1.4);
+  const M = (geo, mat, par, x, y, z, rx = 0, ry = 0, rz = 0, shadow = false) => { const o = new THREE.Mesh(geo, mat); o.position.set(x, y, z); o.rotation.set(rx, ry, rz); o.userData.noShadow = !shadow; par.add(o); return o; };
+  for(const L of R.legs){
+    const ky = L.knee.position.y, fy = L.foot ? L.foot.position.y : -h*.2;
+    M(new THREE.SphereGeometry(r*.2, 12, 8), plate, L.knee, 0, 0, r*.17).scale.set(1, .85, .7);                         // knee cap
+    M(new THREE.CylinderGeometry(r*.045, r*.045, Math.abs(ky)*.78, 8), chrome, L.hip, 0, ky*.5, r*.27, .08);              // thigh ram
+    M(new THREE.CylinderGeometry(r*.07, r*.07, Math.abs(ky)*.35, 8), joint, L.hip, 0, ky*.32, r*.27, .08);                // ram sleeve
+    M(new THREE.CylinderGeometry(r*.04, r*.04, Math.abs(fy)*.7, 8), chrome, L.knee, 0, fy*.5, -r*.24, -.06);             // shin ram
+  }
+  for(const A of R.arms){
+    M(bevelBox(r*.6, r*.17, r*.66), plate, A.sh, A.s*r*.06, r*.12, 0, 0, 0, -A.s*.32, true);                              // shoulder plate
+    M(bevelBox(r*.5, r*.1, r*.56), plate, A.sh, A.s*r*.14, r*.02, 0, 0, 0, -A.s*.5);
+    M(new THREE.SphereGeometry(r*.13, 10, 8), joint, A.el, 0, 0, 0);                                                     // elbow
+  }
+  const back = h*.6;
+  for(const sx of [-1, 1]){
+    M(new THREE.CylinderGeometry(r*.09, r*.11, r*.55, 10), joint, R.root, sx*r*.24, back, -r*.62, -.55);                // exhausts
+    M(new THREE.CylinderGeometry(r*.07, r*.07, .02, 10), glow, R.root, sx*r*.24, back + r*.24, -r*.77, -.55);
+  }
+  if(R.head){ M(new THREE.CylinderGeometry(.012, .018, h*.13, 5), chrome, R.head, r*.16, r*.25 + h*.065, -r*.05); M(new THREE.SphereGeometry(.035, 8, 6), glow, R.head, r*.16, r*.25 + h*.13, -r*.05); }
+}
 function finish(R, st){
   const h = st.h, hipY = st.hipY || R.hipY || h*0.5;
   Object.assign(R, {legSwing:.55, kneeBend:.8, armSwing:.25, armBase:0, elBase:-.3, armOut:.04, lean:0, reach:1, recoil:0,
     walk:4.4 + (h - 1.85)*.25, run:8.5 + (h - 1.85)*.2, jump:h > 3 ? 6.2 : 7.2, camH:h*.85, camDist:clamp(h*2.3 + 1.3, 5.5, 16),
     step:clamp(h*.24, .45, 1.3), stride:1.67/hipY, glow:[]}, st);
-  R.root.traverse(o => { if(!o.isMesh) return; o.castShadow = o.receiveShadow = true; liftPaint(o.material);
+  decorate(R);
+  R.root.traverse(o => { if(!o.isMesh) return; o.castShadow = !o.userData.noShadow; o.receiveShadow = true; liftPaint(o.material);
     const m = o.material; if(m.emissive && m.emissiveIntensity >= 0.9 && m.emissive.getHex() && !R.glow.includes(m)){ m.userData.base = m.emissiveIntensity; R.glow.push(m); } });
   return R;
 }
@@ -2755,14 +2782,18 @@ function waveList(n){
 }
 
 // ---------- effects: sparks and smoke as point clouds, tracer lines, flashes ----------
-function makeParticles(n, size){
+// a soft round dot, so sparks glow and smoke puffs are clouds rather than squares
+const DOT = (() => { const c = document.createElement('canvas'); c.width = c.height = 64; const g = c.getContext('2d'), r = g.createRadialGradient(32, 32, 0, 32, 32, 32);
+  r.addColorStop(0, 'rgba(255,255,255,1)'); r.addColorStop(.35, 'rgba(255,255,255,.75)'); r.addColorStop(1, 'rgba(255,255,255,0)'); g.fillStyle = r; g.fillRect(0, 0, 64, 64);
+  return new THREE.CanvasTexture(c); })();
+function makeParticles(n, size, glow){
   const geo = new THREE.BufferGeometry(), pos = new Float32Array(n*3).fill(-999), col = new Float32Array(n*3);
   geo.setAttribute('position', new THREE.BufferAttribute(pos, 3)); geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
-  const pts = new THREE.Points(geo, new THREE.PointsMaterial({size, vertexColors:true, transparent:true, opacity:.95, depthWrite:false}));
+  const pts = new THREE.Points(geo, new THREE.PointsMaterial({size:glow ? size*1.8 : size*1.5, map:DOT, vertexColors:true, transparent:true, opacity:glow ? 1 : .8, depthWrite:false, blending:glow ? THREE.AdditiveBlending : THREE.NormalBlending}));
   pts.frustumCulled = false; scene.add(pts);
   return {n, pos, col, geo, vel:new Float32Array(n*3), life:new Float32Array(n), grav:new Float32Array(n), i:0};
 }
-const SPARK = makeParticles(600, 0.16), PUFF = makeParticles(300, 0.75), tc = new THREE.Color();
+const SPARK = makeParticles(600, 0.16, true), PUFF = makeParticles(300, 0.75), tc = new THREE.Color();
 function emit(ps, x, y, z, n, color, speed, life, grav = 9.8, up = 0){
   tc.setHex(color);
   for(let k = 0; k < n; k++){
@@ -2797,8 +2828,67 @@ function tracer(a, b, color){
   p[0] = a.x; p[1] = a.y; p[2] = a.z; p[3] = b.x; p[4] = b.y; p[5] = b.z; t.l.geometry.attributes.position.needsUpdate = true;
   t.l.material.color.setHex(color); t.l.material.opacity = 1; t.life = 0.09;
 }
+const DEB = (() => {
+  const n = 260, im = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshStandardMaterial({roughness:.5, metalness:.45}), n);
+  im.instanceMatrix.setUsage(THREE.DynamicDrawUsage); im.castShadow = true; im.frustumCulled = false;
+  const zero = new THREE.Matrix4().makeScale(0, 0, 0), c = new THREE.Color(0x777777);
+  for(let i = 0; i < n; i++){ im.setMatrixAt(i, zero); im.setColorAt(i, c); }
+  scene.add(im);
+  return {im, n, i:0, zero, m:new THREE.Matrix4(), q:new THREE.Quaternion(), e:new THREE.Euler(), sc:new THREE.Vector3(), live:0,
+    p:Array.from({length:n}, () => ({life:0, pos:new THREE.Vector3(), vel:new THREE.Vector3(), rot:new THREE.Euler(), spin:new THREE.Vector3(), s:new THREE.Vector3()}))};
+})();
+function debris(x, y, z, n, color, speed, size){
+  const c = new THREE.Color();
+  for(let k = 0; k < n; k++){
+    const i = DEB.i = (DEB.i + 1) % DEB.n, d = DEB.p[i], a = rnd()*Math.PI*2, up = rr(.4, 1);
+    d.life = rr(2.2, 3.6); d.pos.set(x + rr(-.2, .2), y, z + rr(-.2, .2));
+    d.vel.set(Math.cos(a)*speed*rr(.4, 1), speed*up*1.2, Math.sin(a)*speed*rr(.4, 1));
+    d.rot.set(rnd()*6, rnd()*6, rnd()*6); d.spin.set(rr(-12, 12), rr(-12, 12), rr(-12, 12));
+    d.s.set(size*rr(.6, 1.4), size*rr(.25, .7), size*rr(.5, 1.2));
+    DEB.im.setColorAt(i, c.setHex(rnd() < .3 ? 0x2b2d2f : shade(color, rr(.6, 1.05))));
+  }
+  DEB.im.instanceColor.needsUpdate = true; DEB.live = 4;
+}
+function updateDebris(dt){
+  if(DEB.live <= 0) return; DEB.live -= dt;
+  for(let i = 0; i < DEB.n; i++){
+    const d = DEB.p[i]; if(d.life <= 0) continue;
+    d.life -= dt; d.vel.y -= 18*dt; d.pos.addScaledVector(d.vel, dt);
+    const half = d.s.y/2;
+    if(d.pos.y < half){ d.pos.y = half; if(d.vel.y < 0){ d.vel.y *= -.32; d.vel.x *= .55; d.vel.z *= .55; d.spin.multiplyScalar(.5); } }
+    d.rot.x += d.spin.x*dt; d.rot.y += d.spin.y*dt; d.rot.z += d.spin.z*dt;
+    const k = Math.min(1, d.life/.5);
+    DEB.m.compose(d.pos, DEB.q.setFromEuler(d.rot), DEB.sc.copy(d.s).multiplyScalar(k));
+    DEB.im.setMatrixAt(i, d.life > 0 ? DEB.m : DEB.zero);
+  }
+  DEB.im.instanceMatrix.needsUpdate = true;
+}
+// the paint of a robot (for the colour of its debris)
+function paintOf(R){ if(R.paint !== undefined) return R.paint; let c = 0x6d7068; R.root.traverse(o => { if(c === 0x6d7068 && o.isMesh && o.material && o.material.color && !(o.material.emissive && o.material.emissive.getHex())) c = o.material.color.getHex(); }); return R.paint = c; }
+// camera shake for heavy blows and explosions nearby
+let SHAKE = 0;
+function shakeAt(pt, k){ const d = Math.hypot(pt.x - P.pos.x, pt.z - P.pos.z); if(d < 18) SHAKE = Math.min(1, SHAKE + k*(1 - d/18)); }
+
+// ===== hits: the robot flinches away and shudders; sparks and bits of plating fly =====
+function hitFx(u, d){
+  if(!u || !u.R) return;
+  u.hitT = 1; u.hitK = Math.min(1, .4 + d/Math.max(25, (u.max || 100)*.12));
+  const R = u.R, x = u.p.x + rr(-R.r*.5, R.r*.5), y = R.h*rr(.35, .8), z = u.p.z + rr(-R.r*.5, R.r*.5);
+  emit(SPARK, x, y, z, 5 + Math.round(6*u.hitK), 0xffd27a, 5, .35);
+  if(rnd() < .35 + u.hitK*.4) debris(x, y, z, 1 + (rnd() < u.hitK*.6 ? 1 : 0), paintOf(R), 3.5, R.r*.12);
+}
+// the pose of a living robot on top of its walk: flinch from a hit, lunge and twist into a melee blow
+function poseAlive(u, dt){
+  const R = u.R; if(R.update) return;
+  u.hitT = Math.max(0, (u.hitT || 0) - dt*4.2);
+  const k = u.hitT*u.hitT*(u.hitK || .6), pn = clamp(u.punch || 0, 0, 1);
+  const wind = pn > .75 ? (pn - .75)/.25 : 0, lunge = Math.sin(Math.min(1, (1 - pn)/.75)*Math.PI)*(pn > 0 ? 1 : 0);
+  R.root.rotation.set(-.34*k + .2*lunge - .12*wind, (.42*lunge - .3*wind)*(u.side || 1), Math.sin(time*55)*.05*k);
+  R.root.position.x = 0; R.root.position.z = (-.25*k + .38*lunge - .1*wind)*R.r*1.2;
+}
+
 function updateFx(dt){
-  stepParticles(SPARK, dt); stepParticles(PUFF, dt);
+  stepParticles(SPARK, dt); stepParticles(PUFF, dt); updateDebris(dt);
   for(const t of TRACERS) if(t.life > 0){ t.life -= dt; t.l.material.opacity = Math.max(0, t.life/0.09); }
   boomLight.intensity = Math.max(0, boomLight.intensity - dt*8); flashLight.intensity = Math.max(0, flashLight.intensity - dt*40);
 }
@@ -2970,7 +3060,7 @@ function updateEnemies(dt){
     const wantF = hs > 0.3 ? Math.atan2(e.v.x, e.v.z) : Math.atan2(nav.x - p.x, nav.z - p.z);
     let d = wantF - e.face; d = Math.atan2(Math.sin(d), Math.cos(d)); e.face += d*Math.min(1, 6*dt);
     e.walk += dt*hs*R.stride;
-    animateRig(R, e.walk, Math.min(1, hs/T.speed), 0, e.punch, false, 0);
+    animateRig(R, e.walk, Math.min(1, hs/T.speed), 0, e.punch, false, 0); poseAlive(e, dt);
     e.g.position.set(p.x, 0, p.z); e.g.rotation.y = e.face;
   }
   // keep robots (enemies and allies) from walking through each other
@@ -3008,6 +3098,8 @@ function enemyShoot(e, from, to, kind, wall){
 }
 function melee(e, foe){
   const T = e.T; e.punch = 1; sfxAt('punch', e.p);
+  { const ix = e.p.x + Math.sin(e.face)*(e.R.r + .8), iz = e.p.z + Math.cos(e.face)*(e.R.r + .8);
+    emit(SPARK, ix, e.R.h*.5, iz, 14, 0xffe0a0, 7, .4); emit(PUFF, ix, .3, iz, 4, 0x8a8172, 2.5, .6, -0.5, 1); debris(ix, e.R.h*.4, iz, 2, 0x6e6a60, 4, .12); shakeAt({x:ix, z:iz}, .35); }
   if(foe === 'player') damagePlayer(T.dmg); else if(foe) damageAlly(foe, T.dmg); else damageHQ(T.dmg*1.5, _c.set(e.p.x, 2, (e.hq || HQ).z1));
   if(T.splash) explode(_c.set(e.p.x + Math.sin(e.face)*2, .5, e.p.z + Math.cos(e.face)*2), T.splash, T.dmg*.5, 'enemy');
 }
@@ -3040,6 +3132,7 @@ function explode(pt, rad, dmg, src){
 // a destroyed robot does not blow up: it falls and stays as a wreck that can be repaired
 function damageEnemy(e, d, by = 'player'){
   if(e.dead) return;
+  hitFx(e, d);
   if(NET.guest){ netSend({t:'hit', id:e.id, d:r1(d)}); return; }
   e.hp -= d;
   if(e.hp <= 0){ killReward(e, by); makeWreck(e); }
@@ -3063,6 +3156,7 @@ function feed(text, who, cls){
 function damageAlly(a, d){
   if(a && a.isPeer){ if(!a.dead) netSendTo(a.id, {t:'hurt', d}); return; }
   if(!a || a.dead || a.fall > 0) return;
+  hitFx(a, d);
   a.hp -= d;
   if(a.hp <= 0){ toast(`${CHARS[a.T.c].name} выведен из строя. Его можно починить снова`, true); makeWreck(a); }
 }
@@ -3119,27 +3213,50 @@ function playerFire(){
 // ---------- wrecks, repairs and allied robots ----------
 const ALLY_MAX = 10, WRECK_MAX = 25;
 let allyMode = 'follow';                 // 'follow' the player or 'hold' where they stand
+function deathFx(u){
+  const R = u.R, x = u.p.x, y = R.h*.55, z = u.p.z;
+  emit(SPARK, x, y, z, 60, 0xffb050, 9, 1); emit(SPARK, x, y, z, 25, 0xfff2c0, 5, .5);
+  emit(PUFF, x, y, z, 16, 0x34322f, 2.2, 3.2, -0.9, 1); emit(PUFF, x, R.h*.3, z, 8, 0xff8a3a, 3, .5, -0.5, 1);
+  debris(x, y, z, 8 + Math.round(R.r*5), paintOf(R), 5.5, R.r*.22);
+  boomLight.position.set(x, y, z); boomLight.intensity = 3.5;
+  shakeAt(u.p, .45 + Math.min(.4, R.r*.2));
+  sfxAt('crash', _c.set(x, y, z));
+}
 function makeWreck(u){
   for(const list of [enemies, allies]){ const i = list.indexOf(u); if(i >= 0) list.splice(i, 1); }
   const h = hitTargets.indexOf(u.hit); if(h >= 0) hitTargets.splice(h, 1);
-  Object.assign(u, {state:'wreck', dead:true, fall:0, smokeT:8, punch:0}); u.v.set(0, 0, 0);
+  Object.assign(u, {state:'wreck', dead:true, fall:0, smokeT:10, punch:0, hitT:0}); u.v.set(0, 0, 0);
+  // knocked away from whoever is nearest (usually the player), and one of three ways to fall
+  const kx = u.p.x - P.pos.x, kz = u.p.z - P.pos.z, kl = Math.hypot(kx, kz) || 1; u.kv = {x:kx/kl*3.2, z:kz/kl*3.2};
+  u.dv = (u.id | 0) % 3; u.side = u.side || 1;
   animateRig(u.R, 0, 0, 0, 0, false, 0);
   setGlow(u, 'wreck'); tintRig(u.R, 0.42);
-  _c.set(u.p.x, u.R.h*.5, u.p.z);
-  emit(SPARK, _c.x, _c.y, _c.z, 30, 0xffa040, 6, .8); emit(PUFF, _c.x, _c.y, _c.z, 10, 0x34322f, 1.5, 2.5, -0.8, 1);
-  sfxAt('crash', _c);
+  deathFx(u);
   wrecks.push(u);
   if(wrecks.length > WRECK_MAX) removeUnit(wrecks.find(w => !(P.repair && P.repair.w === w)) || wrecks[0]);
 }
 // falling over (f = 0 standing … 1 lying): walkers fall on their face, the spider slumps on its side
 function poseFall(u){
-  const f = clamp(u.fall, 0, 1), s = f*f*(3 - 2*f), R = u.R;
-  if(R.update){ R.root.rotation.set(0, 0, 0.35*s); R.root.position.y = -0.25*s; }
-  else { R.root.rotation.set(HALF_PI*0.9*s, 0, 0); R.root.position.y = R.r*0.45*s; }
+  const f = clamp(u.fall, 0, 1), R = u.R, sm = t => t*t*(3 - 2*t);
+  if(R.update){ const s = sm(f); R.root.rotation.set(0, 0, 0.35*s); R.root.position.y = -0.25*s; return; }
+  const v = u.dv !== undefined ? u.dv : (u.id | 0) % 3, bounce = f > .8 ? Math.sin((f - .8)/.2*Math.PI)*.07 : 0, s = f*f;
+  R.root.position.x = 0;
+  if(v === 0){                                       // blown backwards
+    R.root.rotation.set(-HALF_PI*.92*s + bounce, 0, 0); R.root.position.y = R.r*.45*s + bounce*R.r; R.root.position.z = -R.r*.35*s;
+  } else if(v === 1){                                // down on the knees, then face first
+    const k1 = sm(clamp(f/.45, 0, 1)), k2 = clamp((f - .45)/.55, 0, 1), s2 = k2*k2;
+    R.root.rotation.set(HALF_PI*.9*s2 + bounce, 0, 0); R.root.position.y = -R.h*.2*k1*(1 - s2) + R.r*.45*s2 + bounce*R.r; R.root.position.z = R.r*.3*s2;
+    for(const L of R.legs || []) if(L.knee){ L.hip.rotation.x = -1.25*k1*(1 - s2*.7); L.knee.rotation.x = 2.1*k1*(1 - s2*.6); }
+    for(const A of R.arms || []) if(A.sh){ A.sh.rotation.x = -.6*k1 + .9*s2; }
+  } else {                                           // spun round, toppling on its side
+    R.root.rotation.set(.15*s, 1.5*sm(f)*(u.side || 1), HALF_PI*.95*s*(u.side || 1) + bounce); R.root.position.y = R.r*.42*s + bounce*R.r; R.root.position.z = 0;
+  }
 }
 function updateWrecks(dt){
   for(const w of wrecks){
-    if(w.fall < 1){ w.fall = Math.min(1, w.fall + dt*1.8); poseFall(w); if(w.fall >= 1) sfxAt('stomp', w.p); }
+    if(w.fall < 1){ w.fall = Math.min(1, w.fall + dt*1.25); poseFall(w);
+      if(w.kv){ const k = (1 - w.fall); w.p.x += w.kv.x*k*dt; w.p.z += w.kv.z*k*dt; w.g.position.set(w.p.x, 0, w.p.z); }
+      if(w.fall >= 1){ sfxAt('stomp', w.p); emit(PUFF, w.p.x, .3, w.p.z, 10, 0x8a8172, 3, 1, -0.4, 1); debris(w.p.x, .4, w.p.z, 3, paintOf(w.R), 2.5, w.R.r*.14); shakeAt(w.p, .2); } }
     if(w.smokeT > 0){ w.smokeT -= dt; if(rnd() < dt*4) emit(PUFF, w.p.x + rr(-.5, .5), w.R.h*0.3, w.p.z + rr(-.5, .5), 1, 0x2e2c2a, .4, 2.5, -1, 1); }
   }
 }
@@ -3268,7 +3385,7 @@ function updateAllies(dt){
     const wantF = foe ? Math.atan2(foe.p.x - p.x, foe.p.z - p.z) : hs > 0.3 ? Math.atan2(a.v.x, a.v.z) : a.face;
     let d = wantF - a.face; d = Math.atan2(Math.sin(d), Math.cos(d)); a.face += d*Math.min(1, 6*dt);
     a.walk += dt*hs*R.stride;
-    animateRig(R, a.walk, Math.min(1, hs/T.speed), 0, a.punch, false, 0);
+    animateRig(R, a.walk, Math.min(1, hs/T.speed), 0, a.punch, false, 0); poseAlive(a, dt);
     a.g.position.set(p.x, 0, p.z); a.g.rotation.y = a.face;
   });
 }
@@ -3940,7 +4057,7 @@ function netSetState(u, st){
   if(st === 'enemy'){ enemies.push(u); hitTargets.push(u.hit); setGlow(u, 'enemy'); tintRig(u.R, 1); u.dead = false; }
   else if(st === 'ally'){ allies.push(u); setGlow(u, 'ally'); tintRig(u.R, 1); u.dead = false; if(prev === 'wreck'){ emit(SPARK, u.p.x, 1, u.p.z, 40, 0x6fe0ff, 5, .7); sfxAt('place', u.p); } }
   else { wrecks.push(u); setGlow(u, 'wreck'); tintRig(u.R, .42); u.dead = true;
-    if(prev){ _c.set(u.p.x, u.R.h*.5, u.p.z); emit(SPARK, _c.x, _c.y, _c.z, 30, 0xffa040, 6, .8); emit(PUFF, _c.x, _c.y, _c.z, 10, 0x34322f, 1.5, 2.5, -0.8, 1); sfxAt('crash', _c); } }
+    if(prev){ u.dv = (u.id | 0) % 3; deathFx(u); } }
 }
 function netApplySnap(m){
   const [phase, timer, wave, res, parts, hq, kills, best] = m.g;
@@ -3978,7 +4095,7 @@ function netUpdateUnits(dt){
     let d = u.tface - u.face; d = Math.atan2(Math.sin(d), Math.cos(d)); u.face += d*k;
     u.punch = Math.max(0, u.punch - dt*3);
     if(u.state === 'wreck' || u.tfall > 0 || u.fall > 0.01){ u.fall += (u.tfall - u.fall)*Math.min(1, 6*dt); if(u.tfall === 0 && u.fall < .02) u.fall = 0; poseFall(u); }
-    else { const hs = Math.hypot(u.p.x - ox, u.p.z - oz)/Math.max(dt, 1e-3); u.walk += dt*hs*u.R.stride; animateRig(u.R, u.walk, Math.min(1, hs/u.T.speed), 0, u.punch, false, 0); }
+    else { const hs = Math.hypot(u.p.x - ox, u.p.z - oz)/Math.max(dt, 1e-3); u.walk += dt*hs*u.R.stride; animateRig(u.R, u.walk, Math.min(1, hs/u.T.speed), 0, u.punch, false, 0); poseAlive(u, dt); }
     u.g.position.set(u.p.x, 0, u.p.z); u.g.rotation.y = u.face;
   }
 }
@@ -4575,6 +4692,7 @@ function frame(now){
   netTick(dt); updatePeer(dt); updateHub(dt); updatePeerHint();
   updateWorld(dt);
   updateCamera(dt);
+  if(SHAKE > 0){ camera.position.x += rr(-1, 1)*SHAKE*.22; camera.position.y += rr(-1, 1)*SHAKE*.18; camera.position.z += rr(-1, 1)*SHAKE*.22; SHAKE = Math.max(0, SHAKE - dt*2.8); }
   updateGhost();
   updateFx(dt); updateBars();
   if(state === 'play') updateHud();
