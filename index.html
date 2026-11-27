@@ -2769,6 +2769,7 @@ function updateEnemies(dt){
     if(foe === 'player'){ tx = P.pos.x; tz = P.pos.z; dT = fd - P.r; }
     else if(foe){ tx = foe.p.x; tz = foe.p.z; dT = fd - foe.R.r; }
     else { const H = e.hq || HQ; tx = clamp(p.x, H.x0 + 1, H.x1 - 1); tz = H.z1 + 0.3; dT = distToBox(p.x, p.z, H); }
+    e.foe = foe; e.foeD = dT;
     const nav = navPoint(p, tx, tz);
     e.cd -= dt; e.punch = Math.max(0, e.punch - dt*3);
     let want = true;
@@ -3018,6 +3019,12 @@ function reviveAlly(w){
   emit(SPARK, w.p.x, 1, w.p.z, 40, 0x6fe0ff, 5, .7); sfx('place');
   banner(CHARS[w.T.c].name, 'Отремонтирован и воюет за вас'); netSend({t:'banner', a:CHARS[w.T.c].name, b:'Отремонтирован и воюет за вас'});
 }
+function playerInLine(from, to){
+  if(P.dead > 0) return false;
+  const dx = to.x - from.x, dz = to.z - from.z, L2 = dx*dx + dz*dz; if(L2 < 1e-4) return false;
+  const t = ((P.pos.x - from.x)*dx + (P.pos.z - from.z)*dz)/L2; if(t <= 0 || t >= 1) return false;
+  return Math.hypot(from.x + dx*t - P.pos.x, from.z + dz*t - P.pos.z) < P.r + .7;
+}
 function allyShoot(a, from, to, foe){
   const T = a.T, hit = rnd() < Math.min(.95, (T.acc || .6) + .2), end = _c.copy(to);
   if(!hit){ end.x += rr(-1.2, 1.2); end.y += rr(-.4, 1); end.z += rr(-1.2, 1.2); }
@@ -3033,21 +3040,57 @@ function updateAllies(dt){
     a.cd -= dt; a.punch = Math.max(0, a.punch - dt*3);
     if(a.fall > 0){ a.fall = Math.max(0, a.fall - dt*1.4); poseFall(a); a.g.position.set(p.x, 0, p.z); return; }   // getting up
     if(G.phase === 'build' && a.hp < a.max) a.hp = Math.min(a.max, a.hp + a.max*0.03*dt);
-    // nearest enemy within sight range
-    let foe = null, fd = 32;
-    for(const e of enemies){ const d = Math.hypot(e.p.x - p.x, e.p.z - p.z); if(d < fd){ fd = d; foe = e; } }
+    if(a.strafeT === undefined){ a.strafeT = 0; a.side = a.side || (rnd() < .5 ? -1 : 1); }
+    // ---- choosing a target: who threatens the player, me or the headquarters; the wounded; not everyone on one robot
+    let foe = null, fd = 0, best = -1e9;
+    const pd = P.dead <= 0 ? Math.hypot(P.pos.x - p.x, P.pos.z - p.z) : 1e9;
+    for(const e of enemies){
+      if(e.dead) continue;
+      const d = Math.hypot(e.p.x - p.x, e.p.z - p.z); if(d > 40) continue;
+      let sc = 40 - d;
+      if(e.foe === 'player' && pd < 30) sc += 25;                          // it is shooting the player: protect them
+      if(e.foe === a) sc += 18;                                            // it is shooting me
+      if(!e.foe && e.foeD < 25) sc += 14;                                  // it is at the headquarters or the walls
+      sc += 12*(1 - e.hp/e.max);                                           // finish off the wounded
+      if(a.tgt === e) sc += 10;                                            // keep the same target, no dithering
+      let others = 0; for(const b of allies) if(b !== a && b.tgt === e) others++;
+      if(others >= 2) sc -= 10*(others - 1);                               // spread the fire
+      if(sc > best){ best = sc; foe = e; fd = d; }
+    }
+    a.tgt = foe;
+    // ---- badly damaged: fall back to the player (or the headquarters) and patch up away from the fight
+    const hurt = a.hp < a.max*.3;
+    if(!foe || Math.hypot(foe.p.x - p.x, foe.p.z - p.z) > 16) a.hp = Math.min(a.max, a.hp + a.max*(hurt ? .02 : .006)*dt);
     let gx, gz, want = true;
-    if(foe){
+    if(foe && hurt && !T.melee){
+      const hx = P.dead <= 0 ? P.pos.x : 0, hz = P.dead <= 0 ? P.pos.z : HQ.z1 + 6;
+      const nav = navPoint(p, hx + (p.x - foe.p.x)*.2, hz + (p.z - foe.p.z)*.2); gx = nav.x; gz = nav.z; want = Math.hypot(hx - p.x, hz - p.z) > 5;
+      const from = muzzleOf(R, a.face, _a), to = _b.set(foe.p.x, foe.R.h*0.55, foe.p.z);
+      if(fd < T.range + R.r && a.cd <= 0 && !losBlock(from, to) && !playerInLine(from, to)){ a.cd = rr(.9, 1.2)/T.rate; allyShoot(a, from, to, foe); }
+    } else if(foe){
       const nav = navPoint(p, foe.p.x, foe.p.z); gx = nav.x; gz = nav.z;
       const dT = fd - foe.R.r, reach = T.range + R.r;
       if(nav.direct && dT < reach){
         if(T.melee){
           want = dT > T.range*0.6;
+          // come at it from the side, not in a queue behind the others
+          if(want && a.side){ const ox = -(foe.p.z - p.z)/fd*a.side*2, oz = (foe.p.x - p.x)/fd*a.side*2; gx += ox; gz += oz; }
           if(a.cd <= 0){ a.cd = 1/T.rate; a.punch = 1; sfxAt('punch', p); damageEnemy(foe, T.dmg*1.2, 'ally');
             if(T.splash) explode(_c.set(foe.p.x, .5, foe.p.z), T.splash, T.dmg*.5, 'ally'); }
         } else {
-          const from = muzzleOf(R, a.face, _a), to = _b.set(foe.p.x, foe.R.h*0.55, foe.p.z);
-          if(!losBlock(from, to)){ want = dT > reach*0.6; if(a.cd <= 0){ a.cd = rr(.85, 1.15)/T.rate; allyShoot(a, from, to, foe); } }
+          const from = muzzleOf(R, a.face, _a), to = _b.set(foe.p.x, foe.R.h*0.55, foe.p.z), blocked = losBlock(from, to), friend = playerInLine(from, to);
+          if(!blocked && !friend){
+            if(a.cd <= 0){ a.cd = rr(.85, 1.15)/T.rate; allyShoot(a, from, to, foe); }
+            // keep a good distance and move sideways while shooting, so it is harder to hit
+            a.strafeT = (a.strafeT || 0) - dt; if(a.strafeT <= 0){ a.strafeT = rr(1.5, 3); a.side = rnd() < .5 ? -1 : 1; }
+            const ux = (p.x - foe.p.x)/fd, uz = (p.z - foe.p.z)/fd, back = dT < reach*.45 ? 1 : dT > reach*.8 ? -1 : 0;
+            gx = p.x + ux*back*3 - uz*a.side*2.5; gz = p.z + uz*back*3 + ux*a.side*2.5;
+          } else {
+            // a wall or the player in the way: step to the side to find a clear line
+            a.strafeT = (a.strafeT || 0) - dt; if(a.strafeT <= 0){ a.strafeT = rr(1.2, 2); a.side = rnd() < .5 ? -1 : 1; }
+            const ux = (foe.p.x - p.x)/fd, uz = (foe.p.z - p.z)/fd;
+            gx = p.x - uz*a.side*4 + ux; gz = p.z + ux*a.side*4 + uz;
+          }
         }
       }
     } else if(allyMode === 'follow' && P.dead <= 0){
@@ -3058,7 +3101,7 @@ function updateAllies(dt){
     } else { gx = a.hx; gz = a.hz; if(Math.hypot(gx - p.x, gz - p.z) < 1.5) want = false; }
     let mx = gx - p.x, mz = gz - p.z; const ml = Math.hypot(mx, mz) || 1; mx /= ml; mz /= ml;
     if(a.sideT > 0){ a.sideT -= dt; const sx = -mz*a.side, sz = mx*a.side; mx = mx*.35 + sx; mz = mz*.35 + sz; const l2 = Math.hypot(mx, mz); mx /= l2; mz /= l2; }
-    const speed = want ? T.speed*(foe ? 1 : Math.min(1.7, 0.6 + ml/8)) : 0;
+    const speed = want ? T.speed*(foe ? (a.strafeT > 0 && !T.melee ? .65 : 1) : Math.min(1.7, 0.6 + ml/8)) : 0;
     a.v.x += (mx*speed - a.v.x)*Math.min(1, 5*dt); a.v.z += (mz*speed - a.v.z)*Math.min(1, 5*dt);
     p.x += a.v.x*dt; p.z += a.v.z*dt;
     pushEnemy(p, R.r, true);
@@ -3075,7 +3118,7 @@ function updateAllies(dt){
 }
 function toggleAllyMode(){
   if(NET.guest){ toast('Союзниками командует первый игрок'); return; }
-  if(!allies.length){ toast('Союзников пока нет. Почините подбитого робота: подойдите и нажмите E'); return; }
+  if(!allies.length){ toast('Союзников пока нет. Почините подбитого робота: подойдите и нажмите F'); return; }
   allyMode = allyMode === 'follow' ? 'hold' : 'follow';
   for(const a of allies){ a.hx = a.p.x; a.hz = a.p.z; }
   toast(allyMode === 'follow' ? 'Союзники: за мной' : 'Союзники: держать позицию'); sfx('tick');
