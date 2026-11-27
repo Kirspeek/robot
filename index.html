@@ -1064,7 +1064,7 @@ const radarHead = new THREE.Group();
   slab(10, 78, 0, 31, texMat(TEX.asphalt, 1, 10), 0.03);
   slab(10, 330, 0, 235, texMat(TEX.asphalt, 1, 42), 0.03);
   slab(22, 8, 31, -18, texMat(TEX.asphalt, 3, 1), 0.028);
-  slab(16, 12, 42, -20, texMat(TEX.concrete, 4, 3, {color:0xa9a69c}), 0.029);
+  slab(18, 12, 42, -18, texMat(TEX.concrete, 4, 3, {color:0xa9a69c}), 0.029);     // apron in front of the doors
 
   // perimeter wall with a gate on the south side
   const perMat = texMat(TEX.concrete, 35, 1);
@@ -1185,7 +1185,7 @@ const radarHead = new THREE.Group();
 
   // hangar: half a cylinder with doors at the front
   {
-    const x = 42, z = -40, r = 10, len = 28;
+    const x = 42, z = -40, r = 12, len = 32;     // bigger hangar (was 10 × 28); the doors stay 12 × 6.8 m
     const shell = new THREE.CylinderGeometry(r, r, len, 28, 1, true, HALF_PI, Math.PI); shell.rotateX(HALF_PI);
     mesh(shell, MAT.hangar, x, 0, z);
     const endMat = texMat(TEX.metal, 10, 1, {color:0x7f857a, metalness:.35, roughness:.55, side:THREE.DoubleSide});
