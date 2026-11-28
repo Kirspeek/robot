@@ -877,7 +877,7 @@ nav{gap:12px}
 <script>
 'use strict';
 I18N.loaded(); I18N.start();
-const VERSION = '2026-11-28h';     // must match version.json: when the site has a newer one, the game offers to update
+const VERSION = '2026-11-28i';     // must match version.json: when the site has a newer one, the game offers to update
 // the old LAN link (http://192.168…) has no secure context, so friends and encryption cannot work there: go to the site
 if(location.protocol === 'http:' && !/^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname)) location.replace('https://kirspeek.github.io/robot/' + location.search);
 const $ = id => document.getElementById(id);
@@ -5532,48 +5532,60 @@ const MUSIC = (() => {
     EV.push({b:b0, k:'b', m:ROOT[c]}, {b:b0 + 2, k:'b', m:ROOT[c] + 7}, {b:b0 + 1, k:'c', c:TRIAD[c]}, {b:b0 + 3, k:'c', c:TRIAD[c]});
     for(let h = 0; h < 8; h++) EV.push({b:b0 + h/2, k:'j', a:h % 2 ? .5 : 1}); });
   EV.sort((x, y) => x.b - y.b);
-  const BEAT = 60/132;
-  let ac = null, out = null, noise = null, timer = null, start = 0, loop = 0, i = 0, armed = false;
-  const env = (g, t, peak, len) => { g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(peak, t + .012); g.gain.exponentialRampToValueAtTime(.0006, t + len); };
-  function tone(t, f, type, peak, len){ const o = ac.createOscillator(), g = ac.createGain(); o.type = type; o.frequency.value = f; env(g, t, peak, len); o.connect(g).connect(out); o.start(t); o.stop(t + len + .05); }
-  function play(e, t){
-    if(e.k === 'm'){ const f = hz(e.m), len = Math.max(.3, e.d*BEAT*1.1) + .2; tone(t, f, 'triangle', .16, len); tone(t, f*2, 'sine', .05, len*.5); tone(t, f*3.01, 'sine', .015, .25); }
-    else if(e.k === 'b') tone(t, hz(e.m), 'sine', .2, .4);
-    else if(e.k === 'c') for(const m of e.c) tone(t, hz(m), 'sine', .035, .28);
-    else { const s = ac.createBufferSource(), f = ac.createBiquadFilter(), g = ac.createGain(); s.buffer = noise; f.type = 'highpass'; f.frequency.value = 6500;
-      env(g, t, .05*e.a, .09); s.connect(f).connect(g).connect(out); s.start(t); s.stop(t + .12); }
+  const BEAT = 60/132, RATE = 22050;
+  // the whole song is rendered once into a sound buffer and then loops on the audio thread by itself:
+  // a busy game frame can no longer delay or drop notes. Melody and bass are an octave higher than written,
+  // so phone speakers (which hardly play low notes) still carry them.
+  let ac = null, out = null, src = null, buf = null, armed = false;
+  function render(){
+    // the samples are computed right here (a few hundred thousand simple sums: a fraction of a second)
+    const N = Math.ceil(LEN*BEAT*RATE), TAIL = Math.ceil(1.5*RATE), d = new Float32Array(N + TAIL), ATT = Math.round(.012*RATE);
+    const voice = (t, f, tri, peak, len) => {
+      const k0 = Math.round(t*RATE), n = Math.min(Math.round(len*RATE), d.length - k0), dp = f/RATE, fall = Math.pow(.0006/peak, 1/Math.max(1, n - ATT));
+      let g = peak, ph = 0;
+      for(let k = 0; k < n; k++){
+        const w = tri ? 1 - 4*Math.abs(ph - .5) : Math.sin(ph*6.283185307);
+        d[k0 + k] += w*(k < ATT ? peak*k/ATT : g);
+        if(k >= ATT) g *= fall;
+        ph += dp; if(ph >= 1) ph -= 1;
+      }
+    };
+    const jingle = (t, peak) => {
+      const k0 = Math.round(t*RATE), n = Math.min(Math.round(.09*RATE), d.length - k0), fall = Math.pow(.01, 1/n);
+      let g = peak, x0 = 0, y = 0;
+      for(let k = 0; k < n; k++){ const x = Math.random()*2 - 1; y = .35*(y + x - x0); x0 = x; d[k0 + k] += y*g; g *= fall; }
+    };
+    for(const e of EV){ const t = e.b*BEAT;
+      if(e.k === 'm'){ const f = hz(e.m + 12), len = Math.max(.3, e.d*BEAT*1.1) + .2; voice(t, f, true, .16, len); voice(t, f*2, false, .04, len*.5); }
+      else if(e.k === 'b') voice(t, hz(e.m + 12), true, .16, .4);
+      else if(e.k === 'c') for(const m of e.c) voice(t, hz(m), false, .035, .28);
+      else jingle(t, .09*e.a); }
+    for(let k = 0; k < TAIL; k++) d[k] += d[N + k];      // notes still ringing at the end carry over into the start: a seamless loop
+    let peak = 0; for(let k = 0; k < N; k++) peak = Math.max(peak, Math.abs(d[k]));
+    const kk = peak > 0 ? .5/peak : 1;                     // the same loudness on every device
+    buf = (ac || audioCtx()).createBuffer(1, N, RATE); const o = buf.getChannelData(0); for(let k = 0; k < N; k++) o[k] = d[k]*kk;
   }
-  function tick(){
-    const ahead = ac.currentTime + .5;
-    for(let n = 0; n < 200; n++){
-      const e = EV[i], t = start + (loop*LEN + e.b)*BEAT;
-      if(t > ahead) break;
-      if(t > ac.currentTime - .05) play(e, t);
-      if(++i >= EV.length){ i = 0; loop++; }
-    }
-  }
-  const vol = () => 1.8*(+S.mvol || 0);     // louder than at first: the music was hardly heard
+  const vol = () => .9*(+S.mvol || 0);
   function on(){
     ac = audioCtx();
-    if(!noise){ noise = ac.createBuffer(1, ac.sampleRate*.15, ac.sampleRate); const d = noise.getChannelData(0); for(let k = 0; k < d.length; k++) d[k] = Math.random()*2 - 1; }
     out = ac.createGain(); out.gain.value = 0; out.connect(ac.destination); out.gain.setTargetAtTime(vol(), ac.currentTime, .4);
-    start = ac.currentTime + .15; loop = 0; i = 0; timer = setInterval(tick, 120); tick();
+    src = ac.createBufferSource(); src.buffer = buf; src.loop = true; src.connect(out); src.start(ac.currentTime + .05);
   }
   function off(){
-    clearInterval(timer); timer = null;
-    const o = out; out = null; if(!o) return;
-    o.gain.setTargetAtTime(0, ac.currentTime, .15); setTimeout(() => o.disconnect(), 900);
+    const o = out, s_ = src; out = null; src = null; if(!o) return;
+    o.gain.setTargetAtTime(0, ac.currentTime, .15); setTimeout(() => { try { s_.stop(); } catch(e){} o.disconnect(); }, 900);
   }
   function sync(){
     const want = armed && S.sound && S.music && +S.mvol > 0 && !document.hidden;
-    if(want && !timer) on(); else if(!want && timer) off();
+    if(want && !buf) render();
+    if(want && !src) on(); else if(!want && src) off();
     else if(want && out) out.gain.setTargetAtTime(vol(), ac.currentTime, .1);
   }
   // browsers let sound start only after the first click or key press
   const arm = () => { if(armed) return; armed = true; removeEventListener('pointerdown', arm, true); removeEventListener('keydown', arm, true); sync(); };
   addEventListener('pointerdown', arm, true); addEventListener('keydown', arm, true);
   document.addEventListener('visibilitychange', sync);
-  return {sync, get playing(){ return !!timer; }, len:LEN, bars:CHORDS.split(' ').length};
+  return {sync, get playing(){ return !!src; }, len:LEN, bars:CHORDS.split(' ').length};
 })();
 function voiceSend(){
   const n = VOICE.acc.length; if(!n) return;
