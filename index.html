@@ -2620,6 +2620,84 @@ function mkSpider(){
       body.position.y = Math.abs(Math.sin(walk))*.08*amt; gun.rotation.z += .02 + amt*.1;
     }});
 }
+
+// ---------- enemy-only robots (not in the character menu) ----------
+// «Жало»: a hovering drone on four rotors, fast and fragile, fires bursts from above
+function mkDrone(){
+  const root = new THREE.Group(), k = kit(root), {B, C, S, G} = k;
+  const shell = pm(0x4a5560, {metalness:.5, roughness:.4}), dark = std(0x1c1e20, .5, .6), eye = glowM(0xff5a3a, 1.6), lamp = glowM(0x7fe9ff, 1.2);
+  const hov = G(0, 2.3, 0);
+  S(.42, shell, 0, 0, 0, hov, 1.2, .62, 1.45); B(.5, .14, .8, dark, 0, -.25, 0, hov);
+  S(.13, eye, 0, -.12, .52, hov); C(.16, .16, .06, dark, 0, -.12, .47, hov, HALF_PI);
+  const rot = [];
+  for(const [x, z] of [[-.75, .6], [.75, .6], [-.75, -.6], [.75, -.6]]){
+    B(.7, .07, .1, dark, x/2, 0, z/2, hov, 0, Math.atan2(z, -x) - HALF_PI, 0);
+    C(.2, .2, .14, shell, x, .05, z, hov); C(.06, .06, .05, lamp, x, -.05, z, hov);
+    const r = G(x, .16, z, hov); for(let i = 0; i < 2; i++) B(.62, .02, .08, dark, 0, 0, 0, r, 0, i*HALF_PI, 0); rot.push(r);
+    S(.3, new THREE.MeshBasicMaterial({color:0x111111, transparent:true, opacity:.18, depthWrite:false}), x, .16, z, hov, 1, .05, 1);
+  }
+  const gun = G(0, -.38, .25, hov); for(const x of [-.12, .12]) C(.035, .035, .55, dark, x, 0, .2, gun, HALF_PI);
+  B(.12, .3, .05, dark, 0, .3, -.7, hov, .3);
+  return finish({root, legs:[], arms:[], head:hov}, {h:2.9, r:.6, hipY:1, walk:6, run:8, camDist:6, step:.5, muzzle:gun, hover:2.3,
+    update(R, walk, amt){ hov.position.y = 2.3 + Math.sin(time*2.6 + R.r)*.12; hov.rotation.x = .22*amt; hov.rotation.z = Math.sin(time*1.7)*.05; for(const r of rot) r.rotation.y += .9; }});
+}
+// «Клоп»: a small six-legged crawler with a bomb on its back; it runs at you and blows up
+function mkBug(){
+  const root = new THREE.Group(), k = kit(root), {B, C, S, G} = k;
+  const shell = pm(0x6a5a2a, {metalness:.35, roughness:.5}), dark = std(0x1d1e1e, .5, .5), warn = glowM(0xff3a1a, 1.4), yel = std(0xd9b93e, .5, .2);
+  const body = G(0, .55, 0);
+  S(.42, shell, 0, 0, 0, body, 1, .55, 1.25); S(.3, dark, 0, -.05, .5, body, 1, .6, .7);
+  C(.28, .3, .3, dark, 0, .28, -.05, body); for(let i = 0; i < 6; i++) B(.06, .3, .05, yel, Math.cos(i)*.28, .28, -.05 + Math.sin(i)*.28, body);
+  S(.09, warn, 0, .48, -.05, body); for(const x of [-.1, .1]) S(.05, warn, x, -.02, .7, body);
+  const legs = [];
+  [[.3, .35], [.36, 0], [.3, -.35]].forEach(([x, z], i) => { for(const s_ of [-1, 1]){
+    const hip = G(s_*x, 0, z, body); hip.rotation.order = 'YXZ';
+    C(.035, .035, .55, dark, s_*.22, .05, 0, hip, 0, 0, s_*1.1); C(.03, .02, .55, dark, s_*.48, -.25, 0, hip, 0, 0, -s_*.4);
+    legs.push({hip, i:i*2 + (s_ > 0 ? 1 : 0), base:0, s:s_}); } });
+  return finish({root, legs, arms:[], head:body}, {h:.95, r:.45, hipY:.55, walk:6, run:8, camDist:4, step:.3,
+    update(R, walk, amt){ for(const L of R.legs){ const ph = walk*1.6 + (L.i % 2 ? Math.PI : 0); L.hip.rotation.y = Math.sin(ph)*.45*amt; L.hip.rotation.z = Math.max(0, Math.cos(ph))*.25*amt*L.s; }
+      body.position.y = .55 + Math.abs(Math.sin(walk*1.6))*.05*amt; warn.emissiveIntensity = Math.sin(time*(6 + amt*14)) > 0 ? 2.2 : .3; }});
+}
+// «Игла»: a tall slim sniper with a long rifle and one red lens
+function mkSniper(){
+  const R = biped({hipX:.15, hipY:1.95, thighL:.92, shinL:.88, shX:.32, shY:2.8, armL:.48, headY:3.08});
+  const {B, C, S, G} = R.k, white = pm(0xc8ccc2, {metalness:.35, roughness:.45}), dark = std(0x23262a, .45, .6), red = glowM(0xff3030, 1.8), teal = std(0x2f6a6a, .5, .4);
+  for(const L of R.legs){
+    C(.06, .05, .9, dark, 0, -.45, 0, L.hip); B(.14, .55, .18, white, 0, -.4, .04, L.hip);
+    S(.08, dark, 0, 0, 0, L.knee); C(.05, .04, .86, dark, 0, -.43, -.04, L.knee); B(.12, .5, .1, white, 0, -.42, .06, L.knee);
+    B(.16, .06, .36, dark, 0, -.03, .08, L.foot);
+  }
+  B(.34, .2, .24, dark, 0, 1.98, 0); C(.07, .07, .5, dark, 0, 2.3, 0);
+  B(.5, .55, .32, white, 0, 2.62, 0); B(.36, .2, .06, teal, 0, 2.7, .17); B(.2, .5, .14, dark, 0, 2.6, -.22);
+  C(.03, .03, .9, dark, -.15, 3.2, -.2); 
+  B(.2, .26, .3, white, 0, .1, 0, R.head); C(.08, .08, .08, dark, 0, .1, .17, R.head, HALF_PI); C(.055, .055, .03, red, 0, .1, .215, R.head, HALF_PI);
+  for(const A of R.arms){ S(.09, dark, 0, 0, 0, A.sh); B(.1, .46, .12, white, 0, -.23, 0, A.sh); S(.07, dark, 0, 0, 0, A.el); B(.09, .44, .1, white, 0, -.22, 0, A.el); }
+  // the rifle held in the right hand, pointing forward
+  const rifle = G(0, -.42, 0, R.arms[1].el); rifle.rotation.x = HALF_PI;
+  B(.08, .12, .5, dark, 0, 0, .1, rifle); C(.025, .025, 1.5, dark, 0, .02, .95, rifle, HALF_PI); C(.045, .045, .35, dark, 0, .11, .25, rifle, HALF_PI); C(.05, .05, .02, red, 0, .11, .43, rifle, HALF_PI);
+  const muzzle = G(0, .02, 1.7, rifle);
+  return finish(R, {h:3.35, r:.42, elBase:-1.45, armSwing:.12, legSwing:.6, kneeBend:.95, reach:.3, muzzle});
+}
+// «Молот»: a hunched heavy with huge fists; slow, very tough, its blows shake the ground
+function mkBrute(){
+  const R = biped({hipX:.48, hipY:1.6, thighL:.78, shinL:.72, shX:1.12, shY:2.55, armL:.6, headY:2.55});
+  const {B, C, S} = R.k, rust = pm(0xa65d2c, {metalness:.45, roughness:.5}), dark = std(0x24272a, .5, .55), hz = texMat(TEX.hazard, 1, 1), eye = glowM(0xffb040, 1.6);
+  for(const L of R.legs){
+    B(.55, .78, .6, dark, 0, -.39, 0, L.hip); B(.6, .45, .2, rust, 0, -.3, .3, L.hip);
+    S(.26, rust, 0, 0, .1, L.knee); B(.5, .72, .55, dark, 0, -.36, 0, L.knee); B(.52, .4, .16, rust, 0, -.36, .28, L.knee);
+    B(.65, .2, .85, dark, 0, -.1, .12, L.foot);
+  }
+  B(1.0, .45, .7, dark, 0, 1.65, 0);
+  B(1.9, 1.05, 1.2, rust, 0, 2.3, -.05, undefined, .25); B(1.5, .3, .9, dark, 0, 2.95, -.25, undefined, .25);
+  B(1.2, .14, .05, hz, 0, 2.05, .6); B(.9, .7, .3, dark, 0, 2.45, -.75, undefined, .25);
+  for(const s_ of [-1, 1]) C(.12, .15, .7, dark, s_*.45, 3.05, -.8, undefined, -.3);
+  B(.45, .35, .45, dark, 0, .05, .25, R.head); B(.36, .07, .04, eye, 0, .1, .48, R.head); B(.5, .12, .5, rust, 0, .25, .25, R.head);
+  for(const A of R.arms){
+    S(.42, rust, 0, .05, 0, A.sh, 1.1, .9, 1.1); B(.4, .65, .42, dark, 0, -.3, 0, A.sh);
+    B(.55, .75, .55, rust, 0, -.4, 0, A.el); B(.75, .55, .7, dark, 0, -.95, 0, A.el); for(const x of [-.22, 0, .22]) B(.14, .1, .74, hz, x, -1.15, 0, A.el);
+  }
+  return finish(R, {h:3.4, r:.95, armSwing:.3, legSwing:.42, kneeBend:.6, elBase:-.5, reach:.6});
+}
 // thin bronze android with claw hands
 function mkBronze(){
   const R = biped({hipX:.14, hipY:1.22, thighL:.56, shinL:.54, shX:.3, shY:1.95, armL:.42, headY:2.2});
@@ -2754,6 +2832,7 @@ function mkScout(){
   return finish(R, {h:2.1, r:.32, armSwing:.45, legSwing:.65, kneeBend:.9});
 }
 
+const tname = T => T.name || CHARS[T.c].name;
 // pose a rig: walk phase, how much it walks (0..1), in the air, the placing gesture, build mode
 function animateRig(R, walk, amt, air, place, building, pitchV){
   if(R.update){ R.update(R, walk, amt, air); return; }
@@ -2866,7 +2945,7 @@ function nearSlot(){
 // ---------- climbing into your own (blue) robots ----------
 function nearAlly(){
   let best = null, bd = 3.5;
-  for(const a of allies){ if(a.dead || a.fall > 0 || a.buddy) continue; const d = Math.hypot(a.p.x - P.pos.x, a.p.z - P.pos.z) - a.R.r - P.r; if(d < bd){ bd = d; best = a; } }
+  for(const a of allies){ if(a.dead || a.fall > 0 || a.buddy || a.T.c < 0) continue; const d = Math.hypot(a.p.x - P.pos.x, a.p.z - P.pos.z) - a.R.r - P.r; if(d < bd){ bd = d; best = a; } }
   return best;
 }
 function hideBody(i, on){ const s = slots[i]; if(!s){ RIGS[i].root.visible = !on; return; } RIGS[i].root.visible = !on; if(on){ s.label.visible = false; if(s.col){ COLS.splice(COLS.indexOf(s.col), 1); s.col = null; } } }
@@ -3382,10 +3461,10 @@ function updateGhost(){
     ghost.visible = false;
     let t = '';
     if(state === 'play'){
-      if(P.repair) t = `Ремонт: ${CHARS[P.repair.w.T.c].name} ${Math.floor(P.repair.t/P.repair.total*100)}% · E — отменить`;
+      if(P.repair) t = `Ремонт: ${tname(P.repair.w.T)} ${Math.floor(P.repair.t/P.repair.total*100)}% · E — отменить`;
       else if(PILOT) t = '';
       else { const a = nearAlly(), w = a ? null : nearWreck(), h = w || a ? null : nearHatch(), n = w || a || h ? null : nearSlot();
-        t = h ? (h.open ? 'E — закрыть люк' + (onLadder(P.pos) ? ' · вперёд или пробел — лезть' : '') : 'E — открыть люк') : a ? `E — залезть в робота: ${CHARS[a.T.c].name}` : w ? `F — починить: ${CHARS[w.T.c].name} (⚙ ${repairCost(w)}) — потом в него можно залезть` : n ? `E — пересесть: ${CHARS[n.i].name}` : ''; }
+        t = h ? (h.open ? 'E — закрыть люк' + (onLadder(P.pos) ? ' · вперёд или пробел — лезть' : '') : 'E — открыть люк') : a ? `E — залезть в робота: ${tname(a.T)}` : w ? `F — починить: ${tname(w.T)} (⚙ ${repairCost(w)}) — потом в него можно залезть` : n ? `E — пересесть: ${CHARS[n.i].name}` : ''; }
     }
     if(TOUCH && !P.repair) t = '';     // on a phone the yellow buttons say it
     if($('tip').textContent !== t) $('tip').textContent = t;
@@ -3423,11 +3502,19 @@ const ETYPES = {
   groza:  {c:1, hp:600,  speed:2.7, dmg:40,  rate:.7,  range:24,  acc:.55, reward:100, parts:25},
   bastion:{c:5, hp:700,  speed:2.5, dmg:55,  rate:.5,  range:28,  acc:.55, reward:120, parts:30, splash:3},
   buddy:  {c:0, hp:220,  speed:5.2, dmg:14,  rate:4,   range:26,  acc:.6,  reward:0, parts:0, buddy:true},   // the bot partner (a soldier), never in a wave
+  drone:  {c:-1, name:'Жало', make:mkDrone, hp:60, speed:6.5, dmg:5, rate:4, range:17, acc:.45, reward:15, parts:5},
+  bug:    {c:-1, name:'Клоп', make:mkBug, hp:45, speed:6.8, dmg:55, rate:1, range:1.4, melee:true, kamikaze:true, splash:3.2, reward:12, parts:3},
+  sniper: {c:-1, name:'Игла', make:mkSniper, hp:160, speed:3.4, dmg:38, rate:.45, range:42, acc:.72, reward:50, parts:12},
+  brute:  {c:-1, name:'Молот', make:mkBrute, hp:950, speed:2.7, dmg:75, rate:.6, range:2.4, melee:true, splash:2.2, reward:140, parts:35},
   titan:  {c:6, hp:2200, speed:2.3, dmg:120, rate:.5,  range:3,   melee:true, reward:300, parts:80, splash:3.5}
 };
 function waveList(n){
   const L = [], add = (t, k) => { for(let i = 0; i < k; i++) L.push(t); };
-  add('scout', 3 + n); add('bronze', Math.floor(n*1.2));
+  add('scout', 4 + n); add('bronze', Math.floor(n*1.2));
+  add('bug', 1 + Math.floor(n*.8));
+  if(n >= 2) add('drone', n);
+  if(n >= 3) add('sniper', Math.floor((n - 1)/2));
+  if(n >= 4) add('brute', Math.floor((n - 2)/3));
   if(n >= 2) add('guard', n - 1);
   if(n >= 3) add('spider', Math.floor((n - 1)/2));
   if(n >= 4) add('red', Math.floor((n - 2)/2));
@@ -3770,7 +3857,7 @@ function makeUnit(type){
   const T = ETYPES[type], pool = EPOOL[type] || (EPOOL[type] = []);
   let e = pool.pop();
   if(!e){
-    const R = CHARS[T.c].make();
+    const R = (T.make || CHARS[T.c].make)();
     for(const m of R.glow){ m.color.setHex(0xff2a1a); m.emissive.setHex(0xff2a1a); }
     const g = new THREE.Group(); g.add(R.root);
     const hit = new THREE.Mesh(new THREE.BoxGeometry(R.r*1.5, R.h, R.r*1.5), hitMat); hit.position.y = R.h/2; g.add(hit);
@@ -3940,6 +4027,7 @@ function updateEnemies(dt){
         if(e.cd <= 0){
           e.cd = 1/(T.rate*(e.rk || 1)); const c = blk.col;
           _c.set(clamp(p.x, c.x0, c.x1), Math.min(c.y1 - .2, R.h*.5), clamp(p.z, c.z0, c.z1));
+          if(T.kamikaze){ bugBoom(e); continue; }
           if(T.melee){ e.punch = 1; hitWall(blk, T.dmg*(e.dk || 1)*2, _c); sfxAt('punch', p); if(T.splash) explode(_c, T.splash, T.dmg*(e.dk || 1)*.5, 'enemy'); }
           else enemyShoot(e, muzzleOf(R, e.face, _a), _c, 'wall', blk);
         }
@@ -3991,7 +4079,13 @@ function enemyShoot(e, from, to, kind, wall){
   else if(wall) hitWall(wall, T.dmg*(e.dk || 1)*1.5, end);
   if(T.splash) explode(end, T.splash, T.dmg*(e.dk || 1)*.6, 'enemy');
 }
+function bugBoom(e){
+  const pt = new THREE.Vector3(e.p.x, .6, e.p.z); e.dead = true;
+  explode(pt, e.T.splash, e.T.dmg*(e.dk || 1), 'enemy'); emit(PUFF, pt.x, 1, pt.z, 10, 0x2a2826, 2, 3, -1, 1); debris(pt.x, .6, pt.z, 6, 0x6a5a2a, 6, .15); shakeAt(pt, .6);
+  removeUnit(e);
+}
 function melee(e, foe){
+  if(e.T.kamikaze){ bugBoom(e); return; }
   const T = e.T; e.punch = 1; sfxAt('punch', e.p);
   { const ix = e.p.x + Math.sin(e.face)*(e.R.r + .8), iz = e.p.z + Math.cos(e.face)*(e.R.r + .8);
     emit(SPARK, ix, e.R.h*.5, iz, 14, 0xffe0a0, 7, .4); emit(PUFF, ix, .3, iz, 4, 0x8a8172, 2.5, .6, -0.5, 1); debris(ix, e.R.h*.4, iz, 2, 0x6e6a60, 4, .12); shakeAt({x:ix, z:iz}, .35); }
@@ -4038,7 +4132,7 @@ function killReward(e, by){
   const T = e.T, parts = by === 'wire' ? Math.ceil(T.parts/2) : T.parts;
   G.res += T.reward; G.parts += parts; G.kills++;
   if(by === 'player') hitMark(true);
-  const text = `${CHARS[T.c].name}: +${T.reward} ◆ +${parts} ⚙`, who = {player:'вы', ally:'союзник', wire:'проволока'};
+  const text = `${tname(T)}: +${T.reward} ◆ +${parts} ⚙`, who = {player:'вы', ally:'союзник', wire:'проволока'};
   const pid = String(by).startsWith('peer:') ? by.slice(5) : by === 'player' ? NET.myId : '';
   feed(text, by === 'player' ? 'вы' : pid ? pName(pid) : who[by] || 'взрыв', pid && by !== 'player' ? 'ally' : by);
   if(NET.host && NET.peer) netSend({t:'feed', x:text, w:pid ? pName(pid) : who[by] || 'взрыв', k:pid});
@@ -4055,7 +4149,7 @@ function damageAlly(a, d){
   hitFx(a, d);
   a.hp -= d;
   if(a.hp <= 0 && a.buddy){ buddyDown(a); return; }
-  if(a.hp <= 0){ toast(`${CHARS[a.T.c].name} выведен из строя. Его можно починить снова`, true); makeWreck(a); }
+  if(a.hp <= 0){ toast(`${tname(a.T)} выведен из строя. Его можно починить снова`, true); makeWreck(a); }
 }
 function damagePlayer(d, quiet){
   if(P.dead > 0 || state !== 'play') return;
@@ -4136,7 +4230,7 @@ function makeWreck(u){
 // falling over (f = 0 standing … 1 lying): walkers fall on their face, the spider slumps on its side
 function poseFall(u){
   const f = clamp(u.fall, 0, 1), R = u.R, sm = t => t*t*(3 - 2*t);
-  if(R.update){ const s = sm(f); R.root.rotation.set(0, 0, 0.35*s); R.root.position.y = -0.25*s; return; }
+  if(R.update){ const s = sm(f); R.root.rotation.set(0, 0, 0.35*s); R.root.position.y = R.hover ? -R.hover*s*.82 : -0.25*s; return; }
   const v = u.dv !== undefined ? u.dv : (u.id | 0) % 3, bounce = f > .8 ? Math.sin((f - .8)/.2*Math.PI)*.07 : 0, s = f*f;
   R.root.position.x = 0;
   if(v === 0){                                       // blown backwards
@@ -4170,7 +4264,7 @@ function startRepair(w){
   const cost = repairCost(w);
   if(G.parts < cost){ toast(`Для ремонта нужно ${cost} ⚙ запчастей, есть ${Math.floor(G.parts)}`, true); sfx('err'); return; }
   G.parts -= cost; P.repair = {w, t:0, total:2.5 + w.R.h*0.7, cost};
-  toast(`Ремонт: ${CHARS[w.T.c].name}. Не отходите`); sfx('tick');
+  toast(`Ремонт: ${tname(w.T)}. Не отходите`); sfx('tick');
 }
 function cancelRepair(msg){ if(!P.repair) return; G.parts += P.repair.cost; P.repair = null; if(msg){ toast(msg, true); sfx('err'); } }
 function updateRepair(dt){
@@ -4188,7 +4282,7 @@ function reviveAlly(w){
   w.v.set(0, 0, 0); tintRig(w.R, 1); setGlow(w, 'ally');
   allies.push(w);
   emit(SPARK, w.p.x, 1, w.p.z, 40, 0x6fe0ff, 5, .7); sfx('place');
-  banner(CHARS[w.T.c].name, 'Отремонтирован и воюет за вас'); netSend({t:'banner', a:CHARS[w.T.c].name, b:'Отремонтирован и воюет за вас'});
+  banner(tname(w.T), 'Отремонтирован и воюет за вас'); netSend({t:'banner', a:tname(w.T), b:'Отремонтирован и воюет за вас'});
 }
 function playerInLine(from, to){
   if(P.dead > 0) return false;
@@ -4461,7 +4555,7 @@ function droneStatus(){
   if(DR.back) return 'возвращается';
   const t = DR.task;
   if(!t) return 'ищет работу · Q — вернуть';
-  const name = t.kind === 'wall' ? WT[t.ref.t].name.toLowerCase() : CHARS[t.ref.T.c].name;
+  const name = t.kind === 'wall' ? WT[t.ref.t].name.toLowerCase() : tname(t.ref.T);
   if(t.kind === 'wreck') return t.paid ? `поднимает: ${name} ${Math.floor(t.t/t.total*100)}%` : `летит к обломкам: ${name}`;
   return t.kind === 'ally' ? `лечит: ${name}` : `чинит стену: ${name}`;
 }
@@ -4472,7 +4566,7 @@ function updateGame(dt){
   else if(G.phase === 'build'){ G.timer -= dt; if(G.timer <= 0) startWave(); }
   else if(G.phase === 'wave'){
     G.spawnT -= dt;
-    { const hard = Math.max(0, G.wave - 1); if(G.queue.length && G.spawnT <= 0 && enemies.length < Math.min(18, 14 + hard)){ spawnEnemy(G.queue.shift()); G.spawnT = Math.max(.4, rr(.8, 2.2)/(1 + hard*.08)); } }
+    { const hard = Math.max(0, G.wave - 1); if(G.queue.length && G.spawnT <= 0 && enemies.length < Math.min(20, 16 + hard)){ spawnEnemy(G.queue.shift()); G.spawnT = Math.max(.4, rr(.8, 2.2)/(1 + hard*.08)); } }
     if(!G.queue.length && !enemies.length) endWave();
   }
   P.fireCD = Math.max(0, P.fireCD - dt); P.aimT = Math.max(0, P.aimT - dt); P.recoil = Math.max(0, P.recoil - dt*8); rig.recoil = P.recoil;
@@ -4916,7 +5010,7 @@ function netOnMessage(m, from){
     case 'hurt': damagePlayer(m.d); break;
     case 'pilotok': if(NET.guest && !pilotStart(m)) netSend({...m, t:'unpilot', d:0}); break;
     // requests to the leader
-    case 'pilot': if(NET.host){ const a = allies.find(u => u.id === m.id && !u.buddy), q = PEERS.get(from);
+    case 'pilot': if(NET.host){ const a = allies.find(u => u.id === m.id && !u.buddy && u.T.c >= 0), q = PEERS.get(from);
       const d = a && q && Math.hypot(a.p.x - q.p.x, a.p.z - q.p.z) < a.R.r + 6 ? takeRobot(a) : null;
       netSendTo(from, d ? {t:'pilotok', ...d} : {t:'toast', m:'Этот робот уже занят или далеко', bad:1}); } break;
     case 'unpilot': if(NET.host) dropRobot(m); break;
