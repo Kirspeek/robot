@@ -12,6 +12,7 @@
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
 <title>Робот против людей</title>
+<script src="i18n.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Russo+One&family=Golos+Text:wght@400;500;600&family=JetBrains+Mono:wght@500&display=swap">
 <style>
@@ -318,6 +319,7 @@ input[type=checkbox]{width:18px;height:18px;accent-color:var(--accent)}
 .llog .sys{color:var(--muted);font-style:italic}
 .netplayers span{font:500 12px var(--f-body);background:rgba(255,255,255,.07);border:1px solid var(--line);border-radius:999px;padding:3px 10px}
 input.txt{font:500 15px var(--f-body);color:var(--fg);background:rgba(255,255,255,.06);border:1px solid var(--line);border-radius:10px;padding:9px 12px;user-select:text;-webkit-user-select:text}
+#sLang,.sel{font:500 15px var(--f-body);color:var(--fg);background:#1d2116;border:1px solid var(--line);border-radius:10px;padding:9px 12px;width:100%;cursor:pointer}
 input.txt:focus{outline:2px solid var(--accent);outline-offset:1px}
 .lside{position:absolute;left:max(10px,env(safe-area-inset-left));top:calc(max(8px,env(safe-area-inset-top)) + 48px);display:grid;gap:8px}
 .lside .tb{position:static;width:46px;height:46px;border-radius:12px;font-size:20px}
@@ -466,6 +468,7 @@ input.txt:focus{outline:2px solid var(--accent);outline-offset:1px}
       <button class="tb" data-a="KeyV"><b>Вид</b><small>1-е / 3-е лицо</small></button>
       <button class="tb" data-a="KeyT"><b>Волна</b><small>сейчас</small></button>
       <button class="tb" data-a="KeyP"><b>Напарник</b><small>позвать / убрать</small></button>
+      <button class="tb" data-a="KeyK" id="tSuit" hidden><b>Костюм</b><small>снять / надеть</small></button>
     </div>
   </div>
 </div>
@@ -603,6 +606,7 @@ input.txt:focus{outline:2px solid var(--accent);outline-offset:1px}
         <kbd>I</kbd><span>свернуть / развернуть инвентарь</span>
         <kbd>G</kbd><span>союзники: за мной / держать позицию</span>
         <kbd>P</kbd><span>позвать / убрать бота-напарника</span>
+        <kbd>K</kbd><span>снять / надеть костюм «Сокол» (он остаётся стоять на месте)</span>
         <kbd>E</kbd><span>взять / поставить предмет (ЛКМ — бросить)</span>
         <span class="sep">Строительство</span>
         <kbd>B</kbd><span>строительство / оружие</span>
@@ -624,6 +628,7 @@ input.txt:focus{outline:2px solid var(--accent);outline-offset:1px}
 
     <section class="panel" id="pSettings" hidden>
       <h2>Настройки</h2>
+      <label class="set" id="langRow" hidden><span class="top">Язык · Language</span><select id="sLang" class="txt" translate="no" aria-label="Язык / Language"></select></label>
       <label class="set"><span class="top">Чувствительность мыши <output id="oSens"></output></span><input type="range" id="sSens" min="0.3" max="2.5" step="0.1"></label>
       <label class="set"><span class="top">Поле зрения <output id="oFov"></output></span><input type="range" id="sFov" min="55" max="95" step="1"></label>
       <label class="chk">Вид от первого лица <input type="checkbox" id="sFp"></label>
@@ -631,6 +636,10 @@ input.txt:focus{outline:2px solid var(--accent);outline-offset:1px}
       <label class="chk">Высокое разрешение <input type="checkbox" id="sHq"></label>
       <label class="set"><span class="top">Резкость <output id="oSharp"></output></span><input type="range" id="sSharp" min="1" max="3" step="0.25"></label>
       <label class="chk">Звук <input type="checkbox" id="sSound"></label>
+      <label class="set"><span class="top">Шапка на моём персонаже</span><select id="sHat" class="sel">
+        <option value="santa">Деда Мороза (красная)</option><option value="elf">Эльфа (зелёная)</option><option value="snow">Снегурочки (голубая)</option><option value="none">Без шапки</option></select></label>
+      <label class="chk">Шапки Деда Мороза на роботах <input type="checkbox" id="sRhat"></label>
+      <label class="chk">Снегопад <input type="checkbox" id="sSnow"></label>
       <div class="row"><button class="btn" id="bDefaults">По умолчанию</button><button class="btn back">Назад</button></div>
     </section>
 
@@ -765,7 +774,8 @@ input.txt:focus{outline:2px solid var(--accent);outline-offset:1px}
 <script src="vendor/three.min.js"></script>
 <script>
 'use strict';
-const VERSION = '2026-11-22c';     // must match version.json: when the site has a newer one, the game offers to update
+I18N.loaded(); I18N.start();
+const VERSION = '2026-11-28a';     // must match version.json: when the site has a newer one, the game offers to update
 // the old LAN link (http://192.168…) has no secure context, so friends and encryption cannot work there: go to the site
 if(location.protocol === 'http:' && !/^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname)) location.replace('https://kirspeek.github.io/robot/' + location.search);
 const $ = id => document.getElementById(id);
@@ -777,7 +787,7 @@ const rr = (a, b) => a + rnd()*(b - a);
 const HALF_PI = Math.PI/2;
 
 // ---------- settings (saved in the browser) ----------
-const DEF = {sens:1, fov:70, shadows:true, hq:true, sound:true, sharp:TOUCH ? 1.25 : 1.25, fp:false};
+const DEF = {sens:1, fov:70, shadows:true, hq:true, sound:true, sharp:TOUCH ? 1.25 : 1.25, fp:false, hat:'santa', rhat:true, snow:true};
 const S = {...DEF};
 const store = {
   get(k){ try{ return JSON.parse(localStorage.getItem(k)); }catch(e){ return null; } },
@@ -802,7 +812,25 @@ renderer.shadowMap.autoUpdate = false;     // the shadows are redrawn every othe
 let SHADOW_T = 0;
 const MAX_ANISO = Math.min(16, renderer.capabilities.getMaxAnisotropy() || 8);
 const scene = new THREE.Scene();
-scene.fog = new THREE.Fog(0xb3bcbe, 150, 640);
+scene.fog = new THREE.Fog(0xc6ced4, 150, 640);
+// winter: every surface that faces up is covered with snow, in soft drifts with a little of the ground showing through.
+// Robots and the hats opt out (define NOSNOW). Added to the standard shader once, before anything is drawn.
+THREE.ShaderChunk.emissivemap_fragment = `
+#if defined( STANDARD ) && !defined( NOSNOW )
+{
+  vec3 snN = inverseTransformDirection( normal, viewMatrix );
+  vec3 snP = cameraPosition + ( vec4( -vViewPosition, 0.0 ) * viewMatrix ).xyz;
+  #define SNH(p) fract( sin( dot( p, vec2( 12.9898, 78.233 ) ) ) * 43758.5453 )
+  vec2 sq = snP.xz * 0.17, si = floor( sq ), sf = fract( sq ); sf = sf * sf * ( 3.0 - 2.0 * sf );
+  float sn1 = mix( mix( SNH( si ), SNH( si + vec2( 1, 0 ) ), sf.x ), mix( SNH( si + vec2( 0, 1 ) ), SNH( si + vec2( 1, 1 ) ), sf.x ), sf.y );
+  sq = snP.xz * 0.9; si = floor( sq ); sf = fract( sq ); sf = sf * sf * ( 3.0 - 2.0 * sf );
+  float sn2 = mix( mix( SNH( si ), SNH( si + vec2( 1, 0 ) ), sf.x ), mix( SNH( si + vec2( 0, 1 ) ), SNH( si + vec2( 1, 1 ) ), sf.x ), sf.y );
+  float snK = smoothstep( 0.5, 0.82, snN.y ) * clamp( 0.72 + 0.3 * sn1 + 0.12 * sn2, 0.0, 0.97 );
+  diffuseColor.rgb = mix( diffuseColor.rgb, vec3( 0.80, 0.84, 0.89 ) * ( 0.93 + 0.07 * sn2 ), snK );
+  roughnessFactor = mix( roughnessFactor, 0.82, snK ); metalnessFactor = mix( metalnessFactor, 0.0, snK );
+}
+#endif
+` + THREE.ShaderChunk.emissivemap_fragment;
 const camera = new THREE.PerspectiveCamera(S.fov, 1, 0.1, 850);
 function resize(){
   // «Резкость»: how many real pixels per screen point. Above the screen's own density the picture is supersampled (smoother, crisper edges)
@@ -815,20 +843,20 @@ addEventListener('resize', resize); resize();
 const sky = new THREE.Mesh(new THREE.SphereGeometry(800, 32, 16), new THREE.ShaderMaterial({
   side:THREE.BackSide, depthWrite:false, fog:false,
   vertexShader:'varying vec3 vP; void main(){ vP = normalize(position); gl_Position = projectionMatrix*modelViewMatrix*vec4(position,1.); }',
-  fragmentShader:'varying vec3 vP; void main(){ float h = vP.y; ' + 'vec3 top = vec3(.28,.47,.72), hor = vec3(.70,.74,.75), gnd = vec3(.54,.51,.43);'
+  fragmentShader:'varying vec3 vP; void main(){ float h = vP.y; ' + 'vec3 top = vec3(.42,.55,.70), hor = vec3(.80,.83,.85), gnd = vec3(.78,.80,.82);'
     + ' vec3 c = h > 0. ? mix(hor, top, pow(h, .55)) : mix(hor, gnd, min(1., -h*5.));'
     + ' float sun = max(0., dot(vP, normalize(vec3(-.45,.8,.35)))); c += vec3(1.,.9,.7)*pow(sun, 300.)*1.2 + vec3(.25,.2,.1)*pow(sun, 8.)*.4;'
     + ' gl_FragColor = vec4(c, 1.); }'
 }));
 sky.renderOrder = -1; scene.add(sky);
 
-const hemi = new THREE.HemisphereLight(0xd8e6f0, 0x6f6448, 0.4); scene.add(hemi);     // a little softer: the bright ground used to glare
+const hemi = new THREE.HemisphereLight(0xd8e6f0, 0x9aa0a6, 0.4); scene.add(hemi);     // a little softer: the bright ground used to glare
 // a soft fill light from the side opposite the sun, without shadows: the shaded sides are not black
 const fillLight = new THREE.DirectionalLight(0xb8c8e0, 0.26); fillLight.position.set(0.5, 0.45, -0.75); scene.add(fillLight);
 {
   const c = document.createElement('canvas'); c.width = 512; c.height = 256; const g = c.getContext('2d');
   const gr = g.createLinearGradient(0, 0, 0, 256);
-  gr.addColorStop(0, '#4d74ad'); gr.addColorStop(.42, '#a9c0d6'); gr.addColorStop(.5, '#dfe3df'); gr.addColorStop(.53, '#b3a37e'); gr.addColorStop(1, '#6d6047');
+  gr.addColorStop(0, '#4d74ad'); gr.addColorStop(.42, '#a9c0d6'); gr.addColorStop(.5, '#dfe3df'); gr.addColorStop(.53, '#c9ced2'); gr.addColorStop(1, '#a3a8ad');
   g.fillStyle = gr; g.fillRect(0, 0, 512, 256);
   const sg = g.createRadialGradient(150, 70, 0, 150, 70, 60); sg.addColorStop(0, 'rgba(255,250,230,1)'); sg.addColorStop(.25, 'rgba(255,240,200,.6)'); sg.addColorStop(1, 'rgba(255,240,200,0)');
   g.fillStyle = sg; g.fillRect(0, 0, 512, 256);
@@ -838,7 +866,7 @@ const fillLight = new THREE.DirectionalLight(0xb8c8e0, 0.26); fillLight.position
 }
 const sun = new THREE.DirectionalLight(0xfff1dc, 0.78);
 // near the radioactive street the air turns hazy and green
-const LOOK_A = {fog:new THREE.Color(0xb3bcbe), near:150, far:640, sky:new THREE.Color(0xd8e6f0), gnd:new THREE.Color(0x6f6448), hi:.4, sun:new THREE.Color(0xfff1dc), si:.78};
+const LOOK_A = {fog:new THREE.Color(0xc6ced4), near:150, far:640, sky:new THREE.Color(0xd8e6f0), gnd:new THREE.Color(0x9aa0a6), hi:.4, sun:new THREE.Color(0xfff1dc), si:.78};
 const LOOK_B = {fog:new THREE.Color(0x9fa585), near:60, far:400, sky:new THREE.Color(0xcfd8b4), gnd:new THREE.Color(0x4a4636), hi:.4, sun:new THREE.Color(0xf2f0c2), si:.7};
 let lookK = -1;
 function updateLook(x){
@@ -897,7 +925,7 @@ const TEX = {
     for(let i = 5; i > 0; i--){ g.fillStyle = i % 2 ? '#1d1d1b' : '#efe8d4'; g.beginPath(); g.arc(w/2, h/2, i*11, 0, 7); g.fill(); }
     g.fillStyle = '#c3271d'; g.beginPath(); g.arc(w/2, h/2, 5, 0, 7); g.fill(); }),
   sign: canvasTex(512, 128, (g, w, h) => { g.fillStyle = '#2c3220'; g.fillRect(0, 0, w, h); g.strokeStyle = '#d9b93e'; g.lineWidth = 6; g.strokeRect(8, 8, w - 16, h - 16);
-    g.fillStyle = '#ece6d2'; g.font = '400 70px "Russo One", Impact, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('ШТАБ', w/2, h/2 + 4); }),
+    g.fillStyle = '#ece6d2'; g.font = '400 70px "Russo One", Impact, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(tr('ШТАБ'), w/2, h/2 + 4); }),
   flag: canvasTex(256, 160, (g, w, h) => { g.fillStyle = '#3c4a2a'; g.fillRect(0, 0, w, h); g.fillStyle = '#d9b93e'; g.fillRect(0, h*.78, w, h*.08);
     g.beginPath(); for(let i = 0; i < 10; i++){ const a = -HALF_PI + i*Math.PI/5, r = i % 2 ? 18 : 44; g.lineTo(w*.5 + Math.cos(a)*r, h*.42 + Math.sin(a)*r); } g.fill(); }),
   panel: canvasTex(512, 512, (g, w, h) => {
@@ -1622,7 +1650,7 @@ const radarHead = new THREE.Group(), RADAR = {waves:[]};
     k.box('metal', 3.4, .12, 2.1, 0x4e5a3a, x, 3.05, fz + 1.05); for(const sx of [-1, 1]) k.cyl('metal', .06, .06, 2.55, 0x3a3d39, x + sx*1.55, .5, fz + 1.95);
     k.box('lit', .26, .22, .2, 0, x - 1.25, 2.55, fz + .14); k.box('metal', .32, .06, .26, 0x2e312f, x - 1.25, 2.77, fz + .14);
     const plate = canvasTex(256, 64, (g, w_, h_) => { g.fillStyle = '#26301f'; g.fillRect(0, 0, w_, h_); g.strokeStyle = '#d9b93e'; g.lineWidth = 4; g.strokeRect(3, 3, w_ - 6, h_ - 6);
-      g.fillStyle = '#ece6d2'; g.font = '700 30px sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('КАЗАРМА № ' + n, w_/2, h_/2 + 1); });
+      g.fillStyle = '#ece6d2'; g.font = '700 30px sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(tr('КАЗАРМА № ' + n), w_/2, h_/2 + 1); });
     mesh(new THREE.PlaneGeometry(1.7, .42), new THREE.MeshStandardMaterial({map:plate, roughness:.7}), x + 1.5, 2.45, fz + .1, {shadow:false});
     // an air conditioner on the side wall, a bench by the door
     k.box('metal', .9, .6, .35, 0xd8d6cf, x + w/2 + .2, 2.4, z + 1.5); k.box('metal', .5, .5, .03, 0x8d918c, x + w/2 + .38, 2.45, z + 1.5);
@@ -1776,7 +1804,7 @@ const radarHead = new THREE.Group(), RADAR = {waves:[]};
         speckle(g, w, h, 5000, ['rgba(60,40,25,.18)', 'rgba(255,255,255,.08)']);
         for(let i = 0; i < 26; i++){ const x = rnd()*w, y = h*.6 + rnd()*h*.4, gr = g.createLinearGradient(0, y, 0, y + rr(20, 70)); gr.addColorStop(0, 'rgba(90,55,25,.35)'); gr.addColorStop(1, 'rgba(90,55,25,0)'); g.fillStyle = gr; g.fillRect(x, y, rr(2, 6), 70); }   // rust streaks
         g.fillStyle = '#e0b52c'; g.font = '700 290px "Russo One", Impact, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('02', w/2, h*.5);
-        g.fillStyle = 'rgba(20,20,18,.75)'; g.font = '700 56px sans-serif'; g.fillText('А Н Г А Р', w/2, h*.86);
+        g.fillStyle = 'rgba(20,20,18,.75)'; g.font = '700 56px sans-serif'; g.fillText(tr('А Н Г А Р'), w/2, h*.86);
       });
       for(const sx of [-1, 1]){
         const t = paint.clone(); t.needsUpdate = true; t.repeat.set(.5, 1); t.offset.set(sx < 0 ? 0 : .5, 0);
@@ -2005,7 +2033,7 @@ if(BUNKER_ON){
   const trefoil = (g, x, y, r, col = '#141414') => { g.fillStyle = col;
     for(let k = 0; k < 3; k++){ const a = -HALF_PI + k*Math.PI*2/3; g.beginPath(); g.moveTo(x, y); g.arc(x, y, r, a - Math.PI/6, a + Math.PI/6); g.closePath(); g.fill(); }
     g.fillStyle = col; g.beginPath(); g.arc(x, y, r*.18, 0, 7); g.fill(); g.fillStyle = '#e2bc1f'; g.beginPath(); g.arc(x, y, r*.28, 0, 7); g.fill(); g.fillStyle = col; g.beginPath(); g.arc(x, y, r*.17, 0, 7); g.fill(); };
-  const words = (g, text, x, y, size, col) => { g.fillStyle = col; g.font = `400 ${size}px "Russo One", Impact, sans-serif`; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(text, x, y); };
+  const words = (g, text, x, y, size, col) => { g.fillStyle = col; g.font = `400 ${size}px "Russo One", Impact, sans-serif`; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(tr(text), x, y); };
   const drawSign = (g, w, h) => { g.fillStyle = '#e2bc1f'; g.fillRect(0, 0, w, h); g.strokeStyle = '#141414'; g.lineWidth = 10; g.strokeRect(8, 8, w - 16, h - 16);
     trefoil(g, w/2, h*.36, h*.24); words(g, 'ОПАСНО', w/2, h*.72, 40, '#141414'); words(g, 'РАДИАЦИЯ', w/2, h*.87, 34, '#141414'); };
   tex.sign = canvasTex(256, 256, drawSign); redrawOnFonts(tex.sign, drawSign);
@@ -2481,6 +2509,45 @@ function rigKeep(R){
     else { add(v); if(v && !v.isObject3D && typeof v === 'object' && !v.isMaterial) for(const kk in v) add(v[kk]); } }
   return keep;
 }
+// ---------- New Year hats: Ded Moroz (red), elf (green), Snegurochka (blue) ----------
+const HAT_MAT = new THREE.MeshStandardMaterial({vertexColors:true, roughness:.85}); HAT_MAT.defines = {NOSNOW:''};
+const HAT_STYLES = {santa:[0xc4202b, 0xf3f1ea], elf:[0x2c8a3c, 0xf3f1ea], snow:[0x3b86d6, 0xf3f1ea]};
+const HAT_GEO = {}, HATS = [];
+function hatGeo(style){
+  if(HAT_GEO[style]) return HAT_GEO[style];
+  const [red, white] = HAT_STYLES[style], parts = [];
+  const brim = new THREE.TorusGeometry(.42, .1, 8, 22); brim.rotateX(HALF_PI); brim.translate(0, .07, 0); parts.push([brim, white]);
+  const low = new THREE.CylinderGeometry(.27, .41, .4, 18); low.translate(0, .3, 0); parts.push([low, red]);
+  const top = new THREE.CylinderGeometry(.05, .27, .46, 16); top.translate(0, .23, 0); top.rotateX(-.95); top.rotateZ(.25); top.translate(0, .49, 0); parts.push([top, red]);
+  const tip = new THREE.Vector3(0, .46, 0).applyAxisAngle(new THREE.Vector3(1, 0, 0), -.95).applyAxisAngle(new THREE.Vector3(0, 0, 1), .25);
+  const pom = new THREE.SphereGeometry(.11, 12, 8); pom.translate(tip.x, tip.y + .49, tip.z); parts.push([pom, white]);
+  return HAT_GEO[style] = mergeParts(parts);
+}
+// the hat sits on the head (or on top of the robot when it has no head) and turns with it
+function addHat(R){
+  const host = R.head && R.head.isObject3D ? R.head : R.root;
+  R.root.updateMatrixWorld(true);
+  const inv = new THREE.Matrix4().copy(host.matrixWorld).invert(), box = new THREE.Box3(), b = new THREE.Box3();
+  host.traverse(o => { if(!o.isMesh || !o.geometry) return; if(!o.geometry.boundingBox) o.geometry.computeBoundingBox();
+    b.copy(o.geometry.boundingBox).applyMatrix4(new THREE.Matrix4().multiplyMatrices(inv, o.matrixWorld)); box.union(b); });
+  if(box.isEmpty()) return;
+  const sz = box.getSize(new THREE.Vector3()), w = clamp(Math.min(Math.max(sz.x, sz.z), R.h*.45), .2, 1.6), k = w*1.02/1.04;
+  const m = new THREE.Mesh(hatGeo('santa'), HAT_MAT); m.scale.setScalar(k);
+  m.position.set((box.min.x + box.max.x)/2, box.max.y - .1*k, (box.min.z + box.max.z)/2 - .03*k);
+  m.castShadow = true; m.userData.noShadow = false; m.name = 'hat';
+  m.visible = !!S.rhat; host.add(m); R.hat = m; HATS.push(m);
+}
+// the player's own characters wear the hat chosen in the settings; all other robots one by «Шапки на роботах»
+function applyHats(){
+  const mine = new Set(RIGS.map(R => R.hat));
+  for(const h of HATS){
+    const st = mine.has(h) ? S.hat : (S.rhat ? 'santa' : 'none');
+    h.visible = st !== 'none' && !!HAT_STYLES[st];
+    if(h.visible) h.geometry = hatGeo(st);
+  }
+  for(const s of slots) if(s && s.statue){ s.statue.parent.remove(s.statue); s.statue = null; s.parked = null; }
+  syncStatues();
+}
 function finish(R, st){
   const h = st.h, hipY = st.hipY || R.hipY || h*0.5;
   Object.assign(R, {legSwing:.55, kneeBend:.8, armSwing:.25, armBase:0, elBase:-.3, armOut:.04, lean:0, reach:1, recoil:0,
@@ -2490,6 +2557,8 @@ function finish(R, st){
   R.root.traverse(o => { if(!o.isMesh) return; o.castShadow = !o.userData.noShadow; o.receiveShadow = true; liftPaint(o.material);
     const m = o.material; if(m.emissive && m.emissiveIntensity >= 0.9 && m.emissive.getHex() && !R.glow.includes(m)){ m.userData.base = m.emissiveIntensity; R.glow.push(m); } });
   if(!R.update) mergeNode(R.root, rigKeep(R), true);
+  R.root.traverse(o => { if(o.isMesh) for(const m of [].concat(o.material)) if(m.isMeshStandardMaterial && !(m.defines && 'NOSNOW' in m.defines)){ m.defines = {...(m.defines || {}), NOSNOW:''}; m.needsUpdate = true; } });
+  addHat(R);
   R.root.traverse(o => { if(!o.isMesh) return; if(!o.geometry.boundingSphere) o.geometry.computeBoundingSphere(); if(o.geometry.boundingSphere.radius < R.h*.07) o.castShadow = false; });
   return R;
 }
@@ -2898,7 +2967,7 @@ const slots = RIGS.map((R, i) => { if(CHARS[i].secret || NO_PADS) return null;
   slab(6, 6, x, z, padMat, 0.035);
   const g = new THREE.Group(); g.position.set(x, 0, z); g.rotation.y = ry; scene.add(g);
   const draw = (c, w, h) => { c.fillStyle = 'rgba(16,19,13,.78)'; c.fillRect(0, 0, w, h); c.strokeStyle = '#d9b93e'; c.lineWidth = 3; c.strokeRect(1.5, 1.5, w - 3, h - 3);
-    c.fillStyle = '#ece6d2'; c.font = '400 34px "Russo One", Impact, sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText(CHARS[i].name, w/2, h/2 + 2); };
+    c.fillStyle = '#ece6d2'; c.font = '400 34px "Russo One", Impact, sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText(tr(CHARS[i].name), w/2, h/2 + 2); };
   const tex = canvasTex(256, 64, draw); redrawOnFonts(tex, draw);
   const label = new THREE.Sprite(new THREE.SpriteMaterial({map:tex, depthWrite:false, transparent:true}));
   label.scale.set(2.6, 0.65, 1); label.position.set(x, R.h + 0.9, z); scene.add(label);
@@ -2932,6 +3001,7 @@ function syncStatues(){
 }
 function unpark(i){ const s = slots[i]; if(!s) return; s.label.visible = false; if(s.col){ COLS.splice(COLS.indexOf(s.col), 1); s.col = null; } }
 RIGS.forEach((R, i) => park(i));
+applyHats();
 let cur = -1, rig = null, PILOT = null;   // PILOT: the ally robot the player climbed into
 function setCharacter(i, board){
   if(i === cur) return;
@@ -2941,9 +3011,41 @@ function setCharacter(i, board){
   P.r = rig.r; P.h = rig.h; P.step = rig.step; dist = distWant = rig.camDist;
   const frac = P.maxHp ? P.hp/P.maxHp : 1; P.maxHp = CHARS[i].hp; P.hp = Math.max(1, Math.round(P.maxHp*frac));
   P.ammo = CHARS[i].w.mag; P.reload = 0; P.fireCD = 0;
-  if(board && slots[i]){ const s = slots[i]; P.pos.set(s.x, 0, s.z); P.vel.set(0, 0, 0); P.face = s.ry; yaw = s.ry + Math.PI; heroGroup.position.copy(P.pos); heroGroup.rotation.y = P.face; }
+  if(board && slots[i]){ const s = slots[i]; P.pos.set(s.x, s.y || 0, s.z); P.vel.set(0, 0, 0); P.face = s.ry; yaw = s.ry + Math.PI; heroGroup.position.copy(P.pos); heroGroup.rotation.y = P.face; }
+  if(slots[i] && slots[i].dyn) dropSuitSlot(i);
   collideXZ(P.pos);
   if(!PILOT) store.set('forpost.char', i); updateCharUI();
+}
+// ---------- the flying suit can be taken off: it stays standing where you left it; E next to it (or K) — put it back on ----------
+const SUIT_I = CHARS.findIndex(c => c.fly);
+function dropSuitSlot(i){
+  const s = slots[i]; if(!s) return;
+  RIGS[i].root.traverse(o => { if(o.isMesh || o.isSprite) o.layers.set(0); });
+  if(s.col){ COLS.splice(COLS.indexOf(s.col), 1); s.col = null; }
+  scene.remove(s.g); scene.remove(s.label); slots[i] = null;
+}
+function suitToggle(){
+  if(SUIT_I < 0 || P.dead > 0 || PILOT || DRIVE) return;
+  if(cur !== SUIT_I){
+    const s = slots[SUIT_I];
+    if(!s){ if(store.get('forpost.suit')) toast('Костюм надевают в меню: «Персонаж» → «Сокол»'); return; }
+    if(Math.hypot(P.pos.x - s.x, P.pos.z - s.z) < 3.2){ setCharacter(SUIT_I, true); sfx('stomp'); toast('Костюм надет'); }
+    else toast('Костюм стоит там, где вы его сняли: подойдите к нему и нажмите E');
+    return;
+  }
+  if(HOLD){ toast('Сначала положите предмет', true); return; }
+  if(!P.onGround){ toast('Сначала приземлитесь', true); sfx('err'); return; }
+  const x = P.pos.x, z = P.pos.z, y = P.pos.y, ry = P.face;
+  const g = new THREE.Group(); g.position.set(x, y, z); g.rotation.y = ry; scene.add(g);
+  const draw = (c, w, h) => { c.clearRect(0, 0, w, h); c.fillStyle = 'rgba(16,19,13,.78)'; c.fillRect(0, 0, w, h); c.strokeStyle = '#6fe8ff'; c.lineWidth = 3; c.strokeRect(1.5, 1.5, w - 3, h - 3);
+    c.fillStyle = '#ece6d2'; c.font = '400 30px "Russo One", Impact, sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText(tr('E — надеть'), w/2, h/2 + 2); };
+  const label = new THREE.Sprite(new THREE.SpriteMaterial({map:canvasTex(256, 64, draw), depthWrite:false, transparent:true}));
+  label.scale.set(1.5, .38, 1); label.position.set(x, y + RIGS[SUIT_I].h + .9, z); scene.add(label);
+  slots[SUIT_I] = {i:SUIT_I, x, z, y, ry, g, label, col:null, dyn:true};
+  setCharacter(0);
+  // step out of the suit backwards
+  P.pos.x = x - Math.sin(ry)*1.5; P.pos.z = z - Math.cos(ry)*1.5; P.vel.set(0, 0, 0); collideXZ(P.pos); heroGroup.position.copy(P.pos);
+  syncStatues(); sfx('stomp'); toast('Костюм снят. Чтобы надеть — подойдите к нему и нажмите E');
 }
 function nearSlot(){
   let best = null, bd = 2.5;
@@ -3088,6 +3190,7 @@ function keyAction(code){
   }
   else if(e.code === 'KeyG') toggleAllyMode();
   else if((e.code === 'KeyP' || e.code === 'KeyN') && !e.repeat) buddyToggle();
+  else if(e.code === 'KeyK' && !e.repeat) suitToggle();
   else if(e.code === 'KeyQ') toggleDrone();
   else if(e.code === 'KeyI'){ $('inv').classList.toggle('min'); sfx('tick'); }
   else if(e.code === 'KeyV') setView(!S.fp);
@@ -3248,7 +3351,7 @@ if(TOUCH){
       else if(PILOT) use = 'Вылезти';
       else if(HOLD) use = 'Положить';
       else { const a = nearAlly(), w = a ? null : nearWreck(), h = w || a ? null : nearHatch(), n = w || a || h ? null : nearSlot(), vh = w || a || h || n ? null : nearVeh(), it = w || a || h || n || vh ? null : nearItem();
-        use = a ? 'Залезть' : h ? (h.open ? 'Закрыть люк' : 'Открыть люк') : n ? 'Пересесть' : vh ? 'Сесть' : it ? 'Взять' : ''; fix = !!w; }
+        use = a ? 'Залезть' : h ? (h.open ? 'Закрыть люк' : 'Открыть люк') : n ? (n.dyn ? 'Надеть' : 'Пересесть') : vh ? 'Сесть' : it ? 'Взять' : ''; fix = !!w; }
     }
     const down = !!(DRIVE && DRIVE.D.heli && state === 'play');
     const key = use + fix + down; if(key === ctxKey) return; ctxKey = key;
@@ -3474,7 +3577,7 @@ function updateGhost(){
       if(P.repair) t = `Ремонт: ${tname(P.repair.w.T)} ${Math.floor(P.repair.t/P.repair.total*100)}% · E — отменить`;
       else if(PILOT) t = '';
       else { const a = nearAlly(), w = a ? null : nearWreck(), h = w || a ? null : nearHatch(), n = w || a || h ? null : nearSlot();
-        t = h ? (h.open ? 'E — закрыть люк' + (onLadder(P.pos) ? ' · вперёд или пробел — лезть' : '') : 'E — открыть люк') : a ? `E — залезть в робота: ${tname(a.T)}` : w ? `F — починить: ${tname(w.T)} (⚙ ${repairCost(w)}) — потом в него можно залезть` : n ? `E — пересесть: ${CHARS[n.i].name}` : ''; }
+        t = h ? (h.open ? 'E — закрыть люк' + (onLadder(P.pos) ? ' · вперёд или пробел — лезть' : '') : 'E — открыть люк') : a ? `E — залезть в робота: ${tname(a.T)}` : w ? `F — починить: ${tname(w.T)} (⚙ ${repairCost(w)}) — потом в него можно залезть` : n ? (n.dyn ? `E — надеть костюм: ${CHARS[n.i].name}` : `E — пересесть: ${CHARS[n.i].name}`) : ''; }
     }
     if(TOUCH && !P.repair) t = '';     // on a phone the yellow buttons say it
     if($('tip').textContent !== t) $('tip').textContent = t;
@@ -3542,6 +3645,27 @@ function waveList(n){
 const DOT = (() => { const c = document.createElement('canvas'); c.width = c.height = 64; const g = c.getContext('2d'), r = g.createRadialGradient(32, 32, 0, 32, 32, 32);
   r.addColorStop(0, 'rgba(255,255,255,1)'); r.addColorStop(.35, 'rgba(255,255,255,.75)'); r.addColorStop(1, 'rgba(255,255,255,0)'); g.fillStyle = r; g.fillRect(0, 0, 64, 64);
   return new THREE.CanvasTexture(c); })();
+// ---------- snowfall: flakes in a box around the camera; hidden indoors ----------
+const SNOWF = (() => {
+  const N = TOUCH ? 1400 : 3200, R = 34, H = 26, pos = new Float32Array(N*3), sp = new Float32Array(N);
+  for(let i = 0; i < N; i++){ pos[i*3] = (rnd()*2 - 1)*R; pos[i*3 + 1] = rnd()*H; pos[i*3 + 2] = (rnd()*2 - 1)*R; sp[i] = rr(.9, 1.8); }
+  const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  const mat = new THREE.PointsMaterial({color:0xffffff, size:.16, map:DOT, transparent:true, opacity:.9, depthWrite:false, sizeAttenuation:true});
+  const pts = new THREE.Points(geo, mat); pts.frustumCulled = false; pts.renderOrder = 5; scene.add(pts);
+  let t = 0;
+  return {update(dt, cam){
+    const on = !!S.snow; pts.visible = on && ROOM_LIGHT.k < .95; if(!pts.visible) return;
+    mat.opacity = .9*(1 - ROOM_LIGHT.k);
+    t += dt; const cx = cam.x, cy = cam.y, cz = cam.z, wx = Math.sin(t*.3)*.6;
+    for(let i = 0; i < N; i++){ const j = i*3;
+      let x = pos[j] + (wx + Math.sin(t*1.3 + i)*.35)*dt, y = pos[j + 1] - sp[i]*dt, z = pos[j + 2] + Math.cos(t*1.1 + i*.7)*.3*dt;
+      if(x - cx > R) x -= 2*R; else if(x - cx < -R) x += 2*R;
+      if(z - cz > R) z -= 2*R; else if(z - cz < -R) z += 2*R;
+      if(y < cy - 8 || y < -.2) y += H; else if(y > cy + H - 8) y -= H;
+      pos[j] = x; pos[j + 1] = y; pos[j + 2] = z; }
+    geo.attributes.position.needsUpdate = true;
+  }};
+})();
 function makeParticles(n, size, glow){
   const geo = new THREE.BufferGeometry(), pos = new Float32Array(n*3).fill(-999), col = new Float32Array(n*3);
   geo.setAttribute('position', new THREE.BufferAttribute(pos, 3)); geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
@@ -3853,7 +3977,7 @@ function itemRemote(m, from){
 }
 
 function updateFx(dt){
-  stepParticles(SPARK, dt); stepParticles(PUFF, dt); updateDebris(dt); updateItems(dt);
+  stepParticles(SPARK, dt); stepParticles(PUFF, dt); updateDebris(dt); updateItems(dt); SNOWF.update(dt, camera.position);
   for(const t of TRACERS) if(t.life > 0){ t.life -= dt; t.l.material.opacity = Math.max(0, t.life/0.09); }
   boomLight.intensity = Math.max(0, boomLight.intensity - dt*8);
 }
@@ -4716,7 +4840,7 @@ function sfx(kind, vol = 1){
 
 // ---------- menu ----------
 function updateCharUI(){
-  $('charName').textContent = CHARS[cur].name;
+  $('charName').textContent = CHARS[cur].name; $('tSuit').hidden = !store.get('forpost.suit');
   $('charList').innerHTML = CHARS.map((c, i) => c.secret && !store.get('forpost.suit') ? '' : `<button class="chr${i === cur ? ' on' : ''}" data-i="${i}"><b>${c.name}</b><small>${c.desc} · ${RIGS[i].h.toFixed(1).replace('.', ',')} м</small></button>`).join('');
 }
 $('charList').onclick = e => { const b = e.target.closest('.chr'); if(!b) return; pilotOut(false); setCharacter(+b.dataset.i); sfx('ui'); };
@@ -4795,6 +4919,7 @@ $('bSettings').onclick = () => { sfx('ui'); syncSettings(); showPanel('pSettings
 document.querySelectorAll('.back').forEach(b => b.onclick = () => { sfx('ui'); showPanel('pMain'); });
 function syncSettings(){
   $('sSens').value = S.sens; $('oSens').textContent = (+S.sens).toFixed(1); $('sFov').value = S.fov; $('oFov').textContent = S.fov + '°';
+  $('sHat').value = HAT_STYLES[S.hat] ? S.hat : 'none'; $('sRhat').checked = !!S.rhat; $('sSnow').checked = !!S.snow;
   $('sFp').checked = !!S.fp; $('sShadows').checked = S.shadows; $('sHq').checked = S.hq; $('sSound').checked = S.sound;
   $('sSharp').value = S.sharp; $('oSharp').textContent = '×' + (+S.sharp).toFixed(2).replace(/0$/, ''); $('sSharp').disabled = !S.hq;
 }
@@ -4810,7 +4935,19 @@ $('sFp').onchange = e => { S.fp = e.target.checked; if(!S.fp) pitch = clamp(pitc
 $('sHq').onchange = e => { S.hq = e.target.checked; applySettings(); };
 $('sSharp').oninput = e => { S.sharp = +e.target.value; applySettings(); };
 $('sSound').onchange = e => { S.sound = e.target.checked; applySettings(); };
-$('bDefaults').onclick = () => { Object.assign(S, DEF); applySettings(); sfx('ui'); };
+$('sHat').onchange = e => { S.hat = e.target.value; applySettings(); applyHats(); sfx('ui'); };
+$('sRhat').onchange = e => { S.rhat = e.target.checked; applySettings(); applyHats(); };
+$('sSnow').onchange = e => { S.snow = e.target.checked; applySettings(); };
+$('bDefaults').onclick = () => { const l = S.lang; Object.assign(S, DEF); S.lang = l; applySettings(); applyHats(); sfx('ui'); };
+// interface language: switched right away, without reloading
+LANGS.forEach(([c, n]) => { const o = document.createElement('option'); o.value = c; o.textContent = n; $('sLang').appendChild(o); });
+$('sLang').value = I18N.lang;
+$('sLang').onchange = e => {
+  const c = e.target.value; e.target.disabled = true;
+  I18N.set(c, err => { e.target.disabled = false;
+    if(err){ $('sLang').value = I18N.lang; toast('Не удалось загрузить язык — нужен интернет', true); return; }
+    S.lang = c; store.set('forpost.settings', S); sfx('ui'); });
+};
 
 // ---------- playing over the internet: a common server for everyone, or a private game with a friend ----------
 // There is no game server of our own. Everybody connects to a public MQTT broker over secure WebSocket and joins a «room»:
@@ -5220,7 +5357,7 @@ function netTick(dt){
 // ---------- chat ----------
 function chatLine(name, text){
   const log = $('chatLog'), d = document.createElement('div');
-  if(name){ const b = document.createElement('b'); b.textContent = name + ': '; d.appendChild(b); } else d.className = 'sys';
+  if(name){ const b = document.createElement('b'); b.textContent = name + ': '; d.appendChild(b); d.translate = false; } else d.className = 'sys';
   d.appendChild(document.createTextNode(text));
   log.appendChild(d); while(log.children.length > 30) log.firstChild.remove();
   setTimeout(() => d.classList.add('old'), 15000);
@@ -5364,7 +5501,7 @@ function lobbyRaw(topic, text, c){
 }
 function lobbyLine(name, text){
   const log = $('lobbyLog'), d = document.createElement('div');
-  if(name){ const b = document.createElement('b'); b.textContent = name + ': '; d.appendChild(b); } else d.className = 'sys';
+  if(name){ const b = document.createElement('b'); b.textContent = name + ': '; d.appendChild(b); d.translate = false; } else d.className = 'sys';
   d.appendChild(document.createTextNode(text)); log.appendChild(d);
   while(log.children.length > 60) log.firstChild.remove();
   log.scrollTop = log.scrollHeight;
@@ -5570,13 +5707,13 @@ function drawBoard(){
   const g = B.c.getContext('2d'), w = B.c.width, h = B.c.height;
   g.fillStyle = '#e9dfc2'; g.fillRect(0, 0, w, h); g.fillStyle = '#b3261e'; g.fillRect(0, 0, w, 64);
   g.fillStyle = '#fff'; g.font = '400 38px "Russo One", Impact, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
-  g.fillText(NET.on ? `В лобби: ${names.length}` : 'Подключаюсь…', w/2, 34);
+  g.fillText(tr(NET.on ? `В лобби: ${names.length}` : 'Подключаюсь…'), w/2, 34);
   g.textAlign = 'left'; g.fillStyle = '#2b2a24'; g.font = '600 28px "Golos Text", system-ui, sans-serif';
   names.slice(0, 7).forEach((n, i) => g.fillText('• ' + n, 26, 100 + i*34, w/2 - 30));
-  if(names.length > 7) g.fillText(`и ещё ${names.length - 7}`, 26, 100 + 7*34);
+  if(names.length > 7) g.fillText(tr(`и ещё ${names.length - 7}`), 26, 100 + 7*34);
   g.fillStyle = '#5a5546'; g.font = '500 23px "Golos Text", system-ui, sans-serif';
   ['Светящиеся ворота — серверы:', 'пройдите, чтобы войти.', 'Красные ворота сзади —', 'выход в одиночную игру.', 'Esc → «Выйти» — в меню.', 'Y — карточка игрока', 'C — сказать голосом']
-    .forEach((t, i) => g.fillText(t, w/2 + 10, 100 + i*36, w/2 - 26));
+    .forEach((t, i) => g.fillText(tr(t), w/2 + 10, 100 + i*36, w/2 - 26));
   B.tex.needsUpdate = true;
 }
 for(let i = HUB_N0; i < scene.children.length; i++){ const o = scene.children[i]; if(o.isInstancedMesh){ HUB_INST.push(o); o.visible = false; } }
@@ -5609,9 +5746,9 @@ function drawSign(P_, title, line2, line3){
   g.clearRect(0, 0, w, h); g.fillStyle = 'rgba(38,46,28,.92)'; g.beginPath(); g.roundRect ? g.roundRect(6, 6, w - 12, h - 12, 22) : g.rect(6, 6, w - 12, h - 12); g.fill();
   g.strokeStyle = '#' + P_.col.toString(16).padStart(6, '0'); g.lineWidth = 5; g.stroke();
   g.textAlign = 'center'; g.textBaseline = 'middle';
-  g.fillStyle = '#ece6d2'; g.font = '400 54px "Russo One", Impact, sans-serif'; g.fillText(title, w/2, 70, w - 40);
-  g.fillStyle = '#d9b93e'; g.font = '600 40px "Golos Text", system-ui, sans-serif'; g.fillText(line2, w/2, 140, w - 40);
-  g.fillStyle = '#a29d86'; g.font = '500 28px "Golos Text", system-ui, sans-serif'; g.fillText(line3, w/2, 200, w - 40);
+  g.fillStyle = '#ece6d2'; g.font = '400 54px "Russo One", Impact, sans-serif'; g.fillText(tr(title), w/2, 70, w - 40);
+  g.fillStyle = '#d9b93e'; g.font = '600 40px "Golos Text", system-ui, sans-serif'; g.fillText(tr(line2), w/2, 140, w - 40);
+  g.fillStyle = '#a29d86'; g.font = '500 28px "Golos Text", system-ui, sans-serif'; g.fillText(tr(line3), w/2, 200, w - 40);
   P_.tex.needsUpdate = true;
 }
 // what every portal leads to: quick play, the busiest servers, and «make your own»
@@ -5977,7 +6114,7 @@ function ago(t){
   const m = Math.round((Date.now() - t)/60000);
   if(m < 2) return 'только что'; if(m < 60) return m + ' мин назад';
   const h = Math.round(m/60); if(h < 24) return h + ' ч назад';
-  const d = Math.round(h/24); return d < 31 ? d + ' дн назад' : new Date(t).toLocaleDateString('ru-RU');
+  const d = Math.round(h/24); return d < 31 ? d + ' дн назад' : new Date(t).toLocaleDateString(I18N.locale);
 }
 function renderAll(){
   const now = Date.now(), here = new Set(); for(const p of SITE.pres.values()) if(p.d && now - p.h < 180000) here.add(p.d);
@@ -5988,7 +6125,7 @@ function renderAll(){
     const el = document.createElement('div'); el.className = 'srv' + (here.has(d) ? ' live' : '');
     const info = document.createElement('div'), nm = document.createElement('b'), sm = document.createElement('small'), dot = document.createElement('i');
     dot.className = 'dot'; nm.append(dot, document.createTextNode(u.n + (d === DEV ? ' (вы)' : '')));
-    sm.textContent = 'впервые: ' + new Date(u.f).toLocaleDateString('ru-RU'); info.append(nm, sm);
+    sm.textContent = 'впервые: ' + new Date(u.f).toLocaleDateString(I18N.locale); info.append(nm, sm);
     const w = document.createElement('span'); w.className = 'when'; w.textContent = here.has(d) ? 'в сети' : ago(u.l);
     const act = document.createElement('span');
     if(d !== DEV) act.appendChild(FR.friends[d] ? Object.assign(document.createElement('span'), {className:'when', textContent:'друг ✓'}) : FR.out[d] ? Object.assign(document.createElement('span'), {className:'when', textContent:'запрос отправлен'}) : smallBtn('В друзья', () => askFriend(d), 'ok'));
@@ -6462,7 +6599,7 @@ function renderCard(){
   if(!d){ $('cardInfo').textContent = 'Этот игрок пока не обновил игру, поэтому добавить его в друзья нельзя.'; return; }
   if(d === DEV){ $('cardInfo').textContent = 'Это вы.'; return; }
   const w = whereIs(d), u = userOf(d);
-  $('cardInfo').textContent = (w.label ? w.label[0].toUpperCase() + w.label.slice(1) : '') + (u.f ? ` · в игре с ${new Date(u.f).toLocaleDateString('ru-RU')}` : '');
+  $('cardInfo').textContent = (w.label ? w.label[0].toUpperCase() + w.label.slice(1) : '') + (u.f ? ` · в игре с ${new Date(u.f).toLocaleDateString(I18N.locale)}` : '');
   if(FR.friends[d]){
     btn('💬 Написать', () => { FR.open = d; showPanel('pFriends'); renderFriends(); }, 'primary');
     btn('📞 Позвонить', () => callStart(d));
@@ -6539,8 +6676,8 @@ function renderChat(){
       const b = document.createElement('button'); b.className = 'mini vplay'; b.textContent = m.d ? `▶ Голосовое · ${m.len || '?'} с` : '🎙 голосовое (устарело)';
       if(m.d) b.onclick = () => { try { if(FR.playing) FR.playing.stop(); } catch(e){} playMu(b64d(m.d)); };
       el.appendChild(b);
-    } else el.appendChild(document.createTextNode(m.x));
-    const t = document.createElement('small'); t.textContent = new Date(m.ts).toLocaleString('ru-RU', {day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit'}); el.appendChild(t);
+    } else { const x = document.createElement('span'); x.translate = false; x.textContent = m.x; el.appendChild(x); }
+    const t = document.createElement('small'); t.textContent = new Date(m.ts).toLocaleString(I18N.locale, {day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit'}); el.appendChild(t);
     log.appendChild(el);
   }
   log.scrollTop = log.scrollHeight;
@@ -6632,7 +6769,7 @@ function vidRender(keep){
     const info = document.createElement('div'); info.className = 'vinfo';
     const b = document.createElement('b'); b.textContent = '@' + v.n; info.appendChild(b);
     if(v.cap){ const p = document.createElement('p'); p.textContent = v.cap; info.appendChild(p); }
-    const sm = document.createElement('small'); sm.textContent = (v.p === 'yt' ? 'YouTube · ' : v.p === 'tt' ? 'TikTok · ' : 'видео игрока · ') + ago(v.ts) + (v.p === 'file' && v.exp ? ' · исчезнет ' + new Date(v.exp).toLocaleString('ru-RU', {day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit'}) : ''); info.appendChild(sm); sl.appendChild(info);
+    const sm = document.createElement('small'); sm.textContent = (v.p === 'yt' ? 'YouTube · ' : v.p === 'tt' ? 'TikTok · ' : 'видео игрока · ') + ago(v.ts) + (v.p === 'file' && v.exp ? ' · исчезнет ' + new Date(v.exp).toLocaleString(I18N.locale, {day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit'}) : ''); info.appendChild(sm); sl.appendChild(info);
     if(!approved(v)){
       const bd = document.createElement('div'); bd.className = 'vbadge'; bd.textContent = isMod() ? 'Ждёт вашей проверки' : 'На проверке у модератора — видите только вы'; sl.appendChild(bd);
       if(isMod()){ const mb = document.createElement('div'); mb.className = 'vmodbar';

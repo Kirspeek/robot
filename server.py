@@ -87,7 +87,7 @@ def main():
     app = web.Application()
     app.add_routes([web.get("/", index), web.get("/index.html", index),
                     web.get("/manifest.webmanifest", manifest), web.static("/icons", HERE / "icons"),
-                    web.static("/vendor", HERE / "vendor"), web.get("/sw.js", sw), web.get("/version.json", version),
+                    web.static("/vendor", HERE / "vendor"), web.get("/sw.js", sw), web.get("/i18n.js", lambda r: web.FileResponse(HERE / "i18n.js", headers={"Cache-Control": "no-cache"})), web.get("/version.json", version),
                     web.get("/api/info", info), web.get("/ws", ws_handler)])
     ips = lan_ips()
     print(f"Игра: http://127.0.0.1:{PORT}/")
