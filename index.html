@@ -1307,8 +1307,6 @@ const radarHead = new THREE.Group();
     for(const dx of [-2.6, 2.6]) box(0.5, 1.2, 2.6, MAT.concrete, 54 + dx, 0, z, {col:false});
     addCol(50, 58, 0, 3.7, z - 1.6, z + 1.6); solids.push(t);
   }
-  for(let i = 0; i < 9; i++){ const x = 60 + (i % 3)*1.0, z = 30 + Math.floor(i/3)*1.0;
-    const b = cyl(0.42, 0.42, 1.25, [MAT.olive, MAT.red, std(0x2f4f6a, .6, .2)][i % 3], x, 0, z, 14); solids.push(b); addCol(x - .42, x + .42, 0, 1.25, z - .42, z + .42); }
 
   // tents
   for(let i = 0; i < 4; i++){
@@ -1341,8 +1339,7 @@ const radarHead = new THREE.Group();
     box(6, 2.6, 2.45, texMat(TEX.metal, 8, 1, {color:c, metalness:.35, roughness:.6}), x, y, z);
 
   // crates and supply stacks
-  for(const [x, z, n] of [[28, -14, 3], [31, -14, 2], [28, -11, 1], [-14, 12, 2], [-12, 12, 1], [-28, 46, 1], [62, 22, 2]])
-    for(let k = 0; k < n; k++) box(1.2, 1.2, 1.2, MAT.crate, x + rr(-.05, .05), k*1.2, z, {ry:0});
+  // (they are loose now: see initItems — they can be picked up, carried and thrown)
 
   // shooting range: firing line of sandbags, a berm and targets
   for(let i = 0; i < 6; i++){ const w = WT[3], x = -60 + 2 + i*4, m = mesh(w.geo, w.mat, x, 0, 46); solids.push(m); colFor(x, 46, w.L, w.T, 0, w.H); }
@@ -2343,8 +2340,9 @@ function keyAction(code){
   else if(e.code === 'KeyE' && P.dead <= 0){
     if(P.repair) cancelRepair('Ремонт отменён, запчасти возвращены');
     else if(PILOT) pilotOut(false);
+    else if(HOLD) dropItem(false);
     else { const a = nearAlly(), w = a ? null : nearWreck(), h = w || a ? null : nearHatch(); if(a) pilotIn(a); else if(w){ toast(`Сначала почините робота: F (⚙ ${repairCost(w)}). Залезть можно только в починенного`, true); sfx('err'); } else if(h) toggleHatch(h);
-      else { const n = nearSlot(); if(n){ setCharacter(n.i, true); sfx('stomp'); toast(`Вы управляете: ${CHARS[n.i].name}`); } } }
+      else { const n = nearSlot(); if(n){ setCharacter(n.i, true); sfx('stomp'); toast(`Вы управляете: ${CHARS[n.i].name}`); } else pickItem(nearItem()); } }
   }
   else if(e.code === 'KeyG') toggleAllyMode();
   else if(e.code === 'KeyQ') toggleDrone();
@@ -2504,8 +2502,9 @@ if(TOUCH){
     if(state === 'play' && P.dead <= 0 && !build){
       if(P.repair) use = 'Отмена';
       else if(PILOT) use = 'Вылезти';
-      else { const a = nearAlly(), w = a ? null : nearWreck(), h = w || a ? null : nearHatch(), n = w || a || h ? null : nearSlot();
-        use = a ? 'Залезть' : h ? (h.open ? 'Закрыть люк' : 'Открыть люк') : n ? 'Пересесть' : ''; fix = !!w; }
+      else if(HOLD) use = 'Положить';
+      else { const a = nearAlly(), w = a ? null : nearWreck(), h = w || a ? null : nearHatch(), n = w || a || h ? null : nearSlot(), it = w || a || h || n ? null : nearItem();
+        use = a ? 'Залезть' : h ? (h.open ? 'Закрыть люк' : 'Открыть люк') : n ? 'Пересесть' : it ? 'Взять' : ''; fix = !!w; }
     }
     const key = use + fix; if(key === ctxKey) return; ctxKey = key;
     $('tUse').hidden = !use; if(use) $('tUse').firstChild.textContent = use;
@@ -2887,8 +2886,217 @@ function poseAlive(u, dt){
   R.root.position.x = 0; R.root.position.z = (-.25*k + .38*lunge - .1*wind)*R.r*1.2;
 }
 
+
+// ---------- loose things: pick up (E), carry, put down (E) or throw (fire) ----------
+// crates, barrels (the red ones blow up), tyres, jerrycans, cones, cinder blocks. A thrown thing hurts robots it hits;
+// big robots kick them aside as they walk; blasts toss them about. Others in the same world see what you pick up and throw.
+const ITEM_KINDS = {
+  crate:  {n:'Ящик', w:1, h:1, d:1, m:1.6},
+  ammo:   {n:'Ящик патронов', w:.85, h:.42, d:.5, m:1.1},
+  barrel: {n:'Бочка', r:.4, h:1.2, m:2.2},
+  boom:   {n:'Бочка с горючим', r:.4, h:1.2, m:2.2, boom:true},
+  tire:   {n:'Покрышка', r:.48, h:.32, m:1},
+  can:    {n:'Канистра', w:.42, h:.5, d:.22, m:.7},
+  cone:   {n:'Конус', r:.24, h:.62, m:.4},
+  block:  {n:'Блок', w:.6, h:.3, d:.3, m:1.2},
+};
+const ITEMS = [], ITEM_HITS = []; let HOLD = null, ITEM_HINT = false;
+function itemMesh(kind, col){
+  const g = new THREE.Group(), K = ITEM_KINDS[kind], add = (geo, mat, y = 0, o = {}) => { const m = new THREE.Mesh(geo, mat); m.position.y = y; Object.assign(m.rotation, o); m.castShadow = m.receiveShadow = true; g.add(m); return m; };
+  if(kind === 'crate'){ add(new THREE.BoxGeometry(1, 1, 1), MAT.crate); }
+  else if(kind === 'ammo'){ const m = std(0x4d5b34, .7, .1); add(new THREE.BoxGeometry(.85, .38, .5), m, -.02); add(new THREE.BoxGeometry(.88, .06, .53), std(0x3c4728, .6, .2), .18);
+    add(new THREE.BoxGeometry(.3, .05, .02), std(0xd8c070, .6), 0, {}).position.set(0, -.02, .26); }
+  else if(kind === 'barrel' || kind === 'boom'){
+    const body = kind === 'boom' ? std(0xb3261c, .5, .35) : std(col || 0x4a5a3a, .55, .35), rim = std(0x2a2c2e, .5, .6);
+    add(new THREE.CylinderGeometry(.4, .4, 1.2, 16), body);
+    for(const y of [-.3, .3]) add(new THREE.CylinderGeometry(.415, .415, .05, 16), rim, y);
+    if(kind === 'boom'){ add(new THREE.CylinderGeometry(.405, .405, .16, 16), std(0xf0c020, .5, .2), .1); add(new THREE.CylinderGeometry(.06, .06, .05, 8), rim, .62); }
+  }
+  else if(kind === 'tire'){ add(new THREE.TorusGeometry(.34, .14, 8, 18), std(0x1d1d1d, .92), 0, {x:HALF_PI}); add(new THREE.CylinderGeometry(.22, .22, .2, 14), std(0x6a6e72, .4, .7)); }
+  else if(kind === 'can'){ add(new THREE.BoxGeometry(.42, .44, .22), std(0xa8231a, .5, .3), -.03); add(new THREE.BoxGeometry(.1, .08, .08), std(0x2a2c2e, .5, .6), .23).position.x = .12;
+    add(new THREE.BoxGeometry(.22, .05, .05), std(0x2a2c2e, .5, .6), .22).position.x = -.06; }
+  else if(kind === 'cone'){ add(new THREE.ConeGeometry(.22, .58, 14), std(0xff6418, .6), .02); add(new THREE.CylinderGeometry(.13, .16, .1, 14), std(0xf2f2f2, .5), .05); add(new THREE.BoxGeometry(.48, .04, .48), std(0x222222, .9), -.29); }
+  else if(kind === 'block'){ add(new THREE.BoxGeometry(.6, .3, .3), std(0x9a968c, .95)); }
+  const hb = new THREE.Mesh(new THREE.BoxGeometry(K.w || K.r*2, K.h, K.d || K.r*2), new THREE.MeshBasicMaterial({visible:false})); g.add(hb);
+  return {g, hb};
+}
+function addItem(kind, x, y, z, col){
+  const K = ITEM_KINDS[kind], {g, hb} = itemMesh(kind, col);
+  const it = {i:ITEMS.length, kind, K, g, hb, home:[x, y, z], p:new THREE.Vector3(x, y + K.h/2, z), v:new THREE.Vector3(), spin:new THREE.Vector3(), ry:rnd()*6,
+    hx:(K.w || K.r*2)/2, hz:(K.d || K.r*2)/2, rad:Math.max(K.w || K.r*2, K.d || K.r*2)/2, awake:1, hp:25, holder:null, thrown:false, hitSet:null, gone:0};
+  it.col = addCol(0, 0, -100, -99, 0, 0, {item:it}); hb.userData.item = it;
+  g.position.copy(it.p); g.rotation.y = it.ry; scene.add(g); ITEMS.push(it); ITEM_HITS.push(hb); itemCol(it);
+  return it;
+}
+// the collider follows the thing (you can stand on a crate and stack them); held things have none
+function itemCol(it){
+  const c = it.col;
+  if(it.holder || HOLD === it || it.gone){ c.y0 = -100; c.y1 = -99; return; }
+  const q = Math.abs(Math.sin(it.ry*2)) > .5, hx = q ? it.rad : it.hx, hz = q ? it.rad : it.hz;
+  c.x0 = it.p.x - hx; c.x1 = it.p.x + hx; c.z0 = it.p.z - hz; c.z1 = it.p.z + hz; c.y0 = it.p.y - it.K.h/2; c.y1 = it.p.y + it.K.h/2;
+}
+function initItems(){
+  for(const [x, z, n] of [[28, -14, 3], [29.2, -14, 2], [28, -12.8, 1], [-14, 12, 2], [-12.8, 12, 1], [-28, 46, 1], [62, 22, 2]])
+    for(let k = 0; k < n; k++) addItem('crate', x + rr(-.04, .04), k, z);
+  for(let i = 0; i < 9; i++) addItem(i % 3 === 1 ? 'boom' : 'barrel', 60 + (i % 3)*.95, 0, 30 + Math.floor(i/3)*.95, i % 3 === 2 ? 0x2f4f6a : 0x4a5a3a);
+  for(const [k, x, z] of [['ammo', 26.2, -12], ['ammo', 26.2, -11.4], ['ammo', 26.22, -11.7], ['can', 30.6, -12.3], ['can', 31.1, -12.3], ['boom', -26.5, 44.5], ['boom', -25.6, 45.2],
+    ['tire', -16.4, 14.2], ['tire', -16.4, 14.2], ['tire', -17.5, 14.6], ['block', -11, 14.6], ['block', -11.68, 14.6], ['block', -11.34, 14.6], ['cone', 4, 22], ['cone', 5.2, 22], ['cone', 6.4, 22],
+    ['barrel', 63, 24.5], ['ammo', -12.6, 10.6], ['can', -28.8, 47.4]]){
+    const y = ITEMS.filter(o => Math.abs(o.p.x - x) < .45 && Math.abs(o.p.z - z) < .45).reduce((a, o) => Math.max(a, o.p.y + o.K.h/2), 0);
+    addItem(k, x, y, z);
+  }
+}
+initItems();
+// the highest surface under a thing: the ground, a roof, a wall top, another crate
+function itemGround(it, from){
+  let g = 0; const b = Math.max(it.p.y, from === undefined ? -1e9 : from) - it.K.h/2 + .3, r = it.rad*.6;
+  for(const c of COLS){ if(c === it.col || c.y1 > b || c.y1 <= g || passable(c)) continue; if(it.p.x + r < c.x0 || it.p.x - r > c.x1 || it.p.z + r < c.z0 || it.p.z - r > c.z1) continue; g = c.y1; }
+  return g;
+}
+function itemBlocked(it){
+  const b = it.p.y - it.K.h/2 + .3, t = it.p.y + it.K.h/2, r = it.rad*.8;
+  for(const c of COLS){ if(c === it.col || c.y1 <= b || c.y0 >= t || passable(c)) continue; if(it.p.x + r < c.x0 || it.p.x - r > c.x1 || it.p.z + r < c.z0 || it.p.z - r > c.z1) continue; return true; }
+  return false;
+}
+function nearItem(){
+  if(NET.hub || PILOT) return null;
+  let best = null, bs = 1e9; const fx = Math.sin(P.face), fz = Math.cos(P.face), reach = rig.r + 1.4;
+  for(const it of ITEMS){
+    if(it.gone || it.holder || it === HOLD) continue;
+    const dx = it.p.x - P.pos.x, dz = it.p.z - P.pos.z, d = Math.hypot(dx, dz) - it.rad;
+    if(d > reach || it.p.y < P.pos.y - .8 || it.p.y > P.pos.y + rig.h + .3) continue;
+    const sc = d - (dx*fx + dz*fz)/(d + it.rad + .01)*.6; if(sc < bs){ bs = sc; best = it; }
+  }
+  return best;
+}
+function holdPoint(out, pos, face, R, fp){
+  const f = (R ? R.r : .5) + .25;
+  return out.set(pos.x + Math.sin(face)*f, pos.y + (R ? R.h : 1.8)*(fp ? .38 : .52), pos.z + Math.cos(face)*f);
+}
+function itemNet(it, extra = {}){
+  if(!NET.on || NET.hub) return;
+  netSend({t:'it', i:it.i, by:NET.myId, h:it.holder || (HOLD === it ? NET.myId : 0), s:[r2(it.p.x), r2(it.p.y), r2(it.p.z), r2(it.v.x), r2(it.v.y), r2(it.v.z), r2(it.ry)], ...extra});
+}
+function pickItem(it){
+  if(!it) return false;
+  HOLD = it; it.thrown = false; it.awake = 0; it.v.set(0, 0, 0); itemCol(it); sfx('tick'); itemNet(it);
+  if(!ITEM_HINT){ ITEM_HINT = true; toast(TOUCH ? `${it.K.n}: «Огонь» — бросить, «Положить» — поставить` : `${it.K.n}: ЛКМ — бросить, E — поставить`); }
+  return true;
+}
+function dropItem(throwIt){
+  const it = HOLD; if(!it) return; HOLD = null; it.awake = 1;
+  if(throwIt){
+    // it flies in an arc to the point under the crosshair (up to ~28 m away)
+    raycaster.setFromCamera(_v2.set(0, 0), camera);
+    raycaster.near = Math.max(0, camera.position.distanceTo(tgt) - 0.3); raycaster.far = 60;
+    const hit = raycaster.intersectObjects(hitTargets.concat(rayTargets), false)[0]; raycaster.near = 0;
+    const T = hit ? hit.point.clone() : raycaster.ray.origin.clone().addScaledVector(raycaster.ray.direction, 40);
+    let dx = T.x - it.p.x, dz = T.z - it.p.z, D = Math.hypot(dx, dz) || 1; const max = 28/Math.sqrt(it.K.m*.6);
+    if(D > max){ T.y = it.p.y + (T.y - it.p.y)*max/D; dx *= max/D; dz *= max/D; D = max; }
+    const sp = clamp(D*1.4, 7, 18)/Math.sqrt(it.K.m*.6), t = D/sp;
+    it.v.set(dx/D*sp, clamp((T.y + .3 - it.p.y)/t + 9*t, 1, 14), dz/D*sp);
+    it.spin.set(rr(-8, 8), rr(-4, 4), rr(-8, 8)); it.thrown = true; it.hitSet = new Set(); P.place = 1; sfx('punch', .6);
+  } else { it.v.set(P.vel.x*.3, 0, P.vel.z*.3); it.spin.set(0, 0, 0); it.g.rotation.x = it.g.rotation.z = 0; sfx('place'); }
+  // never let go of it inside a wall: pull it back towards the player until it fits
+  for(let k = 0; k < 6 && itemBlocked(it); k++){ it.p.x += (P.pos.x - it.p.x)*.35; it.p.z += (P.pos.z - it.p.z)*.35; }
+  itemCol(it); itemNet(it);
+}
+function itemBoom(it, mine){
+  if(it.gone) return; it.gone = 45; if(HOLD === it) HOLD = null; it.holder = null; it.g.visible = false; itemCol(it);
+  const pt = _c.set(it.p.x, it.p.y, it.p.z);
+  if(mine){ explode(pt.clone(), 6.5, 160, 'player'); itemNet(it, {x:1}); }
+  else { burst(pt.x, pt.y, pt.z, 30, 0xff9a3a, 9, 1); emit(PUFF, pt.x, pt.y, pt.z, 14, 0x55524c, 3, 2.2, -0.6, 1); boomLight.position.copy(pt); boomLight.intensity = 3; sfxAt('boom', pt); }
+  emit(PUFF, pt.x, pt.y + 1, pt.z, 10, 0x2a2826, 2, 4, -1.2, 1); debris(pt.x, pt.y, pt.z, 8, 0xb3261c, 7, .22); shakeAt(pt, .7);
+}
+// a bullet hits a thing: the red barrels burst, everything else gets knocked about
+function itemShot(it, dmg, dir){
+  if(it.K.boom){ it.hp -= dmg; if(it.hp <= 0){ itemBoom(it, true); return; } }
+  if(HOLD === it || it.holder) return;
+  const k = Math.min(6, dmg/(it.K.m*6)); it.v.x += dir.x*k; it.v.z += dir.z*k; it.v.y += k*.4; it.spin.set(rr(-3, 3), rr(-3, 3), rr(-3, 3)); it.awake = 1;
+}
+// a blast nearby: things fly off, red barrels go up a moment later
+function itemsBlast(pt, rad){
+  for(const it of ITEMS){
+    if(it.gone || HOLD === it || it.holder) continue;
+    const dx = it.p.x - pt.x, dz = it.p.z - pt.z, dy = it.p.y - pt.y, d = Math.hypot(dx, dy, dz); if(d > rad*1.4) continue;
+    if(it.K.boom && d < rad && !it.fuse){ it.fuse = rr(.15, .35); continue; }
+    const k = (1 - d/(rad*1.4))*14/Math.sqrt(it.K.m), l = Math.hypot(dx, dz) || 1;
+    it.v.set(dx/l*k, k*.8 + 2, dz/l*k); it.spin.set(rr(-9, 9), rr(-5, 5), rr(-9, 9)); it.awake = 1;
+  }
+}
+function updateItems(dt){
+  if(!ITEMS.length) return; dt = Math.min(dt, .05);
+  if(HOLD && (P.dead > 0 || state !== 'play' || PILOT || NET.hub)) dropItem(false);
+  for(const it of ITEMS){
+    if(it.gone){ it.gone -= dt; if(it.gone <= 0){ it.gone = 0; it.hp = 25; it.fuse = 0; it.p.set(it.home[0], it.home[1] + it.K.h/2, it.home[2]); it.v.set(0, 0, 0); it.g.visible = true; it.awake = 1; it.g.rotation.set(0, it.ry, 0); } else continue; }
+    if(it.fuse){ it.fuse -= dt; if(it.fuse <= 0){ it.fuse = 0; itemBoom(it, true); continue; } }
+    // carried: by me, or by someone else in this world
+    if(HOLD === it || it.holder){
+      if(HOLD === it) holdPoint(it.p, P.pos, P.face, rig, S.fp);
+      else { const q = PEERS.get(it.holder); if(!q || q.dead){ it.holder = null; it.awake = 1; continue; } holdPoint(it.p, q.p, q.face, q.R, false); }
+      it.g.position.copy(it.p); it.g.rotation.set(0, HOLD === it ? P.face : (PEERS.get(it.holder) || {face:0}).face, 0); continue;
+    }
+    // robots walking into things kick them aside
+    for(const e of enemies){
+      if(e.dead) continue; const dx = it.p.x - e.p.x, dz = it.p.z - e.p.z, rs = e.R.r*.8 + it.rad, d = Math.hypot(dx, dz);
+      if(d < rs && d > 1e-3 && it.p.y < e.R.h*.5){ const k = 4/Math.sqrt(it.K.m); it.v.x = dx/d*k; it.v.z = dz/d*k; it.v.y = Math.max(it.v.y, 2); it.spin.set(rr(-6, 6), rr(-3, 3), rr(-6, 6)); it.awake = 1; }
+    }
+    if(!it.awake) continue;
+    const ox = it.p.x, oz = it.p.z;
+    it.v.y -= 18*dt; it.p.x += it.v.x*dt; it.p.z += it.v.z*dt;
+    if(itemBlocked(it)){ it.p.x = ox; it.p.z = oz; it.v.x *= -.3; it.v.z *= -.3; if(it.thrown && it.K.boom && Math.hypot(it.v.x, it.v.z) > 1.5){ itemBoom(it, true); continue; } }
+    const oy = it.p.y; it.p.y += it.v.y*dt;
+    // a thrown thing hits robots on its way
+    if(it.thrown){
+      const sp = it.v.length();
+      if(sp > 5) for(const e of enemies){
+        if(e.dead || it.hitSet.has(e)) continue;
+        if(Math.hypot(it.p.x - e.p.x, it.p.z - e.p.z) < e.R.r + it.rad && it.p.y < e.R.h + .2){
+          it.hitSet.add(e);
+          if(it.K.boom){ itemBoom(it, true); break; }
+          damageEnemy(e, it.K.m*sp*2.4, 'player'); hitMark(false); sfxAt('punch', it.p); shakeAt(it.p, .25);
+          emit(SPARK, it.p.x, it.p.y, it.p.z, 10, 0xffd080, 5, .35); debris(it.p.x, it.p.y, it.p.z, 2, 0x8a6f45, 3, .12);
+          it.v.x *= -.3; it.v.z *= -.3; it.v.y = 2;
+        }
+      }
+      if(it.gone) continue;
+    }
+    const g = itemGround(it, oy), hh = it.K.h/2;
+    let onG = false;
+    if(it.p.y - hh <= g){
+      it.p.y = g + hh; onG = true;
+      if(it.v.y < -4){ if(it.thrown && it.K.boom && it.v.y < -6){ itemBoom(it, true); continue; }
+        sfxAt(it.K.m > 1.5 ? 'stomp' : 'step', it.p); emit(PUFF, it.p.x, g + .1, it.p.z, 3, 0x8a8172, 1.5, .6, -0.3, .5); it.v.y *= -.28; it.spin.multiplyScalar(.5); }
+      else it.v.y = 0;
+      const f = Math.max(0, 1 - 7*dt); it.v.x *= f; it.v.z *= f;
+    }
+    const r = it.g.rotation;
+    if(onG && Math.abs(it.v.y) < .5){
+      // settling: upright (or upside down), it keeps the turn it had
+      it.ry += it.spin.y*dt*.3; it.spin.multiplyScalar(Math.max(0, 1 - 8*dt));
+      for(const a of ['x', 'z']){ const t = Math.round(r[a]/Math.PI)*Math.PI; r[a] += (t - r[a])*Math.min(1, 10*dt); }
+      r.y = it.ry;
+      if(Math.hypot(it.v.x, it.v.z) < .05 && Math.abs(r.x - Math.round(r.x/Math.PI)*Math.PI) < .01 && Math.abs(r.z - Math.round(r.z/Math.PI)*Math.PI) < .01){ it.awake = 0; it.thrown = false; it.v.set(0, 0, 0); }
+    } else { r.x += it.spin.x*dt; r.z += it.spin.z*dt; it.ry += it.spin.y*dt; r.y = it.ry; }
+    if(it.p.y < -20){ it.gone = .01; continue; }
+    it.p.x = clamp(it.p.x, -318, 318); it.p.z = clamp(it.p.z, -318, 318);
+    it.g.position.copy(it.p); itemCol(it);
+  }
+}
+// someone else in the world picked up, put down or threw a thing (the host passes it on to everyone)
+function itemRemote(m, from){
+  const it = ITEMS[m.i]; if(!it || m.by === NET.myId) return;
+  if(NET.host && from !== NET.myId) netSend(m);
+  if(m.x){ if(!it.gone) itemBoom(it, false); return; }
+  if(HOLD === it) HOLD = null;
+  it.holder = m.h && m.h !== NET.myId ? m.h : null;
+  const s = m.s || []; it.p.set(s[0], s[1], s[2]); it.v.set(s[3], s[4], s[5]); it.ry = s[6] || 0;
+  it.thrown = false; it.awake = 1; it.gone = 0; it.g.visible = true; if(!it.holder && Math.hypot(s[3], s[4], s[5]) > 3) it.spin.set(rr(-8, 8), rr(-4, 4), rr(-8, 8));
+  it.g.position.copy(it.p); itemCol(it);
+}
+
 function updateFx(dt){
-  stepParticles(SPARK, dt); stepParticles(PUFF, dt); updateDebris(dt);
+  stepParticles(SPARK, dt); stepParticles(PUFF, dt); updateDebris(dt); updateItems(dt);
   for(const t of TRACERS) if(t.life > 0){ t.life -= dt; t.l.material.opacity = Math.max(0, t.life/0.09); }
   boomLight.intensity = Math.max(0, boomLight.intensity - dt*8); flashLight.intensity = Math.max(0, flashLight.intensity - dt*40);
 }
@@ -3117,6 +3325,7 @@ function hitWall(b, dmg, pt){
   }
 }
 function explode(pt, rad, dmg, src){
+  itemsBlast(pt, rad);
   burst(pt.x, pt.y, pt.z, 30, 0xff9a3a, 9, 1.0); emit(PUFF, pt.x, pt.y, pt.z, 14, 0x55524c, 3, 2.2, -0.6, 1);
   boomLight.position.copy(pt); boomLight.intensity = 3; sfxAt('boom', pt);
   if(NET.host && src !== 'player') netFx(1, pt);
@@ -3192,7 +3401,7 @@ function playerFire(){
   _v2.set(rr(-1, 1)*k, rr(-1, 1)*k);
   raycaster.setFromCamera(_v2, camera);
   raycaster.near = Math.max(0, camera.position.distanceTo(tgt) - 0.3); raycaster.far = 220;
-  const h = raycaster.intersectObjects(hitTargets.concat(rayTargets), false)[0];
+  const h = raycaster.intersectObjects(hitTargets.concat(rayTargets, ITEM_HITS), false)[0];
   raycaster.near = 0;
   const end = h ? _b.copy(h.point) : _b.copy(raycaster.ray.origin).addScaledVector(raycaster.ray.direction, 220);
   const from = muzzleOf(rig, P.face, _a);
@@ -3202,6 +3411,7 @@ function playerFire(){
   if(h){
     const e = h.object.userData.enemy, b = h.object.userData.built;
     if(e){ damageEnemy(e, W.dmg); if(!e.dead) hitMark(false); emit(SPARK, end.x, end.y, end.z, 6, 0xffc060, 4, .35); }
+    else if(h.object.userData.item){ itemShot(h.object.userData.item, W.dmg, raycaster.ray.direction); emit(SPARK, end.x, end.y, end.z, 5, 0xffc060, 3, .3); }
     else if(b) hitWall(b, W.dmg*W.wallF, end);
     else emit(SPARK, end.x, end.y, end.z, 4, 0xc8bea8, 2.5, .3);
   }
@@ -3521,7 +3731,7 @@ function updateGame(dt){
   if(P.reload > 0){ P.reload -= dt; if(P.reload <= 0){ P.reload = 0; P.ammo = curW().mag; } }
   if(P.dead > 0){ P.dead -= dt; if(P.dead <= 0) respawn(); }
   else if(G.phase === 'build' && P.hp < P.maxHp) P.hp = Math.min(P.maxHp, P.hp + P.maxHp*0.05*dt);
-  if(firing && !build) playerFire();
+  if(firing && !build){ if(HOLD){ dropItem(true); firing = false; } else playerFire(); }
   updateRepair(dt);
   if(hitT > 0){ hitT -= dt; if(hitT <= 0) $('cross').classList.remove('hit'); }
   if(BUNKER_ON) updateRadiation(dt);
@@ -3930,6 +4140,7 @@ function netOnRaw(topic, text, c){
 }
 function netOnMessage(m, from){
   switch(m.t){
+    case 'it': itemRemote(m, from); break;
     case 'hatch': { const b = built.find(w => w.id === m.id); if(b){ b.open = !!m.o; if(NET.host && from !== NET.myId) netSend({t:'hatch', id:b.id, o:m.o}); } } break;
     case 's': if(NET.guest) netApplySnap(m); break;
     case 'walls': if(NET.guest) netApplyWalls(m.w); break;
@@ -4583,6 +4794,7 @@ function updatePlayer(dt){
   const moving = move.lengthSq() > 0;
   const run = (keys.ShiftLeft || keys.ShiftRight || (JOY.on && JOY.m > 0.92)) && !build;
   let speed = moving ? (run ? rig.run : rig.walk) : 0;
+  if(HOLD && rig.h < 3) speed *= HOLD.K.m > 1.5 ? .72 : .88;
   // barbed wire: the soldier and light robots get caught and cut, heavy machines crush it
   const wUnder = wireAt(P.pos.x, P.pos.z, P.r*0.7, P.pos.y);
   if(wUnder && P.dead <= 0){ if(rig.h < 3){ speed *= 0.4; if(moving) damagePlayer(4*dt, true); } else hitWall(wUnder, 40*dt, null); }
@@ -4621,7 +4833,7 @@ function updatePlayer(dt){
 
   // facing: where we walk, or where the camera looks while building
   let want = P.face;
-  if(build || P.aimT > 0 || firing) want = Math.atan2(fwd.x, fwd.z);
+  if(build || P.aimT > 0 || firing || HOLD) want = Math.atan2(fwd.x, fwd.z);
   else if(moving) want = Math.atan2(move.x, move.z);
   let d = want - P.face; d = Math.atan2(Math.sin(d), Math.cos(d)); P.face += d*Math.min(1, 12*dt);
   heroGroup.position.copy(p); heroGroup.rotation.y = P.face;
@@ -4636,6 +4848,7 @@ function updatePlayer(dt){
   rig.root.rotation.x = rig.lean + (run && moving ? 0.12 : 0.02*amt)*(rig.h > 3 ? 0.35 : 1);
   const aiming = rig.hands && (P.aimT > 0 || firing) && !build;
   if(rig.jets) poseFlight(rig, !P.onGround, Math.hypot(P.vel.x, P.vel.z), dt, aiming);
+  if(HOLD && rig.arms) for(const A of rig.arms){ A.sh.rotation.set(-1.2, 0, 0); A.el.rotation.x = -.55; }
   if(aiming) for(const A of rig.arms){ A.sh.rotation.set(-1.45 - (pitch - .3)*.6, 0, 0); A.el.rotation.x = 0; }
   if(rig.palms){ const k = P.fireCD > 0 ? 3.5 : 1.4; for(const m of rig.palms) m.emissiveIntensity += (k - m.emissiveIntensity)*Math.min(1, 12*dt); }
   if(P.dead > 0){ rig.root.rotation.x = -HALF_PI*0.92; rig.root.position.y = rig.r*0.5; return; }
