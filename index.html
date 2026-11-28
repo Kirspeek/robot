@@ -775,7 +775,7 @@ input.txt:focus{outline:2px solid var(--accent);outline-offset:1px}
 <script>
 'use strict';
 I18N.loaded(); I18N.start();
-const VERSION = '2026-11-28a';     // must match version.json: when the site has a newer one, the game offers to update
+const VERSION = '2026-11-28b';     // must match version.json: when the site has a newer one, the game offers to update
 // the old LAN link (http://192.168…) has no secure context, so friends and encryption cannot work there: go to the site
 if(location.protocol === 'http:' && !/^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname)) location.replace('https://kirspeek.github.io/robot/' + location.search);
 const $ = id => document.getElementById(id);
@@ -2525,15 +2525,34 @@ function hatGeo(style){
 }
 // the hat sits on the head (or on top of the robot when it has no head) and turns with it
 function addHat(R){
-  const host = R.head && R.head.isObject3D ? R.head : R.root;
   R.root.updateMatrixWorld(true);
-  const inv = new THREE.Matrix4().copy(host.matrixWorld).invert(), box = new THREE.Box3(), b = new THREE.Box3();
-  host.traverse(o => { if(!o.isMesh || !o.geometry) return; if(!o.geometry.boundingBox) o.geometry.computeBoundingBox();
-    b.copy(o.geometry.boundingBox).applyMatrix4(new THREE.Matrix4().multiplyMatrices(inv, o.matrixWorld)); box.union(b); });
-  if(box.isEmpty()) return;
-  const sz = box.getSize(new THREE.Vector3()), w = clamp(Math.min(Math.max(sz.x, sz.z), R.h*.45), .2, 1.6), k = w*1.02/1.04;
+  // every vertex of a part in that part's own space
+  // legs and arms are left out even when they hang from the head or the body (a crawler's legs would make its «head» look wide)
+  const limbs = new Set(); for(const L of R.legs || []) if(L.hip) limbs.add(L.hip); for(const A of R.arms || []) if(A.sh) limbs.add(A.sh);
+  const pts = host => { const inv = new THREE.Matrix4().copy(host.matrixWorld).invert(), M = new THREE.Matrix4(), v = new THREE.Vector3(), xs = [], ys = [], zs = [];
+    const visit = o => { if(limbs.has(o) || !o.visible) return;
+      if(o.isMesh && o.geometry && !o.isInstancedMesh){ M.multiplyMatrices(inv, o.matrixWorld); const A = o.geometry.attributes.position;
+        for(let i = 0; i < A.count; i++){ v.fromBufferAttribute(A, i).applyMatrix4(M); xs.push(v.x); ys.push(v.y); zs.push(v.z); } }
+      for(const c of o.children) visit(c); };
+    visit(host);
+    return {xs, ys, zs}; };
+  const ext = (P, lo, hi) => { let a = Infinity, b = -Infinity, c = Infinity, d = -Infinity, n = 0;
+    for(let i = 0; i < P.ys.length; i++){ const y = P.ys[i]; if(y < lo || y > hi) continue; n++; if(P.xs[i] < a) a = P.xs[i]; if(P.xs[i] > b) b = P.xs[i]; if(P.zs[i] < c) c = P.zs[i]; if(P.zs[i] > d) d = P.zs[i]; }
+    return n ? {w:Math.max(b - a, d - c), cx:(a + b)/2, cz:(c + d)/2} : null; };
+  const span = P => { let y0 = Infinity, y1 = -Infinity; for(const y of P.ys){ if(y < y0) y0 = y; if(y > y1) y1 = y; } return [y0, y1]; };
+  // the head; a robot whose «head» is only an aerial (or has none) wears the hat on top of its body
+  let host = R.head && R.head.isObject3D ? R.head : null, P = host && pts(host), whole = false;
+  if(P && P.ys.length){ const [a, b] = span(P); if(ext(P, a, b).w < R.h*.07) P = null; }
+  if(!P || !P.ys.length){ host = R.root; P = pts(host); whole = true; }
+  if(!P.ys.length) return;
+  const [y0, y1] = span(P), W = ext(P, y0, y1).w, H = y1 - y0 || 1, step = H/80;
+  // the top is the highest level where the part is still wide: aerials, spikes and thin masts are skipped
+  let top = y1, slab = null;
+  for(let y = y1; y > y0; y -= step){ const e = ext(P, y - step*1.5, y); if(e && e.w >= W*(whole ? .22 : .4)){ top = Math.min(y1, y); slab = e; break; } }
+  const head = whole ? slab || ext(P, y0, y1) : ext(P, Math.max(y0, top - Math.max(H*.3, W*.4)), top) || ext(P, y0, y1);
+  const w = clamp(Math.min(head.w, R.h*.3), .18, 1), k = w*1.08/1.04;
   const m = new THREE.Mesh(hatGeo('santa'), HAT_MAT); m.scale.setScalar(k);
-  m.position.set((box.min.x + box.max.x)/2, box.max.y - .1*k, (box.min.z + box.max.z)/2 - .03*k);
+  m.position.set(head.cx, top - .05*k, head.cz - .02*k);
   m.castShadow = true; m.userData.noShadow = false; m.name = 'hat';
   m.visible = !!S.rhat; host.add(m); R.hat = m; HATS.push(m);
 }
