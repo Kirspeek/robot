@@ -3066,6 +3066,8 @@ function waveList(n){
   if(n >= 5) add('groza', Math.floor((n - 3)/3));
   if(n >= 6) add('bastion', Math.floor((n - 4)/3));
   if(n % 5 === 0) add('titan', n/5);
+  // from the second wave on it gets harder: extra robots on top, and the heavy ones come earlier
+  if(n >= 2){ add('bronze', n); add('guard', Math.floor(n/2)); if(n >= 3) add('spider', Math.floor(n/3)); if(n >= 3) add('red', Math.floor((n - 1)/3)); if(n >= 4) add('groza', Math.floor((n - 2)/4)); }
   for(let i = L.length - 1; i > 0; i--){ const j = Math.floor(rnd()*(i + 1)); [L[i], L[j]] = [L[j], L[i]]; }
   return L;
 }
@@ -3413,11 +3415,15 @@ function makeUnit(type){
 }
 function spawnEnemy(type){
   const e = makeUnit(type), T = e.T; e.id = ++UNIT_ID;
-  const k = 1 + (G.wave - 1)*0.08;
+  // wave 1 as it was; then every wave: +20% armour, +12% damage, faster fire and feet, better aim; and elite robots (gold lights)
+  const hard = Math.max(0, G.wave - 1), elite = hard > 0 && rnd() < Math.min(.45, .12 + hard*.05);
+  const k = (1 + hard*0.2)*(elite ? 1.6 : 1);
+  e.dk = (1 + hard*.12)*(elite ? 1.3 : 1); e.rk = 1 + Math.min(.6, hard*.06); e.sk = 1 + Math.min(.35, hard*.04); e.ab = Math.min(.25, hard*.03); e.elite = elite;
   e.hq = BUNKER_ON && rnd() < .5 ? BHQ : HQ;     // half the wave storms the base, half goes up the radioactive street to the bunker
   if(e.hq === HQ) e.p.set(rr(-55, 55), 0, rr(150, 195)); else e.p.set(BX + rr(-6, 6), 0, rr(215, 245)); e.v.set(0, 0, 0);
   Object.assign(e, {state:'enemy', hp:T.hp*k, max:T.hp*k, face:Math.PI, walk:0, cd:rr(.5, 1.5), dead:false, chkT:1.2, cx:e.p.x, cz:e.p.z, sideT:0, side:1, punch:0, fall:0});
   setGlow(e, 'enemy'); tintRig(e.R, 1); e.R.root.rotation.set(0, 0, 0); e.R.root.position.y = 0;
+  if(elite) for(const m of e.R.glow){ m.color.setHex(0xffb020); m.emissive.setHex(0xffb020); }
   e.g.position.copy(e.p); e.g.rotation.y = e.face; e.bg.visible = e.fill.visible = false;
   scene.add(e.g, e.bg, e.fill); enemies.push(e); hitTargets.push(e.hit);
 }
@@ -3539,24 +3545,24 @@ function updateEnemies(dt){
     const reach = T.range + R.r;
     if(nav.direct && dT < reach){
       if(T.melee){
-        if(foe !== 'player' || P.pos.y < R.h*0.6 + 0.5){ want = dT > T.range*0.6; if(e.cd <= 0){ e.cd = 1/T.rate; melee(e, foe); } }
+        if(foe !== 'player' || P.pos.y < R.h*0.6 + 0.5){ want = dT > T.range*0.6; if(e.cd <= 0){ e.cd = 1/(T.rate*(e.rk || 1)); melee(e, foe); } }
       } else {
         const from = muzzleOf(R, e.face, _a), to = foe === 'player' ? _b.set(P.pos.x, P.pos.y + P.h*0.6, P.pos.z) : foe ? _b.set(tx, foe.R.h*0.55, tz) : _b.set(tx, 2.5, (e.hq || HQ).z1);
         const blk = losBlock(from, to);
         if(!blk){ want = dT > reach*0.55;
           // within range: not a statue — steps to one side or the other while it shoots
           if(!want && foe){ M.st -= dt; if(M.st <= 0){ M.st = rr(1.2, 3.2); M.sd = rnd() < .3 ? 0 : rnd() < .5 ? -1 : 1; } e.strafe = M.sd; }
-          if(e.cd <= 0){ e.cd = rr(.85, 1.15)/T.rate; enemyShoot(e, from, to, foe === 'player' ? 'player' : foe ? 'ally' : 'hq', foe === 'player' ? null : foe); } }
+          if(e.cd <= 0){ e.cd = rr(.85, 1.15)/(T.rate*(e.rk || 1)); enemyShoot(e, from, to, foe === 'player' ? 'player' : foe ? 'ally' : 'hq', foe === 'player' ? null : foe); } }
         else if(blk.wall && e.cd <= 0 && dT < reach*0.8){
-          e.cd = 1/T.rate; _c.set(clamp(from.x, blk.x0, blk.x1), clamp(from.y, blk.y0, blk.y1), clamp(from.z, blk.z0, blk.z1));
+          e.cd = 1/(T.rate*(e.rk || 1)); _c.set(clamp(from.x, blk.x0, blk.x1), clamp(from.y, blk.y0, blk.y1), clamp(from.z, blk.z0, blk.z1));
           enemyShoot(e, from, _c, 'wall', blk.wall);
         }
       }
     }
     let mx = nav.x - p.x, mz = nav.z - p.z; const ml = Math.hypot(mx, mz) || 1; mx /= ml; mz /= ml;
     if(e.sideT > 0){ e.sideT -= dt; const sx = -mz*e.side, sz = mx*e.side; mx = mx*.35 + sx; mz = mz*.35 + sz; const l2 = Math.hypot(mx, mz); mx /= l2; mz /= l2; }
-    let speed = want ? T.speed*(foe ? 1 : M.pace) : 0;
-    if(e.strafe){ const fl = Math.hypot(tx - p.x, tz - p.z) || 1; mx = -(tz - p.z)/fl*e.strafe; mz = (tx - p.x)/fl*e.strafe; speed = T.speed*.5; }
+    let speed = want ? T.speed*(e.sk || 1)*(foe ? 1 : M.pace) : 0;
+    if(e.strafe){ const fl = Math.hypot(tx - p.x, tz - p.z) || 1; mx = -(tz - p.z)/fl*e.strafe; mz = (tx - p.x)/fl*e.strafe; speed = T.speed*(e.sk || 1)*.5; }
     speed *= wireOn(e, dt);
     if(e.dead) continue;
     if(speed > 0){
@@ -3564,9 +3570,9 @@ function updateEnemies(dt){
       if(blk){
         speed = 0;
         if(e.cd <= 0){
-          e.cd = 1/T.rate; const c = blk.col;
+          e.cd = 1/(T.rate*(e.rk || 1)); const c = blk.col;
           _c.set(clamp(p.x, c.x0, c.x1), Math.min(c.y1 - .2, R.h*.5), clamp(p.z, c.z0, c.z1));
-          if(T.melee){ e.punch = 1; hitWall(blk, T.dmg*2, _c); sfxAt('punch', p); if(T.splash) explode(_c, T.splash, T.dmg*.5, 'enemy'); }
+          if(T.melee){ e.punch = 1; hitWall(blk, T.dmg*(e.dk || 1)*2, _c); sfxAt('punch', p); if(T.splash) explode(_c, T.splash, T.dmg*(e.dk || 1)*.5, 'enemy'); }
           else enemyShoot(e, muzzleOf(R, e.face, _a), _c, 'wall', blk);
         }
       }
@@ -3606,23 +3612,23 @@ function bar(u, f, color){
   u.fill.material.color.setHex(color);
 }
 function enemyShoot(e, from, to, kind, wall){
-  const T = e.T, hit = (kind !== 'player' && kind !== 'ally') || rnd() < T.acc, end = _c.copy(to);
+  const T = e.T, hit = (kind !== 'player' && kind !== 'ally') || rnd() < Math.min(.9, T.acc + (e.ab || 0)), end = _c.copy(to);
   if(!hit){ end.x += rr(-1.5, 1.5); end.y += rr(-.5, 1.2); end.z += rr(-1.5, 1.5); }
   tracer(from, end, 0xff5a3a); emit(SPARK, from.x, from.y, from.z, 3, 0xffb060, 2, .15, 0); if(NET.host) netFx(0, from, end, 0xff5a3a);
   sfxAt('eshot', from);
   if(!hit) return;
-  if(kind === 'player') damagePlayer(T.dmg);
-  else if(kind === 'hq') damageHQ(T.dmg, end);
-  else if(kind === 'ally') damageAlly(wall, T.dmg);
-  else if(wall) hitWall(wall, T.dmg*1.5, end);
-  if(T.splash) explode(end, T.splash, T.dmg*.6, 'enemy');
+  if(kind === 'player') damagePlayer(T.dmg*(e.dk || 1));
+  else if(kind === 'hq') damageHQ(T.dmg*(e.dk || 1), end);
+  else if(kind === 'ally') damageAlly(wall, T.dmg*(e.dk || 1));
+  else if(wall) hitWall(wall, T.dmg*(e.dk || 1)*1.5, end);
+  if(T.splash) explode(end, T.splash, T.dmg*(e.dk || 1)*.6, 'enemy');
 }
 function melee(e, foe){
   const T = e.T; e.punch = 1; sfxAt('punch', e.p);
   { const ix = e.p.x + Math.sin(e.face)*(e.R.r + .8), iz = e.p.z + Math.cos(e.face)*(e.R.r + .8);
     emit(SPARK, ix, e.R.h*.5, iz, 14, 0xffe0a0, 7, .4); emit(PUFF, ix, .3, iz, 4, 0x8a8172, 2.5, .6, -0.5, 1); debris(ix, e.R.h*.4, iz, 2, 0x6e6a60, 4, .12); shakeAt({x:ix, z:iz}, .35); }
-  if(foe === 'player') damagePlayer(T.dmg); else if(foe) damageAlly(foe, T.dmg); else damageHQ(T.dmg*1.5, _c.set(e.p.x, 2, (e.hq || HQ).z1));
-  if(T.splash) explode(_c.set(e.p.x + Math.sin(e.face)*2, .5, e.p.z + Math.cos(e.face)*2), T.splash, T.dmg*.5, 'enemy');
+  if(foe === 'player') damagePlayer(T.dmg*(e.dk || 1)); else if(foe) damageAlly(foe, T.dmg*(e.dk || 1)); else damageHQ(T.dmg*(e.dk || 1)*1.5, _c.set(e.p.x, 2, (e.hq || HQ).z1));
+  if(T.splash) explode(_c.set(e.p.x + Math.sin(e.face)*2, .5, e.p.z + Math.cos(e.face)*2), T.splash, T.dmg*(e.dk || 1)*.5, 'enemy');
 }
 
 // ---------- damage ----------
@@ -4098,7 +4104,7 @@ function updateGame(dt){
   else if(G.phase === 'build'){ G.timer -= dt; if(G.timer <= 0) startWave(); }
   else if(G.phase === 'wave'){
     G.spawnT -= dt;
-    if(G.queue.length && G.spawnT <= 0 && enemies.length < 14){ spawnEnemy(G.queue.shift()); G.spawnT = rr(.8, 2.2); }
+    { const hard = Math.max(0, G.wave - 1); if(G.queue.length && G.spawnT <= 0 && enemies.length < Math.min(18, 14 + hard)){ spawnEnemy(G.queue.shift()); G.spawnT = Math.max(.4, rr(.8, 2.2)/(1 + hard*.08)); } }
     if(!G.queue.length && !enemies.length) endWave();
   }
   P.fireCD = Math.max(0, P.fireCD - dt); P.aimT = Math.max(0, P.aimT - dt); P.recoil = Math.max(0, P.recoil - dt*8); rig.recoil = P.recoil;
@@ -4114,7 +4120,8 @@ function updateGame(dt){
 }
 function startWave(){
   G.wave++; G.queue = waveList(G.wave); G.phase = 'wave'; G.spawnT = 0;
-  banner(`Волна ${G.wave}`, `${BUNKER_ON ? 'Роботы идут на базу и по улице к бункеру' : 'Роботы наступают с юга'}: ${G.queue.length}`); sfx('alarm'); saveGame();
+  const hard = G.wave - 1;
+  banner(`Волна ${G.wave}`, hard > 0 ? `Роботов: ${G.queue.length}. Броня +${hard*20}%, урон +${hard*12}%, есть элита (золотые огни)` : `${BUNKER_ON ? 'Роботы идут на базу и по улице к бункеру' : 'Роботы наступают с юга'}: ${G.queue.length}`); sfx('alarm'); saveGame();
   netSend({t:'banner', a:$('bannerT').textContent, b:$('bannerS').textContent, s:'alarm'});
 }
 function endWave(){
