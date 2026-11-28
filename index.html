@@ -464,7 +464,7 @@ input.txt:focus{outline:2px solid var(--accent);outline-offset:1px}
       <button class="tb" data-a="KeyG"><b>Союзники</b></button>
       <button class="tb" data-a="KeyV"><b>Вид</b><small>1-е / 3-е лицо</small></button>
       <button class="tb" data-a="KeyT"><b>Волна</b><small>сейчас</small></button>
-      <button class="tb" data-a="KeyN"><b>Напарник</b><small>позвать / убрать</small></button>
+      <button class="tb" data-a="KeyP"><b>Напарник</b><small>позвать / убрать</small></button>
     </div>
   </div>
 </div>
@@ -591,7 +591,7 @@ input.txt:focus{outline:2px solid var(--accent);outline-offset:1px}
         <kbd>Q</kbd><span>выпустить / вернуть ремонтного робота: сам лечит союзников, поднимает обломки, чинит стены</span>
         <kbd>I</kbd><span>свернуть / развернуть инвентарь</span>
         <kbd>G</kbd><span>союзники: за мной / держать позицию</span>
-        <kbd>N</kbd><span>позвать / убрать бота-напарника</span>
+        <kbd>P</kbd><span>позвать / убрать бота-напарника</span>
         <kbd>E</kbd><span>взять / поставить предмет (ЛКМ — бросить)</span>
         <span class="sep">Строительство</span>
         <kbd>B</kbd><span>строительство / оружие</span>
@@ -2349,7 +2349,7 @@ function keyAction(code){
       else { const n = nearSlot(); if(n){ setCharacter(n.i, true); sfx('stomp'); toast(`Вы управляете: ${CHARS[n.i].name}`); } else pickItem(nearItem()); } }
   }
   else if(e.code === 'KeyG') toggleAllyMode();
-  else if(e.code === 'KeyN') buddyToggle();
+  else if((e.code === 'KeyP' || e.code === 'KeyN') && !e.repeat) buddyToggle();
   else if(e.code === 'KeyQ') toggleDrone();
   else if(e.code === 'KeyI'){ $('inv').classList.toggle('min'); sfx('tick'); }
   else if(e.code === 'KeyV') setView(!S.fp);
@@ -3635,7 +3635,7 @@ function buddyToggle(){
   if(!buddyAllowed()){ toast(NET.hub ? 'В лобби не воюют: напарника можно позвать в бою' : 'Напарника зовёт первый игрок на сервере', true); sfx('err'); return; }
   BUDDY_ON = !BUDDY_ON; store.set('forpost.buddy', BUDDY_ON ? 1 : 0);
   if(!BUDDY_ON){ buddyRemove(); toast('Напарник ушёл. Вы играете один'); }
-  else { if(state === 'play' && !BUDDY) buddySpawn(); toast('Напарник с вами. Убрать — N'); }
+  else { if(state === 'play' && !BUDDY) buddySpawn(); toast('Напарник с вами. Убрать — P'); }
   sfx('tick'); buddyUI();
 }
 function buddyUI(){ const b = $('buddyState'); if(b) b.textContent = BUDDY_ON ? 'с вами' : 'нет'; }
@@ -3856,7 +3856,7 @@ function setBuild(on){
   $('bar').classList.toggle('dim', !on);
   $('hint').innerHTML = on
     ? '<kbd>ЛКМ</kbd> поставить · <kbd>ПКМ</kbd> убрать · <kbd>F</kbd> починить<br><kbd>R</kbd> повернуть · <kbd>1–9</kbd> тип · <kbd>B</kbd> к оружию'
-    : '<kbd>ЛКМ</kbd> огонь · <kbd>R</kbd> перезарядка · <kbd>B</kbd> строить<br><kbd>E</kbd> залезть в робота · <kbd>F</kbd> починить его<br><kbd>Q</kbd> ремонтный робот · <kbd>G</kbd> союзники · <kbd>N</kbd> напарник';
+    : '<kbd>ЛКМ</kbd> огонь · <kbd>R</kbd> перезарядка · <kbd>B</kbd> строить<br><kbd>E</kbd> залезть в робота · <kbd>F</kbd> починить его<br><kbd>Q</kbd> ремонтный робот · <kbd>G</kbd> союзники · <kbd>P</kbd> напарник';
   if(!on){ ghost.visible = false; $('tip').textContent = ''; }
   renderBar(); touchLabels();
 }
