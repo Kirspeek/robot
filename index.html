@@ -504,6 +504,15 @@ input.txt:focus{outline:2px solid var(--accent);outline-offset:1px}
     </div>
   </div>
 </div>
+<div class="nick" id="phoneAsk" hidden role="dialog" aria-modal="true" aria-labelledby="phTitle">
+  <div class="nickcard">
+    <h2 id="phTitle">Ваш номер телефона</h2>
+    <p class="note">Чтобы друзья могли позвонить вам и написать СМС, даже когда вы не в игре. Номер увидят <b>только ваши друзья</b>: он хранится на вашем устройстве и отправляется им в зашифрованном виде.</p>
+    <input class="txt" id="phIn" maxlength="20" inputmode="tel" placeholder="+380501234567" autocomplete="tel" aria-label="Номер телефона">
+    <p class="nickmsg" id="phMsg" aria-live="polite"></p>
+    <div class="row"><button class="btn primary" id="bPhSave">Сохранить</button><button class="btn" id="bPhSkip">Пропустить</button></div>
+  </div>
+</div>
 <div class="nick" id="pushAsk" hidden role="dialog" aria-modal="true" aria-labelledby="paTitle">
   <div class="nickcard">
     <div id="paQ">
@@ -680,9 +689,10 @@ input.txt:focus{outline:2px solid var(--accent);outline-offset:1px}
             <button class="btn" id="bNotif" hidden>🔔 Уведомления, когда игра в другой вкладке</button>
           </div>
           <div class="pushbox" id="ctBox">
-            <div class="lhead"><b>Мои Telegram и Viber</b><span id="ctState"></span></div>
+            <div class="lhead"><b>Мой телефон, Telegram и Viber</b><span id="ctState"></span></div>
             <p class="note">Их увидят только ваши друзья — чтобы связаться с вами, когда вас нет в игре.</p>
             <input class="txt" id="ctTg" maxlength="40" placeholder="Telegram: @ник или t.me/ник" autocomplete="off" spellcheck="false" aria-label="Ваш Telegram">
+            <input class="txt" id="ctPh" maxlength="20" inputmode="tel" placeholder="Телефон для звонков и СМС: +380501234567" autocomplete="tel" aria-label="Ваш номер телефона">
             <input class="txt" id="ctVb" maxlength="20" inputmode="tel" placeholder="Viber: номер, например +380501234567" autocomplete="off" aria-label="Ваш номер Viber">
             <p class="nickmsg" id="ctMsg" aria-live="polite"></p>
             <button class="btn" id="bCtSave">Сохранить для друзей</button>
@@ -695,7 +705,7 @@ input.txt:focus{outline:2px solid var(--accent);outline-offset:1px}
             <p class="note reach" id="dmReach"></p>
             <div class="row"><button class="btn primary" id="bCall">📞 Позвонить</button><button class="btn" id="bUnfriend">Удалить из друзей</button></div>
             <button class="btn" id="bInvite" hidden>📨 Позвать через мессенджер (WhatsApp, Telegram, СМС)</button>
-            <div class="row" id="ctLinks" hidden><a class="btn" id="bTg" target="_blank" rel="noopener" hidden>✈ Написать в Telegram</a><a class="btn" id="bVb" hidden>📞 Позвонить в Viber</a></div>
+            <div class="row" id="ctLinks" hidden><a class="btn" id="bPh" hidden>📞 Позвонить на телефон</a><a class="btn" id="bSms" hidden>💬 SMS</a><a class="btn" id="bWa" target="_blank" rel="noopener" hidden>WhatsApp</a><a class="btn" id="bTg" target="_blank" rel="noopener" hidden>✈ Написать в Telegram</a><a class="btn" id="bVb" hidden>📞 Позвонить в Viber</a></div>
             <div class="llog dmlog" id="dmLog"></div>
             <div class="joinrow"><input class="txt" id="dmIn" maxlength="1000" placeholder="Сообщение" autocomplete="off" aria-label="Сообщение другу"><button class="btn" id="bDmSend">→</button></div>
             <button class="btn" id="bRec">🎙 Держать — голосовое</button>
@@ -4744,7 +4754,7 @@ function openMenu(){
   showPanel('pMain');
 }
 function startPlay(){
-  if(!$('pushAsk').hidden) return;
+  if(!$('pushAsk').hidden || !$('phoneAsk').hidden) return;
   document.documentElement.classList.add('playing');     // «turn the phone» only while playing; the menu and the video feed work upright
   if(!$('nickDlg').hidden){ $('nickIn').focus(); return; }
   if(document.activeElement && document.activeElement.tagName === 'INPUT') document.activeElement.blur();     // keys go to the game, not to a field left in the menu
@@ -6108,7 +6118,7 @@ function dmHandle(d, pub, m){
     case 'facc': if(FR.out[d] || FR.friends[d]){ addFriend(d, name, pub); toast(`${name} теперь ваш друг`); sfx('ui'); } break;
     case 'fno': if(FR.out[d]){ delete FR.out[d]; frSave(); renderFriends(); } break;
     case 'unf': if(FR.friends[d]){ delete FR.friends[d]; frSave(); renderFriends(); } break;
-    case 'ct': if(FR.friends[d]){ FR.friends[d].tg = tgNorm(m.tg); FR.friends[d].vb = vbNorm(m.vb); frSave(); renderFriends(); } break;
+    case 'ct': if(FR.friends[d]){ FR.friends[d].tg = tgNorm(m.tg); FR.friends[d].vb = vbNorm(m.vb); FR.friends[d].ph = phNorm(m.ph); frSave(); renderFriends(); } break;
     case 'nt': if(FR.friends[d]){ FR.friends[d].nt = typeof m.topic === 'string' ? m.topic.slice(0, 48) : ''; frSave(); } break;
     case 'msg': if(!FR.friends[d]) break; chatPush(d, {me:false, t:'msg', x:String(m.x || '').slice(0, 1000), ts:m.ts}); notifyMsg(d, String(m.x || '')); break;
     case 'voice': {
@@ -6210,6 +6220,7 @@ async function callStart(d){
   if(!FR.friends[d]) return;
   if(!whereIs(d).on && !FR.friends[d].nt){
     const f = FR.friends[d];
+    if(f.ph){ if(confirm(`${frName(d)} сейчас не в игре.\n\nПозвонить на телефон ${f.ph}?`)) location.href = 'tel:' + f.ph; return; }
     if(f.tg || f.vb){ if(confirm(`${frName(d)} сейчас не в игре и не подключил уведомления.\n\nОткрыть ${f.vb ? 'Viber' : 'Telegram'}, чтобы позвонить ему там?`)) location.href = f.vb ? 'viber://call?number=' + encodeURIComponent(f.vb) : 'https://t.me/' + f.tg; return; }
     if(confirm(`${frName(d)} сейчас не в игре и не подключил уведомления — звонок до него не дойдёт.\n\nОтправить ему приглашение через мессенджер, чтобы он зашёл?`)) inviteFriend(d);
     return;
@@ -6387,28 +6398,45 @@ $('bPaYes').onclick = async () => {
 $('bPaNo').onclick = () => { sfx('ui'); store.set('forpost.pushAsked', 1); $('pushAsk').hidden = true; toast('Включить можно позже: «Друзья и чаты» → «📲 Подключить»'); };
 $('bPaTest').onclick = () => $('bPushTest').click();
 $('bPaDone').onclick = () => { sfx('ui'); $('pushAsk').hidden = true; toast('Готово: друзья смогут дозвониться, даже когда игра закрыта'); };
-setTimeout(pushAskOpen, 2500);
+function phoneAskOpen(){
+  if(store.get('forpost.phAsked') || myCt().ph || !$('nickDlg').hidden){ pushAskOpen(); return; }
+  if(!$('phoneAsk').hidden) return;
+  if(document.pointerLockElement) document.exitPointerLock();
+  $('phIn').value = ''; $('phMsg').textContent = ''; $('phoneAsk').hidden = false; setTimeout(() => $('phIn').focus(), 50);
+}
+function phoneAskDone(){ store.set('forpost.phAsked', 1); $('phoneAsk').hidden = true; setTimeout(pushAskOpen, 400); }
+$('bPhSave').onclick = () => {
+  const ph = phNorm($('phIn').value);
+  if(!ph){ $('phMsg').textContent = 'Введите номер в международном формате: 10–15 цифр, например +380501234567'; $('phMsg').className = 'nickmsg bad'; sfx('err'); return; }
+  const c = myCt(); store.set('forpost.ct', {...c, ph, sent:1}); for(const d of Object.keys(FR.friends)) ctShare(d);
+  sfx('ui'); toast('Номер сохранён — друзья смогут позвонить и написать СМС'); phoneAskDone(); ctUi();
+};
+$('bPhSkip').onclick = () => { sfx('ui'); toast('Номер можно добавить позже: «Друзья и чаты» → «Мой телефон»'); phoneAskDone(); };
+$('phIn').addEventListener('keydown', e => { e.stopPropagation(); if(e.key === 'Enter') $('bPhSave').click(); });
+setTimeout(phoneAskOpen, 2500);
 
 // ---- Telegram / Viber: kept on this device, sent to friends only (sealed), shown as buttons in their chat
 const tgNorm = v => { v = String(v || '').trim().replace(/^(https?:\/\/)?(www\.)?(t|telegram)\.me\//i, '').replace(/^@/, '').split(/[/?]/)[0]; return /^[A-Za-z][A-Za-z0-9_]{4,31}$/.test(v) ? v : ''; };
 const vbNorm = v => { const d = String(v || '').replace(/[^\d+]/g, ''); const digits = d.replace(/\D/g, ''); return digits.length >= 10 && digits.length <= 15 ? '+' + digits : ''; };
-const myCt = () => store.get('forpost.ct') || {tg:'', vb:''};
+const myCt = () => store.get('forpost.ct') || {tg:'', vb:'', ph:''};
+const phNorm = vbNorm;
 let CT_DIRTY = false;
-function ctShare(d){ const c = myCt(); if(FR.friends[d] && (c.tg || c.vb || c.sent)) dmSend(d, {t:'ct', tg:c.tg, vb:c.vb}); }
+function ctShare(d){ const c = myCt(); if(FR.friends[d] && (c.tg || c.vb || c.ph || c.sent)) dmSend(d, {t:'ct', tg:c.tg, vb:c.vb, ph:c.ph || ''}); }
 function ctUi(){
   const c = myCt();
-  if(!CT_DIRTY){ $('ctTg').value = c.tg ? '@' + c.tg : ''; $('ctVb').value = c.vb || ''; }     // never overwrite what is being typed
-  $('ctState').textContent = c.tg || c.vb ? 'друзья видят' : '';
+  if(!CT_DIRTY){ $('ctTg').value = c.tg ? '@' + c.tg : ''; $('ctVb').value = c.vb || ''; $('ctPh').value = c.ph || ''; }     // never overwrite what is being typed
+  $('ctState').textContent = c.tg || c.vb || c.ph ? 'друзья видят' : '';
 }
 $('bCtSave').onclick = () => {
-  const rawTg = $('ctTg').value.trim(), rawVb = $('ctVb').value.trim(), tg = tgNorm(rawTg), vb = vbNorm(rawVb), msg = $('ctMsg');
+  const rawTg = $('ctTg').value.trim(), rawVb = $('ctVb').value.trim(), rawPh = $('ctPh').value.trim(), tg = tgNorm(rawTg), vb = vbNorm(rawVb), ph = phNorm(rawPh), msg = $('ctMsg');
+  if(rawPh && !ph){ msg.textContent = 'Телефон: номер в международном формате, 10–15 цифр, например +380501234567'; msg.className = 'nickmsg bad'; return; }
   if(rawTg && !tg){ msg.textContent = 'Telegram: ник из 5–32 латинских букв, цифр и _ (например @robot_fan)'; msg.className = 'nickmsg bad'; return; }
   if(rawVb && !vb){ msg.textContent = 'Viber: номер в международном формате, 10–15 цифр, например +380501234567'; msg.className = 'nickmsg bad'; return; }
-  store.set('forpost.ct', {tg, vb, sent:1}); CT_DIRTY = false;
+  store.set('forpost.ct', {tg, vb, ph, sent:1}); CT_DIRTY = false; store.set('forpost.phAsked', 1);
   for(const d of Object.keys(FR.friends)) ctShare(d);
-  msg.textContent = tg || vb ? 'Сохранено — друзья увидят кнопки в чате с вами' : 'Контакты удалены у друзей'; msg.className = 'nickmsg ok'; sfx('ui'); ctUi();
+  msg.textContent = tg || vb || ph ? 'Сохранено — друзья увидят кнопки в чате с вами' : 'Контакты удалены у друзей'; msg.className = 'nickmsg ok'; sfx('ui'); ctUi();
 };
-for(const id of ['ctTg', 'ctVb']){ $(id).addEventListener('keydown', e => { e.stopPropagation(); if(e.key === 'Enter') $('bCtSave').click(); }); $(id).addEventListener('input', () => { CT_DIRTY = true; }); }
+for(const id of ['ctTg', 'ctVb', 'ctPh']){ $(id).addEventListener('keydown', e => { e.stopPropagation(); if(e.key === 'Enter') $('bCtSave').click(); }); $(id).addEventListener('input', () => { CT_DIRTY = true; }); }
 
 // ---- the «Друзья» panel
 function friendRow(d, title, sub, live, extra){
@@ -6498,11 +6526,12 @@ function renderChat(){
   const nt = !!(FR.friends[d] || {}).nt;
   $('dmReach').textContent = w.on ? '' : nt ? '📲 Уведомления включены — звонок дойдёт, даже когда игра у друга закрыта' : '⚠ У друга не подключены уведомления: пока он не в игре, звонок до него не дойдёт. Позовите его ссылкой или попросите нажать «📲 Подключить» в «Друзья и чаты».';
   $('dmReach').classList.toggle('warn', !w.on && !nt); $('bInvite').hidden = w.on;
-  const f = FR.friends[d], tg = f.tg, vb = f.vb;
-  $('ctLinks').hidden = !tg && !vb; $('bTg').hidden = !tg; $('bVb').hidden = !vb;
+  const f = FR.friends[d], tg = f.tg, vb = f.vb, ph = f.ph;
+  $('ctLinks').hidden = !tg && !vb && !ph; $('bTg').hidden = !tg; $('bVb').hidden = !vb; $('bPh').hidden = $('bSms').hidden = $('bWa').hidden = !ph;
+  if(ph){ $('bPh').href = 'tel:' + ph; $('bSms').href = 'sms:' + ph; $('bWa').href = 'https://wa.me/' + ph.replace(/\D/g, ''); }
   if(tg) $('bTg').href = 'https://t.me/' + tg;
   if(vb) $('bVb').href = 'viber://chat?number=' + encodeURIComponent(vb);
-  if(!w.on && !nt && (tg || vb)) $('dmReach').textContent = '⚠ Друг не в игре и без уведомлений — свяжитесь с ним через ' + [tg && 'Telegram', vb && 'Viber'].filter(Boolean).join(' или ') + ' кнопкой ниже.';
+  if(!w.on && !nt && (tg || vb || ph)) $('dmReach').textContent = '⚠ Друг не в игре и без уведомлений — свяжитесь с ним через ' + [ph && 'телефон или СМС', tg && 'Telegram', vb && 'Viber'].filter(Boolean).join(' или ') + ' кнопкой ниже.';
   const log = $('dmLog'); log.textContent = '';
   for(const m of chatOf(d)){
     const el = document.createElement('div'); el.className = 'msg' + (m.me ? ' me' : '');
@@ -6758,7 +6787,7 @@ async function nickSave(){
     }
     store.set('forpost.name', s); store.set('forpost.nickOk', online ? 1 : 0);
     siteHello(); if(NET.on) announce();
-    $('nickDlg').hidden = true; NICK.must = false; setTimeout(pushAskOpen, 600);
+    $('nickDlg').hidden = true; NICK.must = false; setTimeout(phoneAskOpen, 600);
     toast(online ? `Ваш ник: ${s}` : `Ваш ник: ${s}. Проверим, что он свободен, когда появится интернет`); sfx('ui');
     renderNetPanel(); renderDial();
   } finally { NICK.busy = false; }
