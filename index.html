@@ -480,6 +480,13 @@ nav{gap:12px}
   .btn.tile span{font-size:12.5px;max-width:100%}.btn.tile small{display:none}
   .dial svg{width:64px;height:46px}.dtx span{flex:0 0 auto}.dtx b{font-size:22px}.dtx .allbtn{margin-top:2px}
 }
+.tgch{display:grid;grid-template-columns:36px minmax(0,1fr) auto;align-items:center;gap:11px;padding:10px 14px;border-radius:12px;text-decoration:none;color:#eaf6ff;
+  background:linear-gradient(180deg,rgba(42,140,210,.9),rgba(28,110,175,.9));border:1px solid rgba(120,200,255,.55);box-shadow:0 10px 24px -14px rgba(40,150,230,.9);transition:transform .15s,filter .15s}
+.tgch:hover{transform:translateY(-2px);filter:brightness(1.08)}
+.tgch i{width:36px;height:36px;display:grid;place-items:center;border-radius:50%;background:#fff;color:#2a8cd2;font-style:normal}
+.tgch span{display:grid;min-width:0}.tgch b{font:600 14px/1.2 var(--f-body)}.tgch small{font:500 12px/1.3 var(--f-body);color:rgba(234,246,255,.8);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tgch em{font-style:normal;font-size:16px;opacity:.85}
+@media (max-height:500px){.tgch{padding:7px 12px}.tgch i{width:30px;height:30px}}
 </style>
 </head>
 <body>
@@ -652,6 +659,7 @@ nav{gap:12px}
         <button class="btn tile" id="bControls"><i aria-hidden="true">🎮</i><span>Управление</span><small>клавиши</small></button>
         <button class="btn tile" id="bSettings"><i aria-hidden="true">⚙</i><span>Настройки</span><small>шапки, снег, звук</small></button>
       </div>
+      <a class="tgch" href="https://t.me/novosti_igru" target="_blank" rel="noopener"><i aria-hidden="true"><svg viewBox="0 0 24 24" width="18" height="18"><path fill="currentColor" d="M21.9 4.6 18.8 19.3c-.2 1-.8 1.3-1.7.8l-4.6-3.4-2.2 2.1c-.3.3-.5.5-1 .5l.3-4.7 8.6-7.8c.4-.3-.1-.5-.6-.2L6.9 13.3 2.4 11.9c-1-.3-1-1 .2-1.5l17.8-6.9c.8-.3 1.6.2 1.5 1.1z"/></svg></i><span><b>Telegram-канал</b><small>@novosti_igru · новости игры</small></span><em aria-hidden="true">↗</em></a>
       <div class="mfoot">
         <div class="joinrow codes"><input class="txt" id="codeIn" type="password" inputmode="text" autocomplete="off" spellcheck="false" maxlength="24" placeholder="Код" aria-label="Код"><button class="btn" id="bCode">Ввести код</button></div>
         <div class="row inst" id="instRow">
@@ -856,7 +864,7 @@ nav{gap:12px}
 <script>
 'use strict';
 I18N.loaded(); I18N.start();
-const VERSION = '2026-11-28f';     // must match version.json: when the site has a newer one, the game offers to update
+const VERSION = '2026-11-28g';     // must match version.json: when the site has a newer one, the game offers to update
 // the old LAN link (http://192.168…) has no secure context, so friends and encryption cannot work there: go to the site
 if(location.protocol === 'http:' && !/^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname)) location.replace('https://kirspeek.github.io/robot/' + location.search);
 const $ = id => document.getElementById(id);
