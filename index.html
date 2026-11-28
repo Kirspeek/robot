@@ -2710,7 +2710,9 @@ function redrawOnFonts(tex, draw){ try { document.fonts.ready.then(() => { const
 slab(38, 28, 28, 49.5, texMat(TEX.concrete, 9, 7, {color:0xa5a296}), 0.027);
 const padTex = canvasTex(128, 128, (g, w, h) => { g.strokeStyle = '#d9b93e'; g.lineWidth = 6; g.strokeRect(5, 5, w - 10, h - 10); g.fillStyle = '#d9b93e'; for(const [x, y] of [[5, 5], [w - 25, 5], [5, h - 25], [w - 25, h - 25]]) g.fillRect(x, y, 20, 20); });
 const padMat = new THREE.MeshStandardMaterial({map:padTex, transparent:true, depthWrite:false, roughness:.9});
-const slots = RIGS.map((R, i) => { if(CHARS[i].secret) return null;
+// no robots standing on pads by the spawn any more: a robot is chosen in the menu («Персонаж»)
+const NO_PADS = true;
+const slots = RIGS.map((R, i) => { if(CHARS[i].secret || NO_PADS) return null;
   const row = i < 5 ? 0 : 1, base = true;
   const x = base ? (row ? 17.5 + (i - 5)*7 : 14 + i*7) : (row ? -15 - (i - 5)*7 : 15 + i*7), z = base ? (row ? 58 : 41) : -24, ry = base && row ? Math.PI : 0;
   slab(6, 6, x, z, padMat, 0.035);
@@ -2759,7 +2761,7 @@ function setCharacter(i, board){
   P.r = rig.r; P.h = rig.h; P.step = rig.step; dist = distWant = rig.camDist;
   const frac = P.maxHp ? P.hp/P.maxHp : 1; P.maxHp = CHARS[i].hp; P.hp = Math.max(1, Math.round(P.maxHp*frac));
   P.ammo = CHARS[i].w.mag; P.reload = 0; P.fireCD = 0;
-  if(board){ const s = slots[i]; P.pos.set(s.x, 0, s.z); P.vel.set(0, 0, 0); P.face = s.ry; yaw = s.ry + Math.PI; heroGroup.position.copy(P.pos); heroGroup.rotation.y = P.face; }
+  if(board && slots[i]){ const s = slots[i]; P.pos.set(s.x, 0, s.z); P.vel.set(0, 0, 0); P.face = s.ry; yaw = s.ry + Math.PI; heroGroup.position.copy(P.pos); heroGroup.rotation.y = P.face; }
   collideXZ(P.pos);
   if(!PILOT) store.set('forpost.char', i); updateCharUI();
 }
