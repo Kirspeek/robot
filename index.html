@@ -1061,7 +1061,9 @@ const KIT_MAT = {
   metal:new THREE.MeshStandardMaterial({vertexColors:true, roughness:.42, metalness:.55}),
   glass:new THREE.MeshStandardMaterial({color:0x2a3a46, roughness:.12, metalness:.65}),
   lit:new THREE.MeshStandardMaterial({color:0xffe2a8, emissive:0xffc46a, emissiveIntensity:.55, roughness:.4}),
-  green:new THREE.MeshStandardMaterial({vertexColors:true, roughness:.95})
+  green:new THREE.MeshStandardMaterial({vertexColors:true, roughness:.95}),
+  sky:new THREE.MeshStandardMaterial({color:0xd6e6f2, emissive:0xa8c8e0, emissiveIntensity:.75, roughness:.3}),     // a window seen from inside: daylight
+  scr:new THREE.MeshStandardMaterial({color:0x0d3a18, emissive:0x3dff6a, emissiveIntensity:.55, roughness:.3})       // green screens
 };
 function Kit(){
   const parts = {};
@@ -1089,6 +1091,102 @@ let BLD_N = 0;
 // ---------- the military base ----------
 const ground = new THREE.Mesh(new THREE.PlaneGeometry(1600, 1600), texMat(TEX.sand, 400, 400));
 ground.rotation.x = -HALF_PI; ground.receiveShadow = true; scene.add(ground);
+
+// ---------- buildings you can walk into: hollow walls with doorways, floors, ceilings, doors that open as you come up ----------
+const DOORS = [], ROOMS = [], LADDERS = [];
+const GLASS_T = new THREE.MeshStandardMaterial({color:0x8fb3c4, roughness:.05, metalness:.2, transparent:true, opacity:.32, depthWrite:false});
+// the walls of a w × d box (outer faces where the solid box was), with openings {side:'+z'|'-z'|'+x'|'-x', at (along the wall), w, y0, y1}
+function hollow(x, z, w, d, h, mat, holes = [], t = .3, y0 = 0){
+  const side = (sd, len, cx, cz, axis) => {
+    const hs = holes.filter(o => o.side === sd).sort((a, b) => a.at - b.at);
+    const seg = (a, b, yb, yt) => { if(b - a < .01 || yt - yb < .01) return; const m = (a + b)/2, L = b - a;
+      if(axis === 'z') box(L, yt - yb, t, mat, cx + m, yb, cz); else box(t, yt - yb, L, mat, cx, yb, cz + m); };
+    let from = -len/2;
+    for(const o of hs){ seg(from, o.at - o.w/2, y0, h); seg(o.at - o.w/2, o.at + o.w/2, o.y1, h); if(o.y0 > y0) seg(o.at - o.w/2, o.at + o.w/2, y0, o.y0); from = o.at + o.w/2; }
+    seg(from, len/2, y0, h);
+  };
+  side('+z', w, x, z + d/2 - t/2, 'z'); side('-z', w, x, z - d/2 + t/2, 'z');
+  side('+x', d - 2*t, x + w/2 - t/2, z, 'x'); side('-x', d - 2*t, x - w/2 + t/2, z, 'x');
+}
+// a door in a wall facing +z (s = 1, it swings in towards -z) or -z (s = -1); the hinge is at the left edge
+function swingDoor(cx, fz, w, h, y, s, mat){
+  const piv = new THREE.Group(); piv.position.set(cx - w/2 + WOX, y, fz + WOZ); scene.add(piv);
+  const leaf = new THREE.Mesh(new THREE.BoxGeometry(w - .04, h - .02, .08), mat); leaf.position.set(w/2, h/2, 0); leaf.castShadow = leaf.receiveShadow = true; piv.add(leaf);
+  const gl = new THREE.Mesh(new THREE.BoxGeometry(.42, .42, .1), KIT_MAT.glass); gl.position.set(w/2, h*.78, 0); piv.add(gl);
+  const hm = std(0xd8cf9a, .4, .7); for(const sd of [-1, 1]){ const hd = new THREE.Mesh(new THREE.BoxGeometry(.05, .22, .06), hm); hd.position.set(w - .14, h*.45, sd*.07); piv.add(hd); }
+  const col = addCol(cx - w/2, cx + w/2, y, y + h, fz - .12, fz + .12);
+  DOORS.push({kind:'swing', piv, col, c0:[col.y0, col.y1], x:cx + WOX, z:fz + WOZ, y, k:0, ang:s*1.55});
+}
+// glass doors that part to the sides
+function slideDoor(cx, fz, w, h, y){
+  const L = [], fm = std(0x6d726c, .4, .6), hm = std(0xd8cf9a, .4, .7);
+  for(const sd of [-1, 1]){
+    const g = new THREE.Group(); g.position.set(cx + sd*w/4 + WOX, y, fz + WOZ); scene.add(g);
+    const p_ = new THREE.Mesh(new THREE.BoxGeometry(w/2 - .02, h, .05), GLASS_T); p_.position.y = h/2; g.add(p_);
+    for(const ex of [-1, 1]){ const f = new THREE.Mesh(new THREE.BoxGeometry(.07, h, .09), fm); f.position.set(ex*(w/4 - .035), h/2, 0); g.add(f); }
+    for(const ey of [.04, h - .04]){ const f = new THREE.Mesh(new THREE.BoxGeometry(w/2, .08, .09), fm); f.position.set(0, ey, 0); g.add(f); }
+    const hd = new THREE.Mesh(new THREE.BoxGeometry(.04, .5, .12), hm); hd.position.set(-sd*(w/4 - .14), h*.42, 0); g.add(hd);
+    L.push({g, sd, x0:cx + sd*w/4 + WOX});
+  }
+  const col = addCol(cx - w/2, cx + w/2, y, y + h, fz - .1, fz + .1);
+  DOORS.push({kind:'slide', L, w, col, c0:[col.y0, col.y1], x:cx + WOX, z:fz + WOZ, y, k:0});
+}
+function addRoom(x0, x1, z0, z1, y0, y1, lx, ly, lz){ ROOMS.push({x0:x0 + WOX, x1:x1 + WOX, z0:z0 + WOZ, z1:z1 + WOZ, y0, y1, lx:lx + WOX, ly, lz:lz + WOZ}); }
+// a door frame: two jambs and a head (in a Kit)
+function kitFrame(k, x, y, fz, w, h, col = 0xeae6da){ for(const sx of [-1, 1]) k.box('trim', .14, h + .12, .16, col, x + sx*(w/2 + .07), y, fz); k.box('trim', w + .42, .14, .16, col, x, y + h, fz); }
+// a window seen from inside: daylight in a light frame (axis 'z' — on a wall facing ±z)
+function kitInWin(k, x, y, z, w, h, axis = 'z'){
+  const W = (a, b) => axis === 'z' ? [a, b] : [b, a];
+  { const [bw, bd] = W(w, .03); k.box('sky', bw, h, bd, 0, x, y, z); }
+  for(const [ww, hh, dy] of [[w + .16, .08, -.06], [w + .16, .08, h - .02]]){ const [bw, bd] = W(ww, .06); k.box('trim', bw, hh, bd, 0xf0ece2, x, y + dy, z); }
+  for(const sx of [-1, 1]){ const [bw, bd] = W(.08, .06), [ox, oz] = W(sx*(w/2 + .04), 0); k.box('trim', bw, h, bd, 0xf0ece2, x + ox, y, z + oz); }
+  { const [bw, bd] = W(.05, .05); k.box('trim', bw, h, bd, 0xf0ece2, x, y, z); }
+}
+// a collider given in a building's own coordinates, turned by ry (a multiple of 90°)
+function colLocal(x, z, ry, lx0, lx1, y0, y1, lz0, lz1){
+  const c = Math.round(Math.cos(ry)), s_ = Math.round(Math.sin(ry)), xs = [], zs = [];
+  for(const lx of [lx0, lx1]) for(const lz of [lz0, lz1]){ xs.push(x + lx*c + lz*s_); zs.push(z - lx*s_ + lz*c); }
+  return addCol(Math.min(...xs), Math.max(...xs), y0, y1, Math.min(...zs), Math.max(...zs));
+}
+// a tent with an open entrance (towards +z before turning): two cots, a crate, a lantern under the ridge
+let TENT_IN = null;
+function tentInside(){
+  if(TENT_IN) return TENT_IN;
+  const P_ = {trim:[], metal:[], lit:[]}, add = (m, geo, col, x, y, z, rx = 0, ry = 0, rz = 0) => P_[m].push([part(geo, x, y, z, rx, ry, rz), col]);
+  for(const sx of [-1, 1]){
+    const cx = sx*1.55;
+    for(const ex of [-.32, .32]) for(const ez of [-1.55, .35]) add('metal', new THREE.BoxGeometry(.04, .4, .04), 0x3a3d39, cx + ex, .2, ez);
+    for(const ex of [-.32, .32]) add('metal', new THREE.BoxGeometry(.04, .04, 1.95), 0x3a3d39, cx + ex, .4, -.6);
+    add('trim', new THREE.BoxGeometry(.66, .06, 1.9), 0x5d6b45, cx, .43, -.6);
+    add('trim', new THREE.BoxGeometry(.5, .1, .3), 0xe6e1d4, cx, .51, -1.35);
+    add('trim', new THREE.BoxGeometry(.68, .05, 1.1), sx < 0 ? 0x6a5a3c : 0x4a5a3a, cx, .48, -.25);
+  }
+  add('trim', new THREE.BoxGeometry(.7, .5, .5), 0x8a6f45, 0, .25, -2.95);                         // a crate at the back
+  add('trim', new THREE.BoxGeometry(.4, .3, .3), 0x4d5b34, .5, .15, -2.9);
+  add('metal', new THREE.CylinderGeometry(.008, .008, .5, 4), 0x222222, 0, 3.1, -.6);              // the lantern on its wire
+  add('lit', new THREE.BoxGeometry(.16, .22, .16), 0, 0, 2.75, -.6);
+  add('trim', new THREE.BoxGeometry(5.6, .02, 6.6), 0x4b4a3a, 0, .015, 0);                         // the groundsheet
+  TENT_IN = {}; for(const m in P_) TENT_IN[m] = mergeParts(P_[m]);
+  return TENT_IN;
+}
+function tent(x, z, ry = 0){
+  const W = 6, D = 7, H = 3.4, g = new THREE.Group(); g.position.set(x + WOX, 0, z + WOZ); g.rotation.y = ry; scene.add(g);
+  const put = (geo, mat, px, py, pz, shadow = true) => { const m = new THREE.Mesh(geo, mat); m.position.set(px, py, pz); m.castShadow = shadow; m.receiveShadow = true; g.add(m); return m; };
+  const L = Math.hypot(W/2, H), th = Math.atan2(H, W/2);
+  for(const sd of [-1, 1]){ const geo = new THREE.PlaneGeometry(L, D); geo.rotateX(-HALF_PI); const r = put(geo, MAT.camo, sd*W/4, H/2, 0); r.rotation.z = -sd*th; }
+  { const sh = new THREE.Shape(); sh.moveTo(-W/2, 0); sh.lineTo(W/2, 0); sh.lineTo(0, H); sh.closePath(); put(new THREE.ShapeGeometry(sh), MAT.camo, 0, 0, -D/2); }
+  { const sh = new THREE.Shape(); sh.moveTo(-W/2, 0); sh.lineTo(-.9, 0); sh.lineTo(-.9, 1.95); sh.lineTo(.9, 1.95); sh.lineTo(.9, 0); sh.lineTo(W/2, 0); sh.lineTo(0, H); sh.closePath(); put(new THREE.ShapeGeometry(sh), MAT.camo, 0, 0, D/2); }
+  for(const sd of [-1, 1]){ const f = put(new THREE.CylinderGeometry(.11, .11, 2, 8), MAT.oliveD, sd*1.05, 1.0, D/2 + .08); f.rotation.z = sd*.12; }
+  put(new THREE.CylinderGeometry(.05, .05, D + .4, 6), MAT.dark, 0, H - .03, 0).rotation.x = HALF_PI;     // the ridge pole
+  const T_ = tentInside(); for(const m in T_){ const o = put(T_[m], KIT_MAT[m], 0, 0, 0, m !== 'lit'); }
+  // colliders: the low sides, the back, the front either side of the entrance, the cots; a ceiling for the camera
+  for(const sd of [-1, 1]){ colLocal(x, z, ry, sd < 0 ? -W/2 - .1 : 2.05, sd < 0 ? -2.05 : W/2 + .1, 0, H, -D/2, D/2); colLocal(x, z, ry, sd < 0 ? -W/2 : .95, sd < 0 ? -.95 : W/2, 0, H, D/2 - .12, D/2 + .12);
+    colLocal(x, z, ry, sd*1.55 - .35, sd*1.55 + .35, 0, .45, -1.6, .4); }
+  colLocal(x, z, ry, -W/2, W/2, 0, H, -D/2 - .15, -D/2 + .1);
+  colLocal(x, z, ry, -2.05, 2.05, 2.45, H + .3, -D/2, D/2);
+  const c = Math.round(Math.cos(ry)), s_ = Math.round(Math.sin(ry)), hw = Math.abs(c)*W/2 + Math.abs(s_)*D/2, hd = Math.abs(s_)*W/2 + Math.abs(c)*D/2;
+  addRoom(x - hw, x + hw, z - hd, z + hd, 0, H, x - .6*s_, 2.6, z - .6*c);
+}
 function slab(w, d, x, z, mat, y){ const m = new THREE.Mesh(new THREE.PlaneGeometry(w, d), mat); m.rotation.x = -HALF_PI; m.position.set(x + WOX, y, z + WOZ); m.receiveShadow = true; scene.add(m); return m; }
 const PER = 70, GATE = 6;
 let barrier = null, rotor = null, flagGeo = null, flagBase = null;
@@ -1126,9 +1224,21 @@ const radarHead = new THREE.Group();
   mesh(new THREE.BoxGeometry(11.2, 0.16, 0.16), texMat(TEX.stripes, 6, 1), 5.6, 0, 0, {parent:barrier});
   for(const s of [-1, 1]){
     const x = s*11, z = PER - 4;
-    box(3, 2.7, 3, MAT.plaster, x, 0, z);
-    box(3.04, 0.7, 3.04, MAT.glass, x, 1.4, z, {col:false});
-    box(3.6, 0.2, 3.6, MAT.oliveD, x, 2.7, z, {col:false});
+    // a booth you can step into: a window all round, a door towards the base, a desk with a screen, a phone and a radio
+    hollow(x, z, 3, 3, 2.7, MAT.plaster, [{side:'+z', at:0, w:2.4, y0:1.4, y1:2.1}, {side:'+x', at:0, w:2.2, y0:1.4, y1:2.1}, {side:'-x', at:0, w:2.2, y0:1.4, y1:2.1},
+      {side:'-z', at:-.8, w:.8, y0:1.4, y1:2.1}, {side:'-z', at:.4, w:.9, y0:0, y1:2.1}], .2);
+    for(const [gx, gz, gw, gd] of [[0, 1.4, 2.4, .03], [1.4, 0, .03, 2.2], [-1.4, 0, .03, 2.2], [-.8, -1.4, .8, .03]]) box(gw, .7, gd, GLASS_T, x + gx, 1.4, z + gz, {col:false, shadow:false});
+    box(3.6, 0.2, 3.6, MAT.oliveD, x, 2.7, z, {col:false}); addCol(x - 1.5, x + 1.5, 2.6, 2.9, z - 1.5, z + 1.5);
+    swingDoor(x + .4, z - 1.4, .9, 2.1, 0, -1, MAT.door);
+    { const k = Kit();
+      k.box('trim', 2.4, .06, .6, 0x6b5a44, x, .75, z + 1.05); k.box('trim', 2.3, .72, .55, 0x5a4a36, x, 0, z + 1.05);
+      k.box('metal', .45, .32, .05, 0x1e2120, x - .5, .82, z + 1.2); k.box('scr', .4, .26, .02, 0, x - .5, .85, z + 1.17);
+      k.box('metal', .22, .08, .16, 0x2a2c2a, x + .2, .81, z + 1.05); k.box('metal', .35, .2, .22, 0x4a5240, x + .7, .81, z + 1.15); k.box('lit', .05, .05, .02, 0, x + .62, .95, z + 1.04);
+      k.box('trim', .45, .06, .45, 0x2a2c2a, x - .3, .45, z + .3); k.cyl('metal', .03, .03, .45, 0x555555, x - .3, 0, z + .3);
+      k.box('lit', .6, .05, .25, 0, x, 2.62, z);
+      k.build(); }
+    addCol(x - 1.2, x + 1.2, 0, .8, z + .75, z + 1.35);
+    addRoom(x - 1.5, x + 1.5, z - 1.5, z + 1.5, 0, 2.7, x, 2.3, z);
     // sandbag nest next to the booth
     for(const [dx, dz, r] of [[s*4.5, -4, 0], [s*6.5, -2, 1]]){ const w = WT[3], m = mesh(w.geo, w.mat, x + dx, 0, z + dz, {ry:r*HALF_PI}); solids.push(m); colFor(x + dx, z + dz, w.L, w.T, 0, w.H, r*HALF_PI); }
   }
@@ -1136,8 +1246,11 @@ const radarHead = new THREE.Group();
   // watchtowers in the corners
   function tower(x, z){
     for(const sx of [-1, 1]) for(const sz of [-1, 1]) box(0.3, 7, 0.3, MAT.wood, x + sx*1.8, 0, z + sz*1.8);
-    box(4.6, 0.3, 4.6, MAT.wood, x, 7, z, {col:false});
-    for(const [dx, dz, w, d] of [[0, 2.2, 4.6, 0.12], [0, -2.2, 4.6, 0.12], [2.2, 0, 0.12, 4.6], [-2.2, 0, 0.12, 4.6]]) box(w, 1, d, MAT.wood, x + dx, 7.3, z + dz, {col:false});
+    box(4.6, 0.3, 4.6, MAT.wood, x, 7, z, {col:false}); addCol(x - 2.3, x + 2.3, 7, 7.3, z - 2.3, z + 2.3);
+    for(const [dx, dz, w, d] of [[-1.45, 2.2, 1.7, 0.12], [1.45, 2.2, 1.7, 0.12], [0, -2.2, 4.6, 0.12], [2.2, 0, 0.12, 4.6], [-2.2, 0, 0.12, 4.6]]){ box(w, 1, d, MAT.wood, x + dx, 7.3, z + dz, {col:false}); addCol(x + dx - w/2, x + dx + w/2, 7.3, 8.4, z + dz - d/2 - .03, z + dz + d/2 + .03); }
+    // the ladder up: side rails by the rungs; walk up to it and hold W or Space
+    for(const sx of [-.5, .5]) box(.07, 7.4, .07, MAT.wood, x + sx, 0, z + 2.08, {col:false});
+    LADDERS.push({x, z:z + 2.65, y:7.3});
     for(const sx of [-1, 1]) for(const sz of [-1, 1]) box(0.14, 2.3, 0.14, MAT.wood, x + sx*2.1, 7.3, z + sz*2.1, {col:false});
     const roof = mesh(new THREE.ConeGeometry(3.9, 1.7, 4), MAT.roof, x, 10.45, z); roof.rotation.y = Math.PI/4;
     for(let y = 0.4; y < 7; y += 0.45) box(0.9, 0.06, 0.08, MAT.wood, x, y, z + 2.05, {col:false});
@@ -1148,8 +1261,9 @@ const radarHead = new THREE.Group();
   // barracks: long houses with gable roofs, a porch with steps, framed windows, gutters and pipes
   function barracks(x, z){
     const w = 26, d = 10, h = 4, k = Kit(), n = ++BLD_N;
-    box(w, h, d, MAT.plaster, x, 0, z);
-    k.box('trim', w + .16, .7, d + .16, 0x8d887b, x, 0, z);                                   // plinth
+    hollow(x, z, w, d, h, MAT.plaster, [{side:'+z', at:0, w:1.7, y0:.5, y1:2.95}]);
+    for(const s of [-1, 1]){ k.box('trim', .08, .7, d + .16, 0x8d887b, x + s*(w/2 + .04), 0, z); k.box('trim', w + .16, .7, .08, 0x8d887b, x, 0, z - d/2 - .04); }   // plinth
+    for(const s of [-1, 1]) k.box('trim', w/2 - 1.6, .7, .08, 0x8d887b, x + s*(w/4 + .8 + .04), 0, z + d/2 + .04);
     for(const cx of [-w/2, -w/2 + 6.5, 0, w/2 - 6.5, w/2]) for(const s of [-1, 1]) k.box('trim', .36, h, .1, 0xb8ad8c, x + cx + (Math.abs(cx) === w/2 ? -Math.sign(cx)*.13 : 0), 0, z + s*(d/2 + .04));   // pilasters
     k.box('trim', w + .2, .22, d + .2, 0xd7cfb3, x, h - .22, z);                             // cornice
     const r = mesh(gableGeo(d + 1.6, w + 1.2, 2.4), MAT.roof, x, h, z); r.rotation.y = HALF_PI;
@@ -1161,10 +1275,9 @@ const radarHead = new THREE.Group();
       for(const s of [-1, 1]) kitWindow(k, wx, 1.35, z + s*d/2, 1.4, 1.25, s, 'z', (i + n + (s > 0 ? 1 : 0)) % 4 === 0); }
     // the entrance: door with a frame and a small window, porch with three steps and railings, a canopy on posts, a lamp and a sign
     const fz = z + d/2;
-    k.box('trim', 2, 2.65, .12, 0xeae6da, x, .5, fz + .03); box(1.6, 2.4, .14, MAT.door, x, .5, fz + .07, {col:false});
-    k.box('glass', .5, .5, .04, 0, x, 2.1, fz + .15); k.box('metal', .06, .2, .08, 0xd8cf9a, x + .55, 1.6, fz + .18);
+    kitFrame(k, x, .5, fz + .04, 1.7, 2.45); swingDoor(x, fz - .15, 1.7, 2.45, .5, 1, MAT.door);
     for(let st = 0; st < 3; st++) k.box('trim', 3.4 - st*.2, .17, 1.9 - st*.45, 0xa9a598, x, st*.17, fz + 1.05 - st*.22);
-    addCol(x - 1.7, x + 1.7, 0, .5, fz, fz + 1.95);
+    for(let st = 0; st < 3; st++){ const sw = 3.4 - st*.2, sd = 1.9 - st*.45, sz = fz + 1.05 - st*.22; addCol(x - sw/2, x + sw/2, 0, (st + 1)*.17, sz - sd/2, sz + sd/2); }
     for(const sx of [-1, 1]){ k.box('metal', .05, .9, 1.8, 0x3a3d39, x + sx*1.62, .5, fz + .95); for(const pz of [.15, 1.8]) k.box('metal', .06, .95, .06, 0x3a3d39, x + sx*1.62, .5, fz + pz); }
     k.box('metal', 3.4, .12, 2.1, 0x4e5a3a, x, 3.05, fz + 1.05); for(const sx of [-1, 1]) k.cyl('metal', .06, .06, 2.55, 0x3a3d39, x + sx*1.55, .5, fz + 1.95);
     k.box('lit', .26, .22, .2, 0, x - 1.25, 2.55, fz + .14); k.box('metal', .32, .06, .26, 0x2e312f, x - 1.25, 2.77, fz + .14);
@@ -1174,6 +1287,37 @@ const radarHead = new THREE.Group();
     // an air conditioner on the side wall, a bench by the door
     k.box('metal', .9, .6, .35, 0xd8d6cf, x + w/2 + .2, 2.4, z + 1.5); k.box('metal', .5, .5, .03, 0x8d918c, x + w/2 + .38, 2.45, z + 1.5);
     k.box('trim', 1.8, .08, .45, 0x7b5d3c, x + 3.6, .45, fz + .5); for(const bx of [-.75, .75]) k.box('metal', .06, .45, .4, 0x2e312f, x + 3.6 + bx, 0, fz + .5);
+    // ---- inside: a plank floor, bunks in two tiers along the walls, lockers, tables with benches, lamps, windows
+    const fy = .5, zb = z - d/2 + .3, zf = z + d/2 - .3;
+    addCol(x - w/2 + .3, x + w/2 - .3, 0, fy, zb, zf);
+    slab(w - .6, d - .6, x, z, texMat(TEX.wood, 9, 3, {color:0x9b7d55}), fy + .005);
+    box(w - .6, .2, d - .6, std(0xe9e4d6, .9), x, h - .3, z);                                  // the ceiling
+    for(let i = 0; i < 7; i++){ const wx = x - 10.5 + i*3.5; if(i === 3) continue; for(const s of [-1, 1]) kitInWin(k, wx, 1.35, z + s*(d/2 - .3) - s*.02, 1.4, 1.25); }
+    const bunk = (bx, bz, dir) => {      // dir: which way from the wall
+      for(const ex of [-.42, .42]) for(const ez of [-.95, .95]) k.box('metal', .05, 2, .05, 0x3e4a36, bx + ex, fy, bz + ez);
+      for(const ty of [.42, 1.45]){
+        for(const ex of [-.42, .42]) k.box('metal', .05, .05, 1.95, 0x3e4a36, bx + ex, fy + ty, bz);
+        k.box('trim', .82, .12, 1.88, 0x6d7a5a, bx, fy + ty + .05, bz); k.box('trim', .6, .1, .32, 0xece8de, bx, fy + ty + .17, bz - dir*.72);
+        k.box('trim', .84, .06, .9, 0x4f5e3c, bx, fy + ty + .17, bz + dir*.4);
+      }
+      addCol(bx - .45, bx + .45, fy, fy + 2, bz - 1, bz + 1);
+    };
+    for(const c of [-11.4, -8.4, -5.4, -2.2, 2.2, 5.4, 8.4, 11.4]) bunk(x + c, zb + 1.05, 1);
+    for(const c of [-11.4, -8.4, -5.4, 5.4, 8.4, 11.4]) bunk(x + c, zf - 1.05, -1);
+    for(const tx of [-3.6, 3.6]){                                                              // tables with benches
+      k.box('trim', 2.4, .06, .9, 0x7b5d3c, x + tx, fy + .74, z); for(const ex of [-1.05, 1.05]) for(const ez of [-.35, .35]) k.box('metal', .05, .74, .05, 0x2e312f, x + tx + ex, fy, z + ez);
+      for(const ez of [-.75, .75]) k.box('trim', 2.2, .06, .3, 0x6b4f35, x + tx, fy + .44, z + ez);
+      k.box('metal', .2, .14, .2, 0x8a8f86, x + tx - .6, fy + .8, z); k.box('trim', .3, .03, .22, 0xf2efe6, x + tx + .3, fy + .78, z + .1);
+      addCol(x + tx - 1.2, x + tx + 1.2, fy, fy + .8, z - .45, z + .45);
+    }
+    for(const s of [-1, 1]) for(let j = 0; j < 4; j++){                                         // lockers at both ends
+      const lz = z - 1.5 + j*.6, lx = x + s*(w/2 - .58); k.box('metal', .5, 1.9, .56, 0x5b6a4a, lx, fy, lz);
+      k.box('metal', .02, 1.7, .02, 0x2a2e28, lx - s*.26, fy + .1, lz + .27); k.box('metal', .03, .14, .03, 0xd8cf9a, lx - s*.27, fy + 1, lz + .18);
+    }
+    for(const s of [-1, 1]) addCol(x + s*(w/2 - .58) - .27, x + s*(w/2 - .58) + .27, fy, fy + 1.9, z - 1.8, z + .6);
+    for(let i = 0; i < 4; i++) k.box('lit', 1.5, .06, .3, 0, x - 9 + i*6, h - .36, z);         // lamps under the ceiling
+    k.box('trim', .9, .6, .04, 0xc9b98a, x + 1.6, fy + 1.4, zb + .02); k.add('trim', new THREE.CylinderGeometry(.18, .18, .04, 16), 0xf2efe6, x - 1.6, fy + 2.2, zb + .03, HALF_PI);   // a notice board and a clock
+    addRoom(x - w/2, x + w/2, z - d/2, z + d/2, 0, h, x, h - .8, z);
     k.build();
   }
   barracks(-45, -45); barracks(-45, -25); barracks(-45, -5);
@@ -1181,19 +1325,20 @@ const radarHead = new THREE.Group();
   // headquarters: two floors with bands, framed windows, a portico with columns and steps, roof plant and planters
   {
     const x = 0, z = -52, w = 20, d = 12, h = 8, k = Kit(), fz = z + d/2;
-    box(w, h, d, texMat(TEX.concrete, 5, 2, {color:0xd9d4c3}), x, 0, z);
-    k.box('trim', w + .2, .8, d + .2, 0x8f8a7d, x, 0, z);                                     // plinth
-    k.box('trim', w + .24, .3, d + .24, 0xc3bca6, x, 3.75, z);                                // floor band
+    hollow(x, z, w, d, h, texMat(TEX.concrete, 5, 2, {color:0xd9d4c3}), [{side:'+z', at:0, w:2.6, y0:.8, y1:3.55}]);
+    const band = (bh, by, col, ext) => { for(const s of [-1, 1]){ k.box('trim', .1, bh, d + ext, col, x + s*(w/2 + ext/4), by, z); k.box('trim', w + ext, bh, .1, col, x, by, z - d/2 - ext/4); }
+      for(const s of [-1, 1]) k.box('trim', w/2 - 1.5 + ext/2, bh, .1, col, x + s*(w/4 + .75 + ext/4), by, z + d/2 + ext/4); };
+    band(.8, 0, 0x8f8a7d, .2);                                                                  // plinth
+    for(const s of [-1, 1]) k.box('trim', .1, .3, d + .24, 0xc3bca6, x + s*(w/2 + .06), 3.75, z); for(const s of [-1, 1]) k.box('trim', w + .24, .3, .1, 0xc3bca6, x, 3.75, z + s*(d/2 + .06));   // floor band
     k.box('trim', w + .5, .9, d + .5, 0xbfb8a2, x, h - .3, z); k.box('trim', w + .8, .16, d + .8, 0xa7a08b, x, h + .6, z);   // parapet and coping
     for(const cx of [-w/2, w/2]) for(const s of [-1, 1]) k.box('trim', .5, h, .14, 0xc8c1aa, x + cx - Math.sign(cx)*.2, 0, z + s*(d/2 + .05));   // corner pilasters
     for(const fl of [0, 1]) for(let i = 0; i < 6; i++){ const wx = -7.5 + i*3; if(fl === 0 && Math.abs(wx) < 2) continue;
       for(const s of [-1, 1]) kitWindow(k, x + wx, 1.35 + fl*3.6, z + s*d/2, 1.7, 1.45, s, 'z', (i + fl*2 + (s > 0 ? 0 : 1)) % 3 === 0); }
     for(const fl of [0, 1]) for(const zz of [-3, 0, 3]) for(const s of [-1, 1]) kitWindow(k, x + s*w/2, 1.35 + fl*3.6, z + zz, 1.5, 1.45, s, 'x', (zz + fl + s) % 2 === 0);
     // entrance: glass doors in a frame, a portico on four columns, wide steps
-    k.box('trim', 3, 3.1, .16, 0xeae6da, x, .8, fz + .04); k.box('glass', 2.5, 2.7, .1, 0, x, .8, fz + .1); k.box('metal', .06, 2.7, .12, 0x6d726c, x, .8, fz + .13);
-    for(const hx of [-.25, .25]) k.box('metal', .04, .5, .08, 0xd8cf9a, x + hx, 1.9, fz + .2);
+    kitFrame(k, x, .8, fz + .05, 2.6, 2.75); slideDoor(x, fz - .15, 2.6, 2.75, .8);
     for(let st = 0; st < 4; st++) k.box('trim', 7 - st*.3, .2, 3.4 - st*.5, 0xb3ae9f, x, st*.2, fz + 1.7 - st*.25);
-    addCol(x - 3.5, x + 3.5, 0, .8, fz, fz + 3.4);
+    for(let st = 0; st < 4; st++){ const sw = 7 - st*.3, sd = 3.4 - st*.5, sz = fz + 1.7 - st*.25; addCol(x - sw/2, x + sw/2, 0, (st + 1)*.2, sz - sd/2, sz + sd/2); }
     for(const cx of [-2.6, -1, 1, 2.6]){ k.cyl('trim', .22, .25, 3.1, 0xe4dfcf, x + cx, .8, fz + 2.6, 14); k.box('trim', .6, .18, .6, 0xcdc6b2, x + cx, .8, fz + 2.6); k.box('trim', .6, .18, .6, 0xcdc6b2, x + cx, 3.72, fz + 2.6); }
     for(const cx of [-2.6, 2.6]) addCol(x + cx - .25, x + cx + .25, 0, 4, fz + 2.35, fz + 2.85);
     k.box('trim', 6.4, .45, 3.2, 0xd2ccb8, x, 3.9, fz + 1.55); k.box('trim', 6.6, .12, 3.4, 0xb1aa96, x, 4.35, fz + 1.55);
@@ -1211,6 +1356,61 @@ const radarHead = new THREE.Group();
     cyl(0.05, 0.08, 5, MAT.steel, x + 5.5, h + 0.6, z - 3.5, 6);
     const dish = mesh(new THREE.SphereGeometry(1.1, 16, 8, 0, Math.PI*2, 0, 0.9), MAT.white, x - 6, h + 1.6, z - 2); dish.rotation.x = -1.0; dish.material = std(0xe2ded2, .5, .1, {side:THREE.DoubleSide});
     box(0.3, 1, 0.3, MAT.steel, x - 6, h + 0.6, z - 2, {col:false});
+    // ---- inside. Ground floor: a hall with the reception desk, flags, the big map, chairs and plants; stairs up along the back wall.
+    // Upper floor: the commander's office — desk with screens, map table, radio station, bookshelves, a safe and a globe.
+    const f1 = .8, f2 = 4.4, zb = z - d/2 + .3, zf = z + d/2 - .3, xl = x - w/2 + .3, xr = x + w/2 - .3;
+    const tiles = canvasTex(128, 128, (g, w_, h_) => { for(let i = 0; i < 4; i++) for(let j = 0; j < 4; j++){ g.fillStyle = (i + j) % 2 ? '#bdb6a3' : '#d8d2c0'; g.fillRect(i*32, j*32, 32, 32); } g.strokeStyle = 'rgba(80,70,50,.25)'; for(let i = 0; i <= 4; i++){ g.strokeRect(i*32, 0, 0, h_); g.strokeRect(0, i*32, w_, 0); } });
+    addCol(xl, xr, 0, f1, zb, zf); slab(w - .6, d - .6, x, z, texMat(tiles, 6, 4), f1 + .005);
+    // the upper floor, with the opening over the stairs (x from x - 8.6 to x - 4.4, z from zb to zb + 1.5)
+    const flM = texMat(TEX.wood, 5, 3, {color:0x8a6a48}), sx0 = x - 8.6, sx1 = x - 4.4, sz1 = zb + 1.5;
+    box(w - .6, .3, zf - sz1, flM, x, f2 - .3, (sz1 + zf)/2);
+    box(xr - sx1, .3, 1.5, flM, (sx1 + xr)/2, f2 - .3, zb + .75); box(sx0 - xl, .3, 1.5, flM, (xl + sx0)/2, f2 - .3, zb + .75);
+    box(w - .6, .25, d - .6, std(0xeeeae0, .9), x, h - .55, z);                                 // the ceiling upstairs
+    for(let i = 0; i < 12; i++){ const top = f1 + (i + 1)*.3, a = sx0 + i*.35;                  // the stairs
+      k.box('trim', .35, top - f1, 1.4, i % 2 ? 0xb9b2a0 : 0xc4bdab, a + .175, f1, zb + .72); addCol(a, a + .35, 0, top, zb, zb + 1.45); }
+    for(let i = 0; i <= 6; i++) k.box('metal', .04, .95, .04, 0x3a3d39, sx0 + i*.7, f1 + i*.6 + .3, zb + 1.47);
+    k.add('metal', new THREE.BoxGeometry(4.6, .05, .06), 0x3a3d39, (sx0 + sx1)/2, (f1 + f2)/2 + 1.05, zb + 1.47, 0, 0, Math.atan2(3.6, 4.2));
+    for(let i = 0; i <= 6; i++) k.box('metal', .04, 1, .04, 0x3a3d39, sx0 + i*.7, f2, sz1 + .03);   // the railing round the opening upstairs
+    k.box('metal', 4.25, .05, .06, 0x3a3d39, (sx0 + sx1)/2, f2 + 1, sz1 + .03); k.box('metal', .06, .05, 1.5, 0x3a3d39, sx0 - .03, f2 + 1, zb + .75);
+    addCol(sx0, sx1, f2, f2 + 1.05, sz1 - .02, sz1 + .1); addCol(sx0 - .1, sx0 + .02, f2, f2 + 1.05, zb, sz1);
+    // windows from inside (both floors)
+    for(const fl of [0, 1]) for(let i = 0; i < 6; i++){ const wx = -7.5 + i*3; if(fl === 0 && Math.abs(wx) < 2) continue;
+      for(const s of [-1, 1]) if(!(s < 0 && fl === 0 && x + wx < sx1 + .5)) kitInWin(k, x + wx, 1.35 + fl*3.6, z + s*(d/2 - .3) - s*.02, 1.7, 1.45); }
+    for(const fl of [0, 1]) for(const zz of [-3, 0, 3]) for(const s of [-1, 1]) kitInWin(k, x + s*(w/2 - .3) - s*.02, 1.35 + fl*3.6, z + zz, 1.5, 1.45, 'x');
+    // ground floor
+    k.box('trim', 3.2, 1.05, .7, 0x6b4f35, x + 5, f1, z + 2.2); k.box('trim', .7, 1.05, 1.6, 0x6b4f35, x + 6.25, f1, z + 1.05); k.box('trim', 3.3, .06, .8, 0x3a2a1c, x + 5, f1 + 1.05, z + 2.2);
+    k.box('metal', .5, .34, .05, 0x1e2120, x + 4.6, f1 + 1.1, z + 1.95); k.box('scr', .44, .28, .02, 0, x + 4.6, f1 + 1.13, z + 1.98); k.box('metal', .3, .1, .12, 0x2a2c2a, x + 5.4, f1 + 1.1, z + 2.1);
+    addCol(x + 3.4, x + 6.6, f1, f1 + 1.1, z + .25, z + 2.55);
+    for(const [cx, col] of [[-1.6, 0xb3261e], [1.6, 0x3c5a2a]]){ k.cyl('metal', .03, .03, 2.6, 0xd9b93e, x + cx, f1, zb + .25); k.add('trim', new THREE.BoxGeometry(.9, .6, .02), col, x + cx + .46, f1 + 2.2, zb + .25); }
+    { const mapT = canvasTex(256, 128, (g, w_, h_) => { g.fillStyle = '#c9bd95'; g.fillRect(0, 0, w_, h_); g.strokeStyle = 'rgba(70,60,30,.3)';
+        for(let i = 0; i < w_; i += 16){ g.beginPath(); g.moveTo(i, 0); g.lineTo(i, h_); g.stroke(); } for(let i = 0; i < h_; i += 16){ g.beginPath(); g.moveTo(0, i); g.lineTo(w_, i); g.stroke(); }
+        g.fillStyle = '#7d9a5a'; g.beginPath(); g.ellipse(80, 60, 50, 30, .3, 0, 7); g.fill(); g.strokeStyle = '#3c4a2a'; g.lineWidth = 4; g.strokeRect(140, 30, 70, 60);
+        g.fillStyle = '#b3261e'; for(const [a, b] of [[60, 100], [200, 110], [120, 20]]){ g.beginPath(); g.moveTo(a, b - 10); g.lineTo(a + 7, b); g.lineTo(a - 7, b); g.fill(); } });
+      mesh(new THREE.PlaneGeometry(4, 2), new THREE.MeshStandardMaterial({map:mapT, roughness:.85}), x + 4, f1 + 1.3, zb + .03, {shadow:false}); k.box('trim', 4.2, 2.2, .04, 0x4a3a28, x + 4, f1 + 1.2, zb + .01); }
+    for(let i = 0; i < 4; i++){ const cz = z - 1.5 + i*1.1; k.box('trim', .55, .45, .55, 0x2f4a5a, xr - .45, f1, cz); k.box('trim', .12, .5, .55, 0x2f4a5a, xr - .2, f1 + .45, cz); }
+    addCol(xr - .75, xr, f1, f1 + .9, z - 1.9, z + 2.1);
+    for(const [px, pz] of [[xl + .5, zf - .5], [xr - .5, zf - .5], [xr - .5, zb + .5]]){ k.cyl('trim', .25, .2, .5, 0x8a6f45, px, f1, pz); for(let b = 0; b < 4; b++) k.add('green', new THREE.IcosahedronGeometry(.28, 0), shade(0x4f7a37, rr(.8, 1.15)), px + rr(-.15, .15), f1 + .7 + b*.2, pz + rr(-.15, .15)); }
+    k.box('trim', .35, 1.1, .35, 0xe6e6e6, xl + .5, f1, z + 1); k.cyl('trim', .14, .14, .4, 0x7fb7e0, xl + .5, f1 + 1.1, z + 1);   // a water cooler
+    for(let i = 0; i < 3; i++) for(let j = 0; j < 2; j++) k.box('lit', 1.2, .05, .45, 0, x - 5 + i*5, f2 - .36, z - 2 + j*4.5);
+    // upstairs: the commander's office
+    k.box('trim', 2.8, .08, 1.2, 0x5a3e28, x + 5, f2 + .74, z - 1.2); k.box('trim', 2.6, .7, 1.1, 0x4a3220, x + 5, f2 + .04, z - 1.2);
+    for(const mx of [-.6, .6]){ k.box('metal', .62, .4, .05, 0x1e2120, x + 5 + mx, f2 + .95, z - 1.65); k.box('scr', .56, .34, .02, 0, x + 5 + mx, f2 + .98, z - 1.62); k.box('metal', .06, .2, .06, 0x2a2c2a, x + 5 + mx, f2 + .8, z - 1.68); }
+    k.box('trim', .6, .06, .6, 0x2a2c2a, x + 5, f2 + .48, z - .2); k.box('trim', .6, .7, .08, 0x2a2c2a, x + 5, f2 + .5, z + .1); k.cyl('metal', .04, .04, .45, 0x555, x + 5, f2, z - .2);
+    addCol(x + 3.6, x + 6.4, f2, f2 + .8, z - 1.8, z - .6);
+    { const mapT2 = canvasTex(256, 160, (g, w_, h_) => { g.fillStyle = '#b9c49a'; g.fillRect(0, 0, w_, h_); g.strokeStyle = '#4a5a33'; g.lineWidth = 2; for(let i = 0; i < 8; i++){ g.beginPath(); g.ellipse(128, 80, 20 + i*14, 12 + i*9, .2, 0, 7); g.stroke(); }
+        g.fillStyle = '#2a4fa0'; g.fillRect(30, 30, 14, 14); g.fillStyle = '#b3261e'; g.fillRect(200, 110, 14, 14); });
+      k.box('trim', 3, .8, 1.8, 0x5a3e28, x - 1, f2, z + 2.6); const t = mesh(new THREE.PlaneGeometry(2.8, 1.6), new THREE.MeshStandardMaterial({map:mapT2, roughness:.8}), x - 1, f2 + .81, z + 2.6, {shadow:false}); t.rotation.x = -HALF_PI;
+      addCol(x - 2.5, x + .5, f2, f2 + .8, z + 1.7, z + 3.5); }
+    k.box('metal', 1.4, .9, .55, 0x4a5240, xl + .35 + .3, f2, z + 3.5); for(let i = 0; i < 5; i++) k.box('lit', .08, .08, .02, 0, xl + .4 + i*.22, f2 + .7, z + 3.22); k.box('scr', .6, .2, .02, 0, xl + .9, f2 + .45, z + 3.22);
+    k.cyl('metal', .02, .02, 1.6, 0x888, xl + .5, f2 + .9, z + 3.6); addCol(xl, xl + 1.45, f2, f2 + .9, z + 3.2, z + 3.8);
+    for(let j = 0; j < 2; j++){ const bz = z - 3 + j*3.2; k.box('trim', .4, 2.4, 2.8, 0x5a3e28, xr - .2, f2, bz);
+      for(let sh = 0; sh < 4; sh++) for(let b = 0; b < 9; b++) k.box('trim', .26, .38, .22, [0x8a2a20, 0x2a4a7a, 0x3a5a2a, 0xb59a4a, 0x5a3a6a][(b + sh + j) % 5], xr - .3, f2 + .15 + sh*.58, bz - 1.2 + b*.28 + rr(-.02, .02)); }
+    addCol(xr - .45, xr, f2, f2 + 2.4, z - 4.5, z + 3.1);
+    k.box('metal', .7, .9, .6, 0x3a3d39, xr - .5, f2, zf - .5); k.cyl('metal', .1, .1, .05, 0xc9a94a, xr - .5, f2 + .55, zf - .82); addCol(xr - .85, xr, f2, f2 + .9, zf - .8, zf);   // a safe
+    k.cyl('trim', .04, .06, .9, 0x4a3220, x + 1.5, f2, z - 3.6); k.add('trim', new THREE.SphereGeometry(.3, 14, 10), 0x3a6aa0, x + 1.5, f2 + 1.2, z - 3.6);   // a globe
+    for(let i = 0; i < 3; i++) for(let j = 0; j < 2; j++) k.box('lit', 1.2, .05, .45, 0, x - 5 + i*5, h - .61, z - 2 + j*4.5);
+    addRoom(x - w/2, x + w/2, z - d/2, z + d/2, 0, f2 - .3, x, f2 - .9, z + 1);
+    addRoom(x - w/2, x + w/2, z - d/2, z + d/2, f2 - .3, h, x, h - 1.2, z);
     k.build();
   }
   cyl(0.09, 0.14, 13, MAT.steel, 0, 0, -38, 8); box(1.6, 0.4, 1.6, MAT.concrete, 0, 0, -38);
@@ -1222,10 +1422,13 @@ const radarHead = new THREE.Group();
   {
     const x = 42, z = -40, r = 12, len = 32;     // bigger hangar (was 10 × 28); the doors stay 12 × 6.8 m
     const shell = new THREE.CylinderGeometry(r, r, len, 28, 1, true, HALF_PI, Math.PI); shell.rotateX(HALF_PI);
-    mesh(shell, MAT.hangar, x, 0, z);
+    solids.push(mesh(shell, MAT.hangar, x, 0, z));
     const endMat = texMat(TEX.metal, 10, 1, {color:0x7f857a, metalness:.35, roughness:.55, side:THREE.DoubleSide});
-    mesh(new THREE.CircleGeometry(r, 28, 0, Math.PI), endMat, x, 0, z + len/2);
-    mesh(new THREE.CircleGeometry(r, 28, 0, Math.PI), endMat, x, 0, z - len/2);
+    // the front end: the arch with the gap for the big doors and the small side door cut out
+    { const sh = new THREE.Shape(); sh.moveTo(6.1, 0); sh.lineTo(9.65, 0); sh.lineTo(9.65, 2.15); sh.lineTo(10.75, 2.15); sh.lineTo(10.75, 0); sh.lineTo(r, 0);
+      sh.absarc(0, 0, r, 0, Math.PI, false); sh.lineTo(-6.1, 0); sh.lineTo(-6.1, 6.9); sh.lineTo(6.1, 6.9); sh.closePath();
+      solids.push(mesh(new THREE.ShapeGeometry(sh, 28), endMat, x, 0, z + len/2)); }
+    solids.push(mesh(new THREE.CircleGeometry(r, 28, 0, Math.PI), endMat, x, 0, z - len/2));
     // the doors: two corrugated steel leaves on a rail, painted with a big number, a band of windows on top
     { const fz = z + len/2 + .15, W = 6, H = 6.8;     // two leaves 6 m wide: the corners stay inside the arch
       const paint = canvasTex(1024, 540, (g, w, h) => {
@@ -1265,11 +1468,39 @@ const radarHead = new THREE.Group();
       for(const sx of [-1, 1]) k.box('metal', .45, 7.1, .5, 0x3b3f3a, x + sx*6.28, 0, z + len/2 + .2);
       const stripes = mesh(new THREE.PlaneGeometry(12.4, .45), texMat(TEX.hazard, 13, 1), x, 7.22, z + len/2 + .46, {shadow:false});
       for(const sx of [-1, 1]){ k.box('lit', .7, .32, .3, 0, x + sx*4.2, 7.5, z + len/2 + .5); k.box('metal', .8, .1, .4, 0x2e312f, x + sx*4.2, 7.82, z + len/2 + .5); }
-      k.box('trim', 1.3, 2.3, .1, 0xeae6da, x + r - 1.8, 0, z + len/2 + .07); box(1.1, 2.1, .14, MAT.door, x + r - 1.8, 0, z + len/2 + .1, {col:false});
+      kitFrame(k, x + r - 1.8, 0, z + len/2 + .06, 1.1, 2.15); swingDoor(x + r - 1.8, z + len/2, 1.1, 2.15, 0, 1, MAT.door);
       for(let t = -len/2 + 4; t <= len/2 - 4; t += 8) k.add('glass', new THREE.BoxGeometry(1.4, .06, 2.2), 0, x, r + .05, z + t);
       k.build(); }
-    addCol(x - r, x + r, 0, 9, z - len/2, z + len/2);
-    const hangarHit = new THREE.Mesh(new THREE.BoxGeometry(2*r, 9, len), new THREE.MeshBasicMaterial({visible:false})); hangarHit.position.set(x, 4.5, z); scene.add(hangarHit); solids.push(hangarHit);
+    // walls you can walk along inside: the front (big doors shut, the small door at the right), the back, the low sides, and the roof for the camera
+    { const f0 = z + len/2 - .15, f1 = z + len/2 + .35, b0 = z - len/2 - .3, b1 = z - len/2 + .15, Z0 = z - len/2, Z1 = z + len/2;
+      addCol(x - 6.1, x + 6.1, 0, 12.5, f0, f1);
+      addCol(x - r - .3, x - 6.1, 0, 12.5, f0, f1); addCol(x + 6.1, x + 9.65, 0, 12.5, f0, f1); addCol(x + 10.75, x + r + .3, 0, 12.5, f0, f1); addCol(x + 9.65, x + 10.75, 2.15, 12.5, f0, f1);
+      addCol(x - r - .3, x + r + .3, 0, 12.5, b0, b1);
+      for(const s of [-1, 1]){ addCol(s < 0 ? x - r - .3 : x + 11, s < 0 ? x - 11 : x + r + .3, 0, 12.5, Z0, Z1); addCol(s < 0 ? x - 11 : x + 7.9, s < 0 ? x - 7.9 : x + 11, 6.2, 12.5, Z0, Z1); }
+      addCol(x - 7.9, x + 7.9, 9.3, 12.5, Z0, Z1); }
+    // ---- inside: a parked truck, an overhead crane, a workbench and a tool wall, drums, a tool chest, lamps up in the roof
+    { const k = Kit();
+      slab(2*r - 1.2, len - .4, x, z, texMat(TEX.concrete, 6, 8, {color:0x8a877d}), .028);
+      for(const s of [-1, 1]) k.box('trim', .15, .01, len - 3, 0xe0b52c, x + s*6.5, .03, z);
+      k.box('trim', 13, .01, .15, 0xe0b52c, x, .03, z + len/2 - 3);
+      for(const s of [-1, 1]){ k.box('metal', .3, .4, len - 2, 0x8a6a1a, x + s*6, 8.4, z); for(let t = -len/2 + 3; t <= len/2 - 3; t += 7) k.box('metal', .25, 8.4, .25, 0x8a6a1a, x + s*6, 0, z + t); }
+      k.box('metal', 12.3, .5, .5, 0xe0b52c, x, 8.85, z - 3); k.box('metal', .8, .5, .8, 0x2e312f, x + 1.5, 8.35, z - 3);
+      k.cyl('metal', .02, .02, 4.5, 0x222222, x + 1.5, 3.85, z - 3, 4); k.box('metal', .3, .35, .1, 0xd8a52c, x + 1.5, 3.5, z - 3);
+      for(let t = -len/2 + 4; t <= len/2 - 4; t += 6){ k.cyl('metal', .015, .015, 1.6, 0x222222, x, 9.6, z + t, 4); k.box('lit', .9, .14, .5, 0, x, 9.45, z + t); k.box('metal', 1, .12, .6, 0x2e312f, x, 9.58, z + t); }
+      const wb = x - 9.4;
+      k.box('trim', 1, .9, 3.4, 0x6b5a44, wb, 0, z + 5); k.box('metal', 1.05, .06, 3.5, 0x5a5f5a, wb, .9, z + 5);
+      k.box('trim', .06, 1.6, 3.4, 0x8a6f45, wb - .5, 1.2, z + 5);
+      for(let i = 0; i < 7; i++) k.box('metal', .05, rr(.25, .5), .06, [0xb3261e, 0x3a3d39, 0xd8a52c][i % 3], wb - .44, 1.6 + rr(0, .6), z + 3.6 + i*.45);
+      k.box('metal', .3, .25, .3, 0x5a6a7a, wb, .96, z + 4); k.cyl('metal', .12, .12, .3, 0x888, wb, .96, z + 5.6);
+      addCol(wb - .55, wb + .55, 0, .95, z + 3.3, z + 6.7);
+      k.box('metal', .9, 1.1, .55, 0xb3261e, x + 9, 0, z - 9); for(let i = 0; i < 4; i++) k.box('metal', .92, .03, .57, 0x2a2c2a, x + 9, .3 + i*.22, z - 9); addCol(x + 8.55, x + 9.45, 0, 1.1, z - 9.3, z - 8.7);
+      for(const [dx, dz, c] of [[8.6, 6, 0x3c5a7a], [9.5, 6.3, 0x3c5a7a], [9, 7.2, 0xb3261e]]){ k.cyl('metal', .4, .4, 1.2, c, x + dx, 0, z + dz, 14); addCol(x + dx - .4, x + dx + .4, 0, 1.2, z + dz - .4, z + dz + .4); }
+      for(let i = 0; i < 3; i++) k.box('trim', 1.1, 1.1, 1.1, 0x8a6f45, x - 9.2, i < 2 ? 0 : 1.1, z - 8 + (i % 2)*1.2);
+      addCol(x - 9.75, x - 8.65, 0, 2.2, z - 8.6, z - 6.2);
+      k.build();
+      truck(x - 2.5, z - 5, 0);
+      addRoom(x - r, x + r, z - len/2, z + len/2, 0, 12, x, 8.5, z);
+    }
   }
 
   // helipad with a parked helicopter whose rotor turns slowly
@@ -1314,13 +1545,7 @@ const radarHead = new THREE.Group();
   }
 
   // tents
-  for(let i = 0; i < 4; i++){
-    const x = -46 + i*8, z = 30;
-    mesh(gableGeo(5, 6, 3), MAT.camo, x, 0, z);
-    const flap = new THREE.Shape(); flap.moveTo(-0.8, 0); flap.lineTo(0.8, 0); flap.lineTo(0, 1.9); flap.closePath();
-    mesh(new THREE.ShapeGeometry(flap), MAT.dark, x, 0.01, z + 3.01, {shadow:false});
-    addCol(x - 2.5, x + 2.5, 0, 3, z - 3, z + 3);
-  }
+  for(let i = 0; i < 4; i++) tent(-46 + i*8, 30, 0);
 
   // army trucks
   function truck(x, z, ry){
@@ -2713,6 +2938,7 @@ function nearHatch(){
 function toggleHatch(b){ b.open = !b.open; sfxAt('door', b); netSend({t:'hatch', id:b.id, o:b.open ? 1 : 0}); }
 // the ladder under an open hatch: stand in the hole and hold «forward» or «jump» to climb
 function onLadder(p){
+  for(const L of LADDERS) if(Math.abs(p.x - L.x) < .6 && Math.abs(p.z - L.z) < .6 && p.y > -.2 && p.y < L.y + .3) return L;
   for(const b of built){ if(WT[b.t].kind !== 'hatch' || b.oa < 0.6) continue;
     if(Math.abs(p.x - b.x) < 0.85 && Math.abs(p.z - b.z) < 0.85 && p.y > b.y - 4.6 && p.y < b.y + 0.3) return b; }
   return null;
@@ -4682,10 +4908,18 @@ const HUB = {x:0, z:-1000, r:22, portals:[], flag:null, flagBase:null, radar:nul
   for(const [sx, sz] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]){
     const tx = X + sx*(H - 2.5), tz = Z + sz*(H - 2.5);
     for(const [lx, lz] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) cyl(.1, .14, 6.5, MAT.dark, tx + lx*1.1, 0, tz + lz*1.1, 6);
-    box(3, .25, 3, MAT.wood, tx, 6.5, tz, {col:false}); box(3, 1, .1, MAT.wood, tx, 6.75, tz - 1.45, {col:false}); box(3, 1, .1, MAT.wood, tx, 6.75, tz + 1.45, {col:false});
+    box(3, .25, 3, MAT.wood, tx, 6.5, tz, {col:false});
+    for(const s of [-1, 1]){ if(s === -sz){ box(.95, 1, .1, MAT.wood, tx - 1.02, 6.75, tz + s*1.45, {col:false}); box(.95, 1, .1, MAT.wood, tx + 1.02, 6.75, tz + s*1.45, {col:false}); } else box(3, 1, .1, MAT.wood, tx, 6.75, tz + s*1.45, {col:false}); }
     box(.1, 1, 3, MAT.wood, tx - 1.45, 6.75, tz, {col:false}); box(.1, 1, 3, MAT.wood, tx + 1.45, 6.75, tz, {col:false});
     mesh(new THREE.ConeGeometry(2.4, 1.4, 4), MAT.roof, tx, 8.9, tz).rotation.y = Math.PI/4;
-    addCol(tx - 1.3, tx + 1.3, 0, 6.5, tz - 1.3, tz + 1.3);
+    // legs, the platform floor, railings and a ladder on the side that faces the camp
+    for(const [lx, lz] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) addCol(tx + lx*1.1 - .14, tx + lx*1.1 + .14, 0, 6.5, tz + lz*1.1 - .14, tz + lz*1.1 + .14);
+    addCol(tx - 1.5, tx + 1.5, 6.5, 6.75, tz - 1.5, tz + 1.5);
+    for(const s of [-1, 1]){ addCol(tx + s*1.45 - .06, tx + s*1.45 + .06, 6.75, 7.8, tz - 1.5, tz + 1.5); if(s !== -sz) addCol(tx - 1.5, tx + 1.5, 6.75, 7.8, tz + s*1.45 - .06, tz + s*1.45 + .06); }
+    for(const ex of [-1, 1]) addCol(ex < 0 ? tx - 1.5 : tx + .55, ex < 0 ? tx - .55 : tx + 1.5, 6.75, 7.8, tz - sz*1.45 - .06, tz - sz*1.45 + .06);
+    for(const sx2 of [-.45, .45]) box(.07, 6.9, .07, MAT.wood, tx + sx2, 0, tz - sz*1.62, {col:false});
+    for(let y = .4; y < 6.6; y += .45) box(.9, .06, .08, MAT.wood, tx, y, tz - sz*1.62, {col:false});
+    LADDERS.push({x:tx, z:tz - sz*2.15, y:6.75});
   }
   // the flagpole in the middle of the parade ground, with a ring of sandbags round it
   cyl(.09, .12, 12, MAT.steel, X, 0, Z - 3, 8); cyl(.6, .8, .5, MAT.concrete, X, 0, Z - 3, 10);
@@ -4704,8 +4938,7 @@ const HUB = {x:0, z:-1000, r:22, portals:[], flag:null, flagBase:null, radar:nul
   for(const [x, z] of [[-7, 2], [-8.2, 3.4], [-6.8, 4.6], [10.5, 1.5], [10.5, 4.5], [-15, 12], [-16.2, 12], [15.5, 12.5], [16, 11.2]]) box(1.1, .9, 1.1, MAT.crate, X + x, 0, Z + z);
   // tents along the sides, a parked truck, floodlights on poles
   for(const [x, z, r] of [[-19, -6, HALF_PI], [-19, 4, HALF_PI], [19, -6, -HALF_PI], [19, 4, -HALF_PI]]){
-    const g = new THREE.Group(); g.position.set(X + x, 0, Z + z); g.rotation.y = r; scene.add(g);
-    mesh(gableGeo(5, 6, 3), MAT.camo, 0, 0, 0, {parent:g}); addCol(X + x - 3, X + x + 3, 0, 3, Z + z - 3, Z + z + 3);
+    tent(X + x, Z + z, r);
   }
   { const tx = X - 12, tz = Z + 18, g = new THREE.Group(); g.position.set(tx, 0, tz); g.rotation.y = .1; scene.add(g); const o = {parent:g};
     mesh(new THREE.BoxGeometry(2.4, 1, 6.5), MAT.oliveD, 0, 1, 0, o); mesh(new THREE.BoxGeometry(2.4, 1.6, 2), MAT.olive, 0, 2.2, 2.2, o);
@@ -5055,7 +5288,29 @@ function updateCamera(dt){
   if(camera.position.y < 0.3) camera.position.y = 0.3;
   camera.lookAt(tgt);
 }
+// doors open for you, your partner, small allies and other players; one warm light follows you into the room you are in
+const ROOM_LIGHT = new THREE.PointLight(0xffe6c0, 0, 18, 2); scene.add(ROOM_LIGHT);
+function updateDoors(dt){
+  for(const d of DOORS){
+    let near = false;
+    const chk = (x, z, y) => { if(!near && (x - d.x)**2 + (z - d.z)**2 < 6.8 && Math.abs((y || 0) - d.y) < 2.6) near = true; };
+    if(started && P.dead <= 0) chk(P.pos.x, P.pos.z, P.pos.y);
+    for(const a of allies) if(a.R.r < 1 && !a.dead) chk(a.p.x, a.p.z, 0);
+    for(const q of PEERS.values()) if(!q.dead) chk(q.p.x, q.p.z, q.p.y);
+    const was = d.k; d.k = clamp(d.k + (near ? 1 : -1)*dt*2.4, 0, 1);
+    if(was === 0 && d.k > 0) sfxAt('tick', d);
+    if(was === d.k) continue;
+    const e = d.k*d.k*(3 - 2*d.k);
+    if(d.kind === 'swing') d.piv.rotation.y = e*d.ang; else for(const l of d.L) l.g.position.x = l.x0 + l.sd*e*d.w*.47;
+    const open = d.k > .45; d.col.y0 = open ? -100 : d.c0[0]; d.col.y1 = open ? -99 : d.c0[1];
+  }
+  let R = null; const pp = P.pos;
+  if(state === 'play') for(const r of ROOMS) if(pp.x > r.x0 && pp.x < r.x1 && pp.z > r.z0 && pp.z < r.z1 && pp.y >= r.y0 - .3 && pp.y < r.y1){ R = r; break; }
+  if(R) ROOM_LIGHT.position.set(R.lx, R.ly, R.lz);
+  ROOM_LIGHT.intensity += ((R ? 1.15 : 0) - ROOM_LIGHT.intensity)*Math.min(1, 5*dt);
+}
 function updateWorld(dt){
+  updateDoors(dt);
   if(BUNKER_ON){ updateBunkerWorld(dt); updateLook(camera.position.x); }
   {
   rotor.rotation.y += dt*1.2;
