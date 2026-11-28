@@ -3216,6 +3216,16 @@ function wireOn(e, dt){
   if(!e.dead) hitWall(w, (heavy ? 45 : 8)*dt, rnd() < dt*6 ? _c.set(e.p.x, .6, e.p.z) : null);
   return heavy ? .6 : .3;
 }
+// ---------- a mind of their own: everyone picks where to go, stops, looks around, walks on ----------
+function ptFree(x, z, r){
+  if(Math.abs(x) > 300 || Math.abs(z) > 300) return false;
+  for(const c of COLS){ if(c.item || c.y0 > 1.5 || c.y1 < .4 || passable(c)) continue; if(x + r > c.x0 && x - r < c.x1 && z + r > c.z0 && z - r < c.z1) return false; }
+  return true;
+}
+function mindSpot(M, cx, cz, r0, r1, rad){
+  for(let k = 0; k < 8; k++){ const a = rnd()*Math.PI*2, r = rr(r0, r1), x = cx + Math.sin(a)*r, z = cz + Math.cos(a)*r; if(ptFree(x, z, rad)){ M.wx = x; M.wz = z; return true; } }
+  M.wx = cx; M.wz = cz; return false;
+}
 function updateEnemies(dt){
   for(const e of enemies.slice()){
     if(e.dead) continue;
@@ -3229,10 +3239,19 @@ function updateEnemies(dt){
     if(foe === 'player'){ tx = P.pos.x; tz = P.pos.z; dT = fd - P.r; }
     else if(foe){ tx = foe.p.x; tz = foe.p.z; dT = fd - foe.R.r; }
     else { const H = e.hq || HQ; tx = clamp(p.x, H.x0 + 1, H.x1 - 1); tz = H.z1 + 0.3; dT = distToBox(p.x, p.z, H); }
+    // each robot goes its own way: its own lane towards the target, detours, now and then a stop to look around
+    const M = e.mind || (e.mind = {lane:rr(-1, 1), t:0, ox:0, oz:0, pace:rr(.8, 1.15), pause:0, look:0, st:0, sd:0});
+    M.t -= dt; e.idle = false;
+    if(M.t <= 0){ M.t = rr(2.5, 6); M.ox = rr(-8, 8); M.oz = rr(-5, 5); M.pause = !foe && rnd() < .2 ? rr(.7, 2) : 0; M.look = e.face + rr(-1.2, 1.2); if(rnd() < .25) M.lane = clamp(M.lane + rr(-.6, .6), -1, 1); M.pace = clamp(M.pace + rr(-.12, .12), .75, 1.2); }
+    if(!foe){
+      const H = e.hq || HQ, k = clamp((dT - 10)/45, 0, 1), cx = (H.x0 + H.x1)/2, hw = (H.x1 - H.x0)/2 - 1;
+      tx = clamp(cx + M.lane*hw, H.x0 + 1, H.x1 - 1) + (M.lane*26 + M.ox)*k; tz += M.oz*k;
+      if(M.pause > 0 && dT > 14){ M.pause -= dt; e.idle = true; }
+    }
     e.foe = foe; e.foeD = dT;
     const nav = navPoint(p, tx, tz);
     e.cd -= dt; e.punch = Math.max(0, e.punch - dt*3);
-    let want = true;
+    let want = !e.idle; e.strafe = 0;
     const reach = T.range + R.r;
     if(nav.direct && dT < reach){
       if(T.melee){
@@ -3240,7 +3259,10 @@ function updateEnemies(dt){
       } else {
         const from = muzzleOf(R, e.face, _a), to = foe === 'player' ? _b.set(P.pos.x, P.pos.y + P.h*0.6, P.pos.z) : foe ? _b.set(tx, foe.R.h*0.55, tz) : _b.set(tx, 2.5, (e.hq || HQ).z1);
         const blk = losBlock(from, to);
-        if(!blk){ want = dT > reach*0.55; if(e.cd <= 0){ e.cd = rr(.85, 1.15)/T.rate; enemyShoot(e, from, to, foe === 'player' ? 'player' : foe ? 'ally' : 'hq', foe === 'player' ? null : foe); } }
+        if(!blk){ want = dT > reach*0.55;
+          // within range: not a statue — steps to one side or the other while it shoots
+          if(!want && foe){ M.st -= dt; if(M.st <= 0){ M.st = rr(1.2, 3.2); M.sd = rnd() < .3 ? 0 : rnd() < .5 ? -1 : 1; } e.strafe = M.sd; }
+          if(e.cd <= 0){ e.cd = rr(.85, 1.15)/T.rate; enemyShoot(e, from, to, foe === 'player' ? 'player' : foe ? 'ally' : 'hq', foe === 'player' ? null : foe); } }
         else if(blk.wall && e.cd <= 0 && dT < reach*0.8){
           e.cd = 1/T.rate; _c.set(clamp(from.x, blk.x0, blk.x1), clamp(from.y, blk.y0, blk.y1), clamp(from.z, blk.z0, blk.z1));
           enemyShoot(e, from, _c, 'wall', blk.wall);
@@ -3249,7 +3271,8 @@ function updateEnemies(dt){
     }
     let mx = nav.x - p.x, mz = nav.z - p.z; const ml = Math.hypot(mx, mz) || 1; mx /= ml; mz /= ml;
     if(e.sideT > 0){ e.sideT -= dt; const sx = -mz*e.side, sz = mx*e.side; mx = mx*.35 + sx; mz = mz*.35 + sz; const l2 = Math.hypot(mx, mz); mx /= l2; mz /= l2; }
-    let speed = want ? T.speed : 0;
+    let speed = want ? T.speed*(foe ? 1 : M.pace) : 0;
+    if(e.strafe){ const fl = Math.hypot(tx - p.x, tz - p.z) || 1; mx = -(tz - p.z)/fl*e.strafe; mz = (tx - p.x)/fl*e.strafe; speed = T.speed*.5; }
     speed *= wireOn(e, dt);
     if(e.dead) continue;
     if(speed > 0){
@@ -3271,7 +3294,7 @@ function updateEnemies(dt){
     e.chkT -= dt;
     if(e.chkT <= 0){ if(speed > 0.5 && Math.hypot(p.x - e.cx, p.z - e.cz) < 0.6){ e.sideT = 1.4; e.side = rnd() < .5 ? -1 : 1; } e.chkT = 1.2; e.cx = p.x; e.cz = p.z; }
     const hs = Math.hypot(e.v.x, e.v.z);
-    const wantF = hs > 0.3 ? Math.atan2(e.v.x, e.v.z) : Math.atan2(nav.x - p.x, nav.z - p.z);
+    const wantF = e.strafe ? Math.atan2(tx - p.x, tz - p.z) : e.idle ? M.look : hs > 0.3 ? Math.atan2(e.v.x, e.v.z) : Math.atan2(nav.x - p.x, nav.z - p.z);
     let d = wantF - e.face; d = Math.atan2(Math.sin(d), Math.cos(d)); e.face += d*Math.min(1, 6*dt);
     e.walk += dt*hs*R.stride;
     animateRig(R, e.walk, Math.min(1, hs/T.speed), 0, e.punch, false, 0); poseAlive(e, dt);
@@ -3584,15 +3607,25 @@ function updateAllies(dt){
           }
         }
       }
-    } else if(allyMode === 'follow' && P.dead <= 0){
-      // fan out behind the player
-      const n = allies.length, ang = a.buddy ? P.face + Math.PI*.78 : P.face + Math.PI + (idx - (n - 1)/2)*0.55, rad = a.buddy ? 2.4 : 3.5 + R.r*1.5 + Math.floor(idx/6)*3;
-      const tx = P.pos.x + Math.sin(ang)*rad, tz = P.pos.z + Math.cos(ang)*rad, nav = navPoint(p, tx, tz);
-      gx = nav.x; gz = nav.z; if(nav.direct && Math.hypot(tx - p.x, tz - p.z) < 1.5) want = false;
-    } else { gx = a.hx; gz = a.hz; if(Math.hypot(gx - p.x, gz - p.z) < 1.5) want = false; }
+    } else {
+      // no one to fight: they go where they like — around the player (or the spot they hold), stop, look about, wander on
+      const M = a.mind || (a.mind = {t:0, look:a.face, lt:0, hurry:false});
+      const fol = allyMode === 'follow' && P.dead <= 0, cx = fol ? P.pos.x : a.hx, cz = fol ? P.pos.z : a.hz;
+      const lim = a.buddy ? 18 : fol ? 10 + R.r*1.5 : 5 + R.r, far = Math.hypot(cx - p.x, cz - p.z);
+      M.t -= dt;
+      if(M.wx === undefined || M.t <= 0 || (far > lim && !M.hurry) || Math.hypot(M.wx - cx, M.wz - cz) > lim){
+        M.hurry = far > lim;
+        mindSpot(M, cx, cz, M.hurry ? 2 + R.r : (a.buddy ? 3 : 2.5 + R.r*1.2), M.hurry ? 4 + R.r : lim*.75, R.r*.8);
+        M.t = M.hurry ? 3 : rr(4, 10);
+      }
+      const nav = navPoint(p, M.wx, M.wz), left = Math.hypot(M.wx - p.x, M.wz - p.z);
+      gx = nav.x; gz = nav.z;
+      if(left < 1.2){ want = false; M.hurry = false; M.lt -= dt; if(M.lt <= 0){ M.lt = rr(1.2, 3); M.look = rnd() < .4 && fol ? Math.atan2(cx - p.x, cz - p.z) : rnd()*Math.PI*2; } }
+      a.stroll = M.hurry ? 1.6 : rr(.55, .6);
+    }
     let mx = gx - p.x, mz = gz - p.z; const ml = Math.hypot(mx, mz) || 1; mx /= ml; mz /= ml;
     if(a.sideT > 0){ a.sideT -= dt; const sx = -mz*a.side, sz = mx*a.side; mx = mx*.35 + sx; mz = mz*.35 + sz; const l2 = Math.hypot(mx, mz); mx /= l2; mz /= l2; }
-    const speed = want ? T.speed*(foe ? (a.strafeT > 0 && !T.melee ? .65 : 1) : Math.min(1.7, 0.6 + ml/8)) : 0;
+    const speed = want ? T.speed*(foe ? (a.strafeT > 0 && !T.melee ? .65 : 1) : (a.stroll || 1)*Math.min(1.7, 0.75 + ml/10)) : 0;
     a.v.x += (mx*speed - a.v.x)*Math.min(1, 5*dt); a.v.z += (mz*speed - a.v.z)*Math.min(1, 5*dt);
     p.x += a.v.x*dt; p.z += a.v.z*dt;
     pushEnemy(p, R.r, true);
@@ -3600,7 +3633,7 @@ function updateAllies(dt){
     a.chkT -= dt;
     if(a.chkT <= 0){ if(speed > 0.5 && Math.hypot(p.x - a.cx, p.z - a.cz) < 0.6){ a.sideT = 1.4; a.side = rnd() < .5 ? -1 : 1; } a.chkT = 1.2; a.cx = p.x; a.cz = p.z; }
     const hs = Math.hypot(a.v.x, a.v.z);
-    const wantF = foe ? Math.atan2(foe.p.x - p.x, foe.p.z - p.z) : hs > 0.3 ? Math.atan2(a.v.x, a.v.z) : a.face;
+    const wantF = foe ? Math.atan2(foe.p.x - p.x, foe.p.z - p.z) : hs > 0.3 ? Math.atan2(a.v.x, a.v.z) : a.mind ? a.mind.look : a.face;
     let d = wantF - a.face; d = Math.atan2(Math.sin(d), Math.cos(d)); a.face += d*Math.min(1, 6*dt);
     a.walk += dt*hs*R.stride;
     animateRig(R, a.walk, Math.min(1, hs/T.speed), 0, a.punch, false, 0); poseAlive(a, dt);
@@ -3661,7 +3694,7 @@ function toggleAllyMode(){
   if(NET.guest){ toast('Союзниками командует первый игрок'); return; }
   if(!allies.length){ toast('Союзников пока нет. Почините подбитого робота: подойдите и нажмите F'); return; }
   allyMode = allyMode === 'follow' ? 'hold' : 'follow';
-  for(const a of allies){ a.hx = a.p.x; a.hz = a.p.z; }
+  for(const a of allies){ a.hx = a.p.x; a.hz = a.p.z; if(a.mind) a.mind.t = 0; }
   toast(allyMode === 'follow' ? 'Союзники: за мной' : 'Союзники: держать позицию'); sfx('tick');
 }
 
