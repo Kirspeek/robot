@@ -787,6 +787,8 @@ const canvas = $('c');
 const renderer = new THREE.WebGLRenderer({canvas, antialias:true});
 renderer.shadowMap.enabled = S.shadows;
 renderer.shadowMap.type = THREE.PCFShadowMap;
+renderer.shadowMap.autoUpdate = false;     // the shadows are redrawn every other frame (see the render call): half the cost, no visible difference
+let SHADOW_T = 0;
 const MAX_ANISO = Math.min(16, renderer.capabilities.getMaxAnisotropy() || 8);
 const scene = new THREE.Scene();
 scene.fog = new THREE.Fog(0xc9d2d2, 150, 640);
@@ -941,6 +943,7 @@ function mesh(geo, mat, x, y, z, {ry = 0, shadow = true, parent = scene} = {}){
 // a box standing on y (its bottom), solid unless col:false
 function box(w, h, d, mat, x, y, z, {col = true, ry = 0, shadow = true, parent = scene} = {}){
   const m = mesh(new THREE.BoxGeometry(w, h, d), mat, x, y + h/2, z, {ry, shadow, parent});
+  if(parent === scene) m.userData.st = 1;          // never moves: merged with its neighbours at start (mergeStatic)
   if(col && parent === scene){ colFor(x, z, w, d, y, h, ry); solids.push(m); }
   return m;
 }
@@ -955,10 +958,10 @@ function mergeParts(parts){
   const pos = [], nor = [], uv = [], col = [], c = new THREE.Color();
   for(const [g0, hex] of parts){
     const g = g0.index ? g0.toNonIndexed() : g0, P = g.attributes.position.array, N = g.attributes.normal.array, U = g.attributes.uv.array;
-    c.setHex(hex);
     for(let i = 0; i < P.length; i++){ pos.push(P[i]); nor.push(N[i]); }
     for(let i = 0; i < U.length; i++) uv.push(U[i]);
-    for(let i = 0; i < P.length/3; i++) col.push(c.r, c.g, c.b);
+    if(hex === null && g.attributes.color){ const C = g.attributes.color.array; for(let i = 0; i < C.length; i++) col.push(C[i]); }     // keep the part's own vertex colours
+    else { c.setHex(hex === null ? 0xffffff : hex); for(let i = 0; i < P.length/3; i++) col.push(c.r, c.g, c.b); }
   }
   const out = new THREE.BufferGeometry();
   out.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
@@ -1170,7 +1173,7 @@ function tentInside(){
   return TENT_IN;
 }
 function tent(x, z, ry = 0){
-  const W = 6, D = 7, H = 3.4, g = new THREE.Group(); g.position.set(x + WOX, 0, z + WOZ); g.rotation.y = ry; scene.add(g);
+  const W = 6, D = 7, H = 3.4, g = new THREE.Group(); g.position.set(x + WOX, 0, z + WOZ); g.rotation.y = ry; g.userData.tent = 1; scene.add(g);
   const put = (geo, mat, px, py, pz, shadow = true) => { const m = new THREE.Mesh(geo, mat); m.position.set(px, py, pz); m.castShadow = shadow; m.receiveShadow = true; g.add(m); return m; };
   const L = Math.hypot(W/2, H), th = Math.atan2(H, W/2);
   for(const sd of [-1, 1]){ const geo = new THREE.PlaneGeometry(L, D); geo.rotateX(-HALF_PI); const r = put(geo, MAT.camo, sd*W/4, H/2, 0); r.rotation.z = -sd*th; }
@@ -1178,7 +1181,7 @@ function tent(x, z, ry = 0){
   { const sh = new THREE.Shape(); sh.moveTo(-W/2, 0); sh.lineTo(-.9, 0); sh.lineTo(-.9, 1.95); sh.lineTo(.9, 1.95); sh.lineTo(.9, 0); sh.lineTo(W/2, 0); sh.lineTo(0, H); sh.closePath(); put(new THREE.ShapeGeometry(sh), MAT.camo, 0, 0, D/2); }
   for(const sd of [-1, 1]){ const f = put(new THREE.CylinderGeometry(.11, .11, 2, 8), MAT.oliveD, sd*1.05, 1.0, D/2 + .08); f.rotation.z = sd*.12; }
   put(new THREE.CylinderGeometry(.05, .05, D + .4, 6), MAT.dark, 0, H - .03, 0).rotation.x = HALF_PI;     // the ridge pole
-  const T_ = tentInside(); for(const m in T_){ const o = put(T_[m], KIT_MAT[m], 0, 0, 0, m !== 'lit'); }
+  const T_ = tentInside(); for(const m in T_) put(T_[m], KIT_MAT[m], 0, 0, 0, false);
   // colliders: the low sides, the back, the front either side of the entrance, the cots; a ceiling for the camera
   for(const sd of [-1, 1]){ colLocal(x, z, ry, sd < 0 ? -W/2 - .1 : 2.05, sd < 0 ? -2.05 : W/2 + .1, 0, H, -D/2, D/2); colLocal(x, z, ry, sd < 0 ? -W/2 : .95, sd < 0 ? -.95 : W/2, 0, H, D/2 - .12, D/2 + .12);
     colLocal(x, z, ry, sd*1.55 - .35, sd*1.55 + .35, 0, .45, -1.6, .4); }
@@ -2074,6 +2077,38 @@ function decorate(R){
   }
   if(R.head){ M(new THREE.CylinderGeometry(.012, .018, h*.13, 5), chrome, R.head, r*.16, r*.25 + h*.065, -r*.05); M(new THREE.SphereGeometry(.035, 8, 6), glow, R.head, r*.16, r*.25 + h*.13, -r*.05); }
 }
+// fewer things to draw: the parts that move together (hanging on the same joint, with the same material) become one mesh.
+// Anything the animation or the game reaches by name (R.head, legs, arms, the gun, jets…) is left as it is.
+// plain painted parts that differ only in colour share one material, the colour goes into the vertices
+function matKey(m){
+  if(!m.isMeshStandardMaterial || m.transparent || m.vertexColors || (m.emissive && m.emissive.getHex() && m.emissiveIntensity > .05)) return m.uuid;
+  return 'vc|' + (m.map ? m.map.uuid : '') + '|' + (m.metalness > .45 ? 'M' : 'P') + '|' + m.side + '|' + (m.flatShading ? 1 : 0);
+}
+function mergeNode(root, keep, byColour = false){
+  const nodes = []; root.traverse(o => nodes.push(o));
+  for(const n of nodes){
+    const groups = new Map();
+    for(const c of n.children){
+      if(!c.isMesh || c.children.length || keep.has(c) || Array.isArray(c.material) || c.isInstancedMesh || !c.visible || !c.geometry.attributes.uv) continue;
+      const k = byColour ? matKey(c.material) : c.material.uuid; if(!groups.has(k)) groups.set(k, []); groups.get(k).push(c);
+    }
+    for(const [k, list] of groups){
+      if(list.length < 2) continue;
+      const vc = k.startsWith('vc|'), parts = []; let shadow = false;
+      for(const c of list){ c.updateMatrix(); parts.push([c.geometry.clone().applyMatrix4(c.matrix), c.material.vertexColors ? null : vc ? c.material.color.getHex() : 0xffffff]); if(!c.userData.noShadow) shadow = true; n.remove(c); }
+      let mat = list[0].material;
+      if(vc){ mat = mat.clone(); mat.vertexColors = true; mat.color.set(0xffffff); mat.userData = {lifted:1}; }
+      const m = new THREE.Mesh(mergeParts(parts), mat); m.userData.noShadow = !shadow; m.castShadow = shadow; m.receiveShadow = true; n.add(m);
+    }
+  }
+}
+function rigKeep(R){
+  const keep = new Set(), add = v => { if(v && v.isObject3D) keep.add(v); };
+  for(const k in R){ if(k === 'root') continue; const v = R[k];
+    if(Array.isArray(v)) for(const e of v){ add(e); if(e && !e.isObject3D && typeof e === 'object') for(const kk in e) add(e[kk]); }
+    else { add(v); if(v && !v.isObject3D && typeof v === 'object' && !v.isMaterial) for(const kk in v) add(v[kk]); } }
+  return keep;
+}
 function finish(R, st){
   const h = st.h, hipY = st.hipY || R.hipY || h*0.5;
   Object.assign(R, {legSwing:.55, kneeBend:.8, armSwing:.25, armBase:0, elBase:-.3, armOut:.04, lean:0, reach:1, recoil:0,
@@ -2082,6 +2117,8 @@ function finish(R, st){
   decorate(R);
   R.root.traverse(o => { if(!o.isMesh) return; o.castShadow = !o.userData.noShadow; o.receiveShadow = true; liftPaint(o.material);
     const m = o.material; if(m.emissive && m.emissiveIntensity >= 0.9 && m.emissive.getHex() && !R.glow.includes(m)){ m.userData.base = m.emissiveIntensity; R.glow.push(m); } });
+  if(!R.update) mergeNode(R.root, rigKeep(R), true);
+  R.root.traverse(o => { if(!o.isMesh) return; if(!o.geometry.boundingSphere) o.geometry.computeBoundingSphere(); if(o.geometry.boundingSphere.radius < R.h*.07) o.castShadow = false; });
   return R;
 }
 function mkSoldier(){
@@ -2419,6 +2456,26 @@ function park(i){
   if(!s){ if(R.root.parent) R.root.parent.remove(R.root); return; }
   s.g.add(R.root); R.root.position.set(0, 0, 0); R.root.rotation.set(0, 0, 0); animateRig(R, 0, 0, 0, 0, false, 0);
   s.label.visible = true; if(!s.col) s.col = addCol(s.x - R.r, s.x + R.r, 0, R.h, s.z - R.r, s.z + R.r);
+}
+// a parked robot is drawn as a statue: its parts baked into a few meshes. The real one is hidden (layer 1) until someone takes it
+function bakeStatue(R, host){
+  host.updateMatrixWorld(true); R.root.updateMatrixWorld(true);
+  const inv = new THREE.Matrix4().copy(host.matrixWorld).invert(), groups = new Map(), g = new THREE.Group();
+  R.root.traverse(o => { if(!o.isMesh || !o.visible || Array.isArray(o.material) || !o.geometry.attributes.uv) return;
+    let vis = true; for(let p_ = o; p_ && p_ !== R.root; p_ = p_.parent) if(!p_.visible) vis = false; if(!vis) return;
+    const k = o.material.uuid; if(!groups.has(k)) groups.set(k, {mat:o.material, parts:[], shadow:false}); const G_ = groups.get(k);
+    G_.parts.push([o.geometry.clone().applyMatrix4(new THREE.Matrix4().multiplyMatrices(inv, o.matrixWorld)), o.material.vertexColors ? null : 0xffffff]); if(o.castShadow) G_.shadow = true; });
+  for(const G_ of groups.values()){ const m = new THREE.Mesh(mergeParts(G_.parts), G_.mat); m.castShadow = G_.shadow; m.receiveShadow = true; g.add(m); }
+  host.add(g); return g;
+}
+function syncStatues(){
+  slots.forEach((s, i) => {
+    if(!s) return; const R = RIGS[i], parked = R.root.parent === s.g && R.root.visible;
+    if(parked && !s.statue) s.statue = bakeStatue(R, s.g);
+    if(s.parked === parked) return; s.parked = parked;
+    if(s.statue) s.statue.visible = parked;
+    R.root.traverse(o => { if(o.isMesh || o.isSprite) o.layers.set(parked ? 1 : 0); });
+  });
 }
 function unpark(i){ const s = slots[i]; if(!s) return; s.label.visible = false; if(s.col){ COLS.splice(COLS.indexOf(s.col), 1); s.col = null; } }
 RIGS.forEach((R, i) => park(i));
@@ -3047,7 +3104,7 @@ function stepParticles(ps, dt){
   ps.geo.attributes.position.needsUpdate = true; ps.geo.attributes.color.needsUpdate = true;
 }
 function burst(x, y, z, n, color, speed, life){ emit(PUFF, x, y, z, Math.ceil(n/3), color, speed*.4, life*1.3, -0.4, 0.6); emit(SPARK, x, y, z, n, color, speed, life*.6); }
-const boomLight = new THREE.PointLight(0xffa040, 0, 22), flashLight = new THREE.PointLight(0xffd080, 0, 7); scene.add(boomLight, flashLight);
+const boomLight = new THREE.PointLight(0xffa040, 0, 22); scene.add(boomLight);     // one light for blasts and muzzle flashes: every extra light costs on every pixel
 const TRACERS = [];
 for(let i = 0; i < 48; i++){
   const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(6), 3));
@@ -3331,7 +3388,7 @@ function itemRemote(m, from){
 function updateFx(dt){
   stepParticles(SPARK, dt); stepParticles(PUFF, dt); updateDebris(dt); updateItems(dt);
   for(const t of TRACERS) if(t.life > 0){ t.life -= dt; t.l.material.opacity = Math.max(0, t.life/0.09); }
-  boomLight.intensity = Math.max(0, boomLight.intensity - dt*8); flashLight.intensity = Math.max(0, flashLight.intensity - dt*40);
+  boomLight.intensity = Math.max(0, boomLight.intensity - dt*8);
 }
 
 // ---------- enemies ----------
@@ -3662,7 +3719,7 @@ function playerFire(){
   raycaster.near = 0;
   const end = h ? _b.copy(h.point) : _b.copy(raycaster.ray.origin).addScaledVector(raycaster.ray.direction, 220);
   const from = muzzleOf(rig, P.face, _a);
-  tracer(from, end, W.col); flashLight.position.copy(from); flashLight.intensity = 2.5;
+  tracer(from, end, W.col); if(boomLight.intensity < .9){ boomLight.position.copy(from); boomLight.intensity = .9; }
   emit(SPARK, from.x, from.y, from.z, 3, 0xffd080, 2, .08, 0);
   sfx(W.snd);
   if(h){
@@ -5031,6 +5088,29 @@ function drawBoard(){
   B.tex.needsUpdate = true;
 }
 for(let i = HUB_N0; i < scene.children.length; i++){ const o = scene.children[i]; if(o.isInstancedMesh){ HUB_INST.push(o); o.visible = false; } }
+// ---------- fewer draw calls: all the fixed boxes of the world are joined, by material and by 40 m square ----------
+function mergeStatic(){
+  scene.updateMatrixWorld(true);
+  const groups = new Map(), inSolids = new Set(solids);
+  for(const o of scene.children){
+    if(!o.isMesh || !o.userData.st || !o.visible || Array.isArray(o.material) || !o.geometry.attributes.uv) continue;
+    const k = o.material.uuid + '|' + (o.castShadow ? 1 : 0) + '|' + Math.floor(o.position.x/40) + ',' + Math.floor(o.position.z/40);
+    if(!groups.has(k)) groups.set(k, []); groups.get(k).push(o);
+  }
+  const gone = new Set(), added = [];
+  for(const list of groups.values()){
+    if(list.length < 2) continue;
+    const m = new THREE.Mesh(mergeParts(list.map(o => [o.geometry.clone().applyMatrix4(o.matrixWorld), 0xffffff])), list[0].material);
+    m.castShadow = list[0].castShadow; m.receiveShadow = true; scene.add(m);
+    let solid = false; for(const o of list){ scene.remove(o); gone.add(o); if(inSolids.has(o)) solid = true; }
+    if(solid) added.push(m);
+  }
+  const fix = arr => { for(let i = arr.length - 1; i >= 0; i--) if(gone.has(arr[i])) arr.splice(i, 1); arr.push(...added); };
+  fix(solids); fix(rayTargets);
+  for(const it of ITEMS) mergeNode(it.g, new Set([it.hb]));
+  for(const o of scene.children) if(o.isGroup && o.userData.tent) mergeNode(o, new Set());
+}
+mergeStatic();
 function drawSign(P_, title, line2, line3){
   const g = P_.c.getContext('2d'), w = P_.c.width, h = P_.c.height;
   g.clearRect(0, 0, w, h); g.fillStyle = 'rgba(38,46,28,.92)'; g.beginPath(); g.roundRect ? g.roundRect(6, 6, w - 12, h - 12, 22) : g.rect(6, 6, w - 12, h - 12); g.fill();
@@ -5289,7 +5369,7 @@ function updateCamera(dt){
   camera.lookAt(tgt);
 }
 // doors open for you, your partner, small allies and other players; one warm light follows you into the room you are in
-const ROOM_LIGHT = new THREE.PointLight(0xffe6c0, 0, 18, 2); scene.add(ROOM_LIGHT);
+const ROOM_LIGHT = {k:0}, HEMI0 = hemi.intensity;
 function updateDoors(dt){
   for(const d of DOORS){
     let near = false;
@@ -5306,11 +5386,11 @@ function updateDoors(dt){
   }
   let R = null; const pp = P.pos;
   if(state === 'play') for(const r of ROOMS) if(pp.x > r.x0 && pp.x < r.x1 && pp.z > r.z0 && pp.z < r.z1 && pp.y >= r.y0 - .3 && pp.y < r.y1){ R = r; break; }
-  if(R) ROOM_LIGHT.position.set(R.lx, R.ly, R.lz);
-  ROOM_LIGHT.intensity += ((R ? 1.15 : 0) - ROOM_LIGHT.intensity)*Math.min(1, 5*dt);
+  const k0 = ROOM_LIGHT.k; ROOM_LIGHT.k += ((R ? 1 : 0) - ROOM_LIGHT.k)*Math.min(1, 4*dt);
+  if(Math.abs(k0 - ROOM_LIGHT.k) > 1e-4) hemi.intensity = HEMI0 + .45*ROOM_LIGHT.k;
 }
 function updateWorld(dt){
-  updateDoors(dt);
+  updateDoors(dt); syncStatues();
   if(BUNKER_ON){ updateBunkerWorld(dt); updateLook(camera.position.x); }
   {
   rotor.rotation.y += dt*1.2;
@@ -5341,7 +5421,7 @@ function frame(now){
   const focus = started ? P.pos : tgt.set(0, 0, 0);
   sun.position.copy(focus).addScaledVector(SUN_DIR, 120); sun.target.position.copy(focus);
   sky.position.copy(camera.position);
-  if(!VID.open && (state !== 'menu' || !started || (SKIP = !SKIP))) renderer.render(scene, camera);
+  if(!VID.open && (state !== 'menu' || !started || (SKIP = !SKIP))){ if((SHADOW_T = (SHADOW_T + 1) % 2) === 0) renderer.shadowMap.needsUpdate = true; renderer.render(scene, camera); }
   requestAnimationFrame(frame);
 }
 
