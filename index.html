@@ -558,6 +558,7 @@ input.txt:focus{outline:2px solid var(--accent);outline-offset:1px}
         <a class="btn" id="bDownload" href="https://github.com/Kirspeek/robot/archive/refs/heads/main.zip" download>Скачать <small>.zip</small></a>
       </div>
       <button class="btn primary" id="bPlay">Играть <small>Enter</small></button>
+      <button class="btn danger" id="bExit" hidden>Выйти <small id="exitWhere">в главное меню</small></button>
       <button class="btn" id="bNew">Новая игра <small>с начала</small></button>
       <button class="btn" id="bVideos">Видео <small id="vidCount">лента</small></button>
       <button class="btn" id="bFriends">Друзья и чаты <small id="frBadge" class="frb">0</small></button>
@@ -3961,12 +3962,16 @@ if(BUNKER_ON) $('lede').textContent = 'У вас 5 минут, чтобы укр
 function showPanel(id){ if(id !== 'pNet' && !NET.hub) lobbyClose(); document.querySelector('.card').classList.toggle('wide', (id === 'pNet' && !NET.on) || id === 'pFriends'); for(const p of ['pMain', 'pControls', 'pSettings', 'pConfirm', 'pChar', 'pOver', 'pMap', 'pNet', 'pAll', 'pFriends', 'pCard']) $(p).hidden = p !== id; const b = id === 'pMain' ? $('bPlay') : $(id).querySelector('button'); if(b) b.focus({preventScroll:true}); }
 function openMenu(){
   document.documentElement.classList.remove('playing');
+  if(NET.joining) NET.paused = true;
   state = 'menu'; $('menu').hidden = false; $('hud').classList.add('off'); $('lock').hidden = true; ghost.visible = false;
   $('menu').classList.toggle('paused', started);
   const over = G.phase === 'over';
   $('kicker').textContent = over ? 'Штаб разрушен' : started ? 'Пауза' : (BUNKER_ON ? 'База и бункер № 7' : 'Оборона военной базы');
   $('bPlay').firstChild.textContent = over ? 'Новая игра ' : started ? 'Продолжить ' : 'Играть ';
   $('lede').hidden = started;
+  // «Выйти»: from a paused game, a server or the lobby back to the main menu
+  const net = NET.on || NET.joining || NET.hub;
+  $('bExit').hidden = !(started || net); $('exitWhere').textContent = NET.hub ? 'из лобби в главное меню' : net ? 'с сервера в главное меню' : 'в главное меню';
   for(const k in keys) keys[k] = false;
   firing = false; updateCount(); touchReset(); voiceStop(); closeChat();
   if(document.pointerLockElement) document.exitPointerLock();
@@ -3996,6 +4001,16 @@ function newGame(){
   startPlay(); banner('Подготовка', `5 минут, чтобы укрепить ${BUNKER_ON ? 'базу и бункер' : 'базу'}. Потом пойдут роботы`);
 }
 $('bPlay').onclick = startPlay;
+function exitToMenu(){
+  sfx('ui');
+  if(NET.on || NET.joining || NET.hub){ netLeave(); return; }
+  if(HOLD) dropItem(false);
+  if(P.repair) cancelRepair('Ремонт отменён, запчасти возвращены');
+  saveGame(); saveWalls();
+  started = false; openMenu();
+  toast('Вы в главном меню. «Играть» — продолжить с того же места');
+}
+$('bExit').onclick = exitToMenu;
 $('bNew').onclick = () => { sfx('ui'); if(NET.on && NET.room.startsWith('w')){ toast('На общем сервере мир общий: начать заново нельзя', true); return; } if(NET.guest){ toast('Новую игру начинает первый игрок', true); return; } if(built.length || G.wave) showPanel('pConfirm'); else newGame(); };
 $('bAgain').onclick = newGame;
 $('bYes').onclick = newGame;
@@ -4082,7 +4097,7 @@ const ROOM_SUBS = () => [T('pr/+'), T('st'), T('p/+'), T('s'), T('to/' + NET.myI
 async function netJoinRoom(room, label, max){
   if(NET.joining) return;
   if(NET.on) netQuiet();
-  NET.joining = true; NET.status = 'подключаюсь…'; renderNetPanel(); netUpdateFlags();
+  NET.joining = true; NET.paused = false; NET.status = 'подключаюсь…'; renderNetPanel(); netUpdateFlags();
   try { await loadMqtt(); } catch(e){ NET.joining = false; netFail('Не удалось загрузить сетевой модуль. Проверьте интернет.'); return; }
   NET.myId = rid(8); NET.seq = 0;
   NET.room = room; NET.label = label; NET.max = max;
@@ -4120,7 +4135,7 @@ async function netJoinRoom(room, label, max){
   for(const c of cs) if(c.connected) c.subscribe(ROOM_SUBS(), {qos:0});
   announce();
   electLeader();
-  if(state !== 'play') startPlay();
+  if(state !== 'play' && !NET.paused) startPlay();     // not if the player opened the menu while we were connecting (to leave, say)
   sfx('ui');
   if(NET.hub){ banner('Лобби', 'Пройдите через ворота КПП, чтобы попасть на сервер'); chatLine('', `Вы в лобби. ${TOUCH ? '💬 — чат, 🎤 — микрофон' : 'Enter — чат, M — микрофон, Esc — список серверов'}.`); }
   else { toast(`Вы на сервере: ${label}`); chatLine('', `Вы на сервере «${label}». Enter — написать в чат${TOUCH ? ', 🎤 — микрофон' : ', M — включить микрофон'}. Esc → «В лобби» — вернуться в лобби.`); }
@@ -4137,9 +4152,9 @@ function resetForRoom(){
   updateCount();
 }
 function netLeave(){
-  if(!NET.on && !NET.joining) return;
-  if(NET.role === 'host') saveRoom();
-  pub('pr/' + NET.myId, '', true);
+  if(!NET.on && !NET.joining && !NET.hub){ if(started){ started = false; openMenu(); } return; }
+  if(NET.role === 'host' && !NET.hub) try { saveRoom(); } catch(e){}
+  try { pub('pr/' + NET.myId, '', true); } catch(e){}
   const cs = NET.cs || []; NET.on = false;
   setTimeout(() => { for(const c of cs) try { c.end(true); } catch(e){} location.href = location.pathname; }, 400);
   toast('Вы вышли с сервера');
@@ -4729,6 +4744,59 @@ const HUB = {x:0, z:-1000, r:22, portals:[], flag:null, flagBase:null, radar:nul
     HUB.portals.push({g, glow, sign, c, tex, x, z, face, col:cols[k], what:null, key:''});
   }
 }
+{
+  const X = HUB.x, Z = HUB.z;
+  // the way out: red gates at the end of the path, back to playing alone
+  { const x = X, z = Z + 21.5, g = new THREE.Group(); g.position.set(x, 0, z); g.rotation.y = Math.PI; scene.add(g);
+    const frameM = texMat(TEX.concrete, 1, 2, {color:0x9a978b}), hz = texMat(TEX.hazard, 3, 1);
+    for(const sx of [-1, 1]){ mesh(new THREE.BoxGeometry(.7, 4.4, .9), frameM, sx*1.8, 2.2, 0, {parent:g}); mesh(new THREE.PlaneGeometry(.7, 4.2), hz, sx*1.8, 2.1, .46, {parent:g, shadow:false}); }
+    mesh(new THREE.BoxGeometry(4.3, .8, 1), frameM, 0, 4.6, 0, {parent:g});
+    const glow = new THREE.Mesh(new THREE.PlaneGeometry(2.9, 4), new THREE.MeshBasicMaterial({color:0xff4a3a, transparent:true, opacity:.35, blending:THREE.AdditiveBlending, depthWrite:false, side:THREE.DoubleSide}));
+    glow.position.y = 2; g.add(glow);
+    const c = document.createElement('canvas'); c.width = 512; c.height = 256; const tex = new THREE.CanvasTexture(c);
+    const sign = new THREE.Sprite(new THREE.SpriteMaterial({map:tex, transparent:true, depthWrite:false})); sign.scale.set(4.4, 2.2, 1); sign.position.set(x, 6.4, z); scene.add(sign);
+    HUB.exit = {g, glow, sign, c, tex, x, z, face:Math.PI, col:0xff4a3a};
+    drawSign(HUB.exit, 'ВЫХОД', 'в одиночную игру', 'пройдите через ворота');
+    for(const sx of [-1, 1]) addCol(x + sx*1.8 - .5, x + sx*1.8 + .5, 0, 4.4, z - .5, z + .5);
+  }
+  // a campfire with log benches round it
+  { const fx = X - 9, fz = Z + 8, logM = std(0x5a3d26, .95), stoneM = std(0x77736a, .95);
+    for(let i = 0; i < 9; i++){ const a = i/9*Math.PI*2; mesh(new THREE.DodecahedronGeometry(.22), stoneM, fx + Math.cos(a)*.75, .12, fz + Math.sin(a)*.75); }
+    for(let i = 0; i < 4; i++){ const l = mesh(new THREE.CylinderGeometry(.08, .1, 1, 6), logM, fx, .25, fz); l.rotation.set(.9, i*Math.PI/2, 0); }
+    for(let i = 0; i < 4; i++){ const a = i/4*Math.PI*2 + .4, x = fx + Math.cos(a)*2.6, z = fz + Math.sin(a)*2.6;
+      const b = mesh(new THREE.CylinderGeometry(.28, .28, 1.8, 10), logM, x, .28, z); b.rotation.set(0, -a, HALF_PI); b.rotation.order = 'YXZ'; b.rotation.set(0, -a + HALF_PI, HALF_PI);
+      addCol(x - .5, x + .5, 0, .5, z - .5, z + .5); }
+    const flame = new THREE.Sprite(new THREE.SpriteMaterial({map:DOT, color:0xffa040, transparent:true, depthWrite:false, blending:THREE.AdditiveBlending}));
+    flame.scale.set(1.3, 1.8, 1); flame.position.set(fx, .8, fz); scene.add(flame);
+    const light = new THREE.PointLight(0xff9a40, 1.2, 12); light.position.set(fx, 1.2, fz); scene.add(light); light.visible = false;
+    HUB.fire = {x:fx, z:fz, flame, light};
+  }
+  // the notice board: who is in the lobby right now, and how it works
+  { const bx = X + 9.5, bz = Z + 12, g = new THREE.Group(); g.position.set(bx, 0, bz); g.rotation.y = -HALF_PI; scene.add(g);
+    for(const sx of [-1, 1]) mesh(new THREE.BoxGeometry(.14, 2.6, .14), MAT.wood, sx*1.5, 1.3, 0, {parent:g});
+    mesh(new THREE.BoxGeometry(3.3, 2.1, .1), MAT.wood, 0, 1.75, -.06, {parent:g});
+    const c = document.createElement('canvas'); c.width = 640; c.height = 400; const tex = new THREE.CanvasTexture(c);
+    mesh(new THREE.PlaneGeometry(3.1, 1.94), new THREE.MeshBasicMaterial({map:tex}), 0, 1.75, .0, {parent:g, shadow:false});
+    addCol(bx - .3, bx + .3, 0, 2.8, bz - 1.7, bz + 1.7);
+    HUB.board = {c, tex, key:''};
+  }
+}
+function drawBoard(){
+  const B = HUB.board; if(!B) return;
+  const names = [pName(NET.myId) + ' (вы)', ...[...PEERS.values()].filter(q => q.on || q.name).map(q => q.name).filter(Boolean)];
+  const key = names.join('|') + NET.on; if(key === B.key) return; B.key = key;
+  const g = B.c.getContext('2d'), w = B.c.width, h = B.c.height;
+  g.fillStyle = '#e9dfc2'; g.fillRect(0, 0, w, h); g.fillStyle = '#b3261e'; g.fillRect(0, 0, w, 64);
+  g.fillStyle = '#fff'; g.font = '400 38px "Russo One", Impact, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
+  g.fillText(NET.on ? `В лобби: ${names.length}` : 'Подключаюсь…', w/2, 34);
+  g.textAlign = 'left'; g.fillStyle = '#2b2a24'; g.font = '600 28px "Golos Text", system-ui, sans-serif';
+  names.slice(0, 7).forEach((n, i) => g.fillText('• ' + n, 26, 100 + i*34, w/2 - 30));
+  if(names.length > 7) g.fillText(`и ещё ${names.length - 7}`, 26, 100 + 7*34);
+  g.fillStyle = '#5a5546'; g.font = '500 23px "Golos Text", system-ui, sans-serif';
+  ['Светящиеся ворота — серверы:', 'пройдите, чтобы войти.', 'Красные ворота сзади —', 'выход в одиночную игру.', 'Esc → «Выйти» — в меню.', 'Y — карточка игрока', 'C — сказать голосом']
+    .forEach((t, i) => g.fillText(t, w/2 + 10, 100 + i*36, w/2 - 26));
+  B.tex.needsUpdate = true;
+}
 for(let i = HUB_N0; i < scene.children.length; i++){ const o = scene.children[i]; if(o.isInstancedMesh){ HUB_INST.push(o); o.visible = false; } }
 function drawSign(P_, title, line2, line3){
   const g = P_.c.getContext('2d'), w = P_.c.width, h = P_.c.height;
@@ -4765,6 +4833,19 @@ function setHubLook(on){
   scene.fog.near = on ? 70 : 150; scene.fog.far = on ? 260 : 640;
 }
 function updateHub(dt){
+  if(HUB.fire) HUB.fire.light.visible = !!NET.hub;
+  if(NET.hub){
+    const F = HUB.fire; if(F){ const k = .8 + Math.sin(time*13)*.12 + Math.sin(time*7.3)*.1; F.light.intensity = 1.3*k; F.flame.scale.set(1.2*k, 1.7*k, 1);
+      if(rnd() < dt*14) emit(SPARK, F.x + rr(-.2, .2), .7, F.z + rr(-.2, .2), 1, 0xffb050, .8, 1.2, -1.5, 1.6); if(rnd() < dt*3) emit(PUFF, F.x, 1.4, F.z, 1, 0x4a4640, .4, 3, -.8, 1); }
+    if(HUB.exit) HUB.exit.glow.material.opacity = .3 + .12*Math.sin(time*3);
+    HUB.boardT = (HUB.boardT || 0) - dt; if(HUB.boardT <= 0){ HUB.boardT = 1.5; drawBoard(); }
+    // through the red gates: out of the lobby
+    const E = HUB.exit;
+    if(E && state === 'play' && P.dead <= 0 && performance.now() - HUB.lastGo > 3000){
+      const dx = P.pos.x - E.x, dz = P.pos.z - E.z, lx = dx*Math.cos(E.face) - dz*Math.sin(E.face), lz = dx*Math.sin(E.face) + dz*Math.cos(E.face);
+      if(Math.abs(lx) < 1.4 && Math.abs(lz) < .5){ HUB.lastGo = performance.now(); toast('Выходим из лобби…'); netLeave(); return; }
+    }
+  }
   const on = NET.hub && NET.on;
   if(!on) return;
   // the flag waves and the radar turns
@@ -4837,7 +4918,7 @@ function renderNetPanel(){
   const busy = (NET.on && !NET.hub) || NET.joining, priv = NET.room.startsWith('r');
   $('bNetOff').textContent = NET.hub ? 'Выйти из лобби в одиночную игру' : 'В лобби'; $('bNetPlay').textContent = NET.hub ? 'Вернуться в лобби' : 'В игру';
   document.querySelector('.lchat').hidden = NET.hub;
-  $('netStart').hidden = busy; $('bNetOff').hidden = !NET.on; $('bNetPlay').hidden = !NET.on;
+  $('netStart').hidden = busy; $('bNetOff').hidden = !(NET.on || NET.joining || NET.hub); $('bNetPlay').hidden = !NET.on;
   $('netCodeBox').hidden = !(NET.on && priv); $('bNetShare').hidden = !(NET.on && priv); $('netCodeShow').textContent = NET.code;
   const list = $('netPlayers'); list.hidden = !NET.on || NET.hub;
   if(NET.on && !NET.hub){
