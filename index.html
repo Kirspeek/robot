@@ -1273,35 +1273,65 @@ function buildJeep(v){
   for(const wz of [1.32, -1.35]) for(const sx of [-1, 1]) vWheel(v, sx*.93, .43, wz, .43, .32, wz > 0);
 }
 function buildHeli(v){
-  const k = vparts(), b = v.body;
-  k.add(VM.olive, new THREE.SphereGeometry(1, 22, 16), 0, 1.55, .3, 0, 0, 0, 1.22, 1.05, 2.4);   // the body
-  k.add(VM.oliveD, new THREE.SphereGeometry(1, 18, 12), 0, 1.2, .3, 0, 0, 0, 1.1, .6, 2.2);       // the belly
-  k.add(VM.olive, new THREE.SphereGeometry(1, 18, 12), 0, 1.35, 2.45, 0, 0, 0, .78, .72, 1.05);   // the nose
-  k.add(VM.glass, new THREE.SphereGeometry(1, 18, 12, 0, Math.PI*2, 0, 1.2), 0, 1.72, 1.8, -.35, 0, 0, .98, .85, 1.25);   // canopy
-  for(const s of [-1, 1]){ k.box(VM.glass, .05, .5, 1.0, s*1.16, 1.78, .25); k.box(VM.dark, .03, 1.0, .03, s*1.2, 1.5, -.45); k.box(VM.dark, .03, .03, 1.5, s*1.2, 2.0, .2); }
-  k.box(VM.oliveD, 1.25, .62, 2.3, 0, 2.6, -.35); k.box(VM.olive, 1.1, .2, 2.1, 0, 2.95, -.35);   // engine
-  for(const s of [-1, 1]){ k.cyl(VM.dark, .23, .23, .5, s*.62, 2.62, .78, HALF_PI); k.cyl(VM.dark, .17, .2, .6, s*.55, 2.55, -1.6, HALF_PI - .25); }
-  k.cyl(VM.olive, .2, .46, 6.3, 0, 1.95, -4.35, HALF_PI);                                        // tail boom
-  k.box(VM.olive, .12, 1.6, 1.05, 0, 2.6, -7.35, -.35); k.box(VM.olive, 1.9, .08, .55, 0, 2.0, -6.7);   // fin and stabiliser
-  k.box(VM.white, .02, .02, 1.5, .41, 2.0, -3.2);
-  k.box(VM.oliveD, 3.9, .1, .62, 0, 1.25, -.2);                                                   // stub wings with rocket pods
-  for(const s of [-1, 1]){ k.cyl(VM.dark, .19, .19, 1.1, s*1.75, 1.03, -.1, HALF_PI, 0, 0, 12); for(let i = 0; i < 6; i++) k.cyl(VM.white, .04, .04, .02, s*1.75 + Math.cos(i)*.1, 1.03 + Math.sin(i)*.1, .46, HALF_PI, 0, 0, 6);
-    k.add(s < 0 ? VM.tail : VM.navG, new THREE.SphereGeometry(.07, 8, 6), s*1.95, 1.3, -.2); }
-  k.add(VM.dark, new THREE.SphereGeometry(.2, 10, 8), 0, .78, 2.9); k.cyl(VM.dark, .05, .05, .9, 0, .75, 3.3, HALF_PI);   // nose gun
-  for(const s of [-1, 1]){ k.cyl(VM.dark, .06, .06, 4.6, s*1.12, .08, .3, HALF_PI, 0, 0, 8); k.cyl(VM.dark, .06, .06, .5, s*1.12, .2, 2.75, HALF_PI - .6, 0, 0, 8);   // skids
-    for(const zz of [-.8, 1.5]) k.box(VM.dark, .08, .75, .08, s*1.0, .45, zz, 0, 0, s*.3); }
-  k.cyl(VM.dark, .1, .12, .45, 0, 3.15, 0);
-  k.add(VM.beacon, new THREE.SphereGeometry(.08, 8, 6), 0, 3.45, -7.5);
+  const k = vparts(), b = v.body, belly = std(0xa9ada4, .6, .25), tip = std(0xe0b52c, .5, .2);
+  // the fuselage: a turned (lathe) body, slim at the nose and the tail, flattened a little; light belly underneath
+  const prof = [[0, 3.35], [.22, 3.25], [.55, 3.0], [.85, 2.55], [1.08, 1.9], [1.2, 1.1], [1.24, .2], [1.18, -.7], [1.0, -1.5], [.72, -2.2], [.45, -2.75], [0, -2.95]].map(([r, z]) => new THREE.Vector2(r, z));
+  { const g = new THREE.LatheGeometry(prof, 24); g.rotateX(HALF_PI); k.add(VM.olive, g, 0, 1.62, 0, 0, 0, 0, .98, .92, 1); }
+  { const g = new THREE.LatheGeometry(prof.map(p_ => new THREE.Vector2(p_.x*.985, p_.y*.97)), 24, Math.PI*.62, Math.PI*.76); g.rotateX(HALF_PI); k.add(belly, g, 0, 1.6, 0, 0, 0, 0, .99, .93, 1); }
+  // canopy with its frame, and inside: two seats and a panel of green screens
+  k.add(VM.glass, new THREE.SphereGeometry(1, 22, 12, 0, Math.PI*2, 0, 1.35), 0, 1.72, 1.75, -.22, 0, 0, .86, .7, 1.25);
+  k.box(VM.dark, .05, .05, 1.45, 0, 2.38, 1.7, -.32); for(const s_ of [-1, 1]) k.box(VM.dark, .04, .6, .04, s_*.62, 2.02, 2.25, -.5, 0, s_*.35);
+  k.box(VM.dark, 1.3, .04, .04, 0, 2.33, 1.25);
+  for(const sx of [-.38, .38]){ k.box(VM.oliveD, .48, .14, .5, sx, 1.45, 1.85); k.box(VM.oliveD, .48, .62, .1, sx, 1.78, 1.6, -.15); }
+  k.box(VM.dark, 1.3, .32, .1, 0, 1.78, 2.55, -.6); k.box(KIT_MAT.scr, .9, .2, .02, 0, 1.8, 2.6, -.6);
+  // doors with windows, stars, a handle
+  for(const s_ of [-1, 1]){ k.box(VM.glass, .04, .48, .85, s_*1.19, 1.85, .45); k.box(VM.dark, .03, 1.05, .03, s_*1.215, 1.55, -.05); k.box(VM.dark, .03, 1.05, .03, s_*1.215, 1.55, .95);
+    k.box(VM.chrome, .03, .05, .2, s_*1.23, 1.45, -.15); k.add(VM.white, starGeo(.24), s_*1.2, 1.2, .45, 0, s_*HALF_PI, 0); }
+  // two engines on top with intakes and exhausts, the mast fairing
+  for(const s_ of [-1, 1]){ k.cyl(VM.oliveD, .36, .36, 2.2, s_*.48, 2.78, -.45, HALF_PI, 0, 0, 16); k.add(VM.dark, new THREE.TorusGeometry(.34, .06, 6, 16), s_*.48, 2.78, .66);
+    k.cyl(VM.dark, .3, .3, .05, s_*.48, 2.78, .68, HALF_PI, 0, 0, 16); k.cyl(VM.dark, .2, .26, .7, s_*.7, 2.7, -1.75, HALF_PI - .35, s_*.35, 0, 12); }
+  k.box(VM.olive, .7, .5, 2.4, 0, 2.66, -.4); k.cyl(VM.olive, .22, .48, .55, 0, 3.12, 0, 0, 0, 0, 16);
+  // the tail boom, a swept fin, stabilisers with end plates, a tail skid
+  k.cyl(VM.olive, .2, .44, 4.9, 0, 1.92, -5.1, HALF_PI, 0, 0, 14);
+  { const sh = new THREE.Shape(); sh.moveTo(0, 0); sh.lineTo(-1.05, 0); sh.lineTo(-1.55, 1.75); sh.lineTo(-1.05, 1.85); sh.closePath();
+    const g = new THREE.ExtrudeGeometry(sh, {depth:.12, bevelEnabled:false}); g.rotateY(-HALF_PI); k.add(VM.olive, g, .06, 1.95, -6.85); }
+  k.box(VM.olive, 2.1, .07, .55, 0, 1.98, -6.75); for(const s_ of [-1, 1]) k.box(VM.olive, .05, .45, .5, s_*1.05, 2.05, -6.75);
+  k.box(VM.dark, .05, .5, .05, 0, 1.55, -7.45, .5);
+  k.box(tip, .02, .26, .26, .07, 3.55, -8.35);
+  // stub wings, pylons, rocket pods and missiles; navigation lights at the tips
+  k.box(VM.oliveD, 4.0, .1, .7, 0, 1.3, -.25, 0, 0, 0);
+  for(const s_ of [-1, 1]){
+    k.box(VM.dark, .1, .25, .45, s_*1.55, 1.16, -.25); k.cyl(VM.dark, .2, .2, 1.15, s_*1.55, .92, -.15, HALF_PI, 0, 0, 14); k.cyl(VM.dark, .2, .1, .25, s_*1.55, .92, .53, HALF_PI, 0, 0, 14);
+    for(let i = 0; i < 7; i++){ const a = i/7*Math.PI*2; k.cyl(VM.white, .035, .035, .02, s_*1.55 + Math.cos(a)*.11, .92 + Math.sin(a)*.11, .66, HALF_PI, 0, 0, 6); }
+    k.box(VM.dark, .08, .2, .3, s_*1.95, 1.16, -.25); k.cyl(belly, .08, .08, 1.3, s_*1.95, .98, -.2, HALF_PI, 0, 0, 10); k.cyl(VM.red, .08, .001, .25, s_*1.95, .98, .58, HALF_PI, 0, 0, 10);
+    for(const f of [0, HALF_PI]) k.box(VM.dark, .02, .26, .2, s_*1.95, .98, -.78, 0, 0, f);
+    k.add(s_ < 0 ? VM.tail : VM.navG, new THREE.SphereGeometry(.07, 8, 6), s_*2.02, 1.32, -.25);
+  }
+  // the chin turret with two barrels, a searchlight
+  k.add(VM.dark, new THREE.SphereGeometry(.24, 12, 10), 0, .82, 2.55); for(const s_ of [-.07, .07]) k.cyl(VM.dark, .035, .035, 1.0, s_, .76, 3.05, HALF_PI, 0, 0, 6);
+  k.cyl(VM.head, .12, .12, .06, .45, .7, 1.9, HALF_PI + .5, 0, 0, 12);
+  // skids: tubes with curled fronts on two bent cross tubes
+  for(const s_ of [-1, 1]){ k.cyl(VM.dark, .065, .065, 4.2, s_*1.15, .08, .1, HALF_PI, 0, 0, 8); k.add(VM.dark, new THREE.TorusGeometry(.3, .065, 6, 10, HALF_PI), s_*1.15, .38, 2.2, 0, -HALF_PI, 0); }
+  for(const zz of [-.9, 1.3]) k.add(VM.dark, new THREE.TorusGeometry(1.15, .06, 6, 16, Math.PI), 0, .08, zz, 0, 0, 0, 1, .55, 1);
+  // antennas
+  k.cyl(VM.dark, .015, .015, .9, .3, 2.95, -2.2, -.5); k.box(VM.dark, .03, .3, .25, 0, .72, -1.2, 0); k.box(VM.dark, .03, .25, .2, 0, 2.1, -4.0);
+  k.add(VM.beacon, new THREE.SphereGeometry(.08, 8, 6), 0, 3.82, -7.95);
   k.build(b);
   // the number on the tail
   const num = canvasTex(128, 64, (g, w, h) => { g.clearRect(0, 0, w, h); g.fillStyle = '#e8e4d8'; g.font = '700 46px "Russo One", Impact, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('07', w/2, h/2 + 2); });
-  for(const s of [-1, 1]){ const m = new THREE.Mesh(new THREE.PlaneGeometry(.9, .45), new THREE.MeshStandardMaterial({map:num, transparent:true, roughness:.8})); m.position.set(s*.37, 2.05, -3.0); m.rotation.y = s*HALF_PI; b.add(m); }
-  // rotors
-  v.rotor = new THREE.Group(); v.rotor.position.set(0, 3.42, 0); b.add(v.rotor);
-  { const r = vparts(); r.cyl(VM.dark, .24, .24, .2, 0, 0, 0); for(let i = 0; i < 4; i++) r.box(VM.dark, 5.5, .05, .34, Math.cos(i*HALF_PI)*2.85, .02, -Math.sin(i*HALF_PI)*2.85, 0, i*HALF_PI, .03); r.build(v.rotor); }
-  const disc = new THREE.Mesh(new THREE.CircleGeometry(5.7, 32), VM.blur); disc.rotation.x = -HALF_PI; disc.position.y = 3.43; b.add(disc); v.disc = disc;
-  v.trotor = new THREE.Group(); v.trotor.position.set(.24, 2.75, -7.5); b.add(v.trotor);
-  { const r = vparts(); r.box(VM.dark, .04, 1.4, .15, 0, 0, 0); r.box(VM.dark, .04, .15, 1.4, 0, 0, 0); r.build(v.trotor); }
+  for(const s_ of [-1, 1]){ const m = new THREE.Mesh(new THREE.PlaneGeometry(.9, .45), new THREE.MeshStandardMaterial({map:num, transparent:true, roughness:.8})); m.position.set(s_*.4, 2.0, -3.4); m.rotation.y = s_*HALF_PI; b.add(m); }
+  // the main rotor: four tapered blades with yellow tips, a hub with pitch links
+  v.rotor = new THREE.Group(); v.rotor.position.set(0, 3.5, 0); b.add(v.rotor);
+  { const r = vparts(); r.cyl(VM.dark, .26, .3, .22, 0, 0, 0, 0, 0, 0, 12); r.cyl(VM.dark, .08, .08, .35, 0, .2, 0);
+    const blade = new THREE.Shape(); blade.moveTo(0, -.2); blade.lineTo(5.3, -.16); blade.lineTo(5.6, 0); blade.lineTo(5.3, .16); blade.lineTo(0, .2); blade.closePath();
+    const bg = new THREE.ExtrudeGeometry(blade, {depth:.05, bevelEnabled:false}); bg.rotateX(HALF_PI);
+    for(let i = 0; i < 4; i++){ const a = i*HALF_PI; r.add(VM.dark, bg.clone(), Math.cos(a)*.25, .05, -Math.sin(a)*.25, 0, a, 0); r.box(tip, .4, .055, .34, Math.cos(a)*5.25, .03, -Math.sin(a)*5.25, 0, a, 0);
+      r.box(VM.chrome, .05, .3, .05, Math.cos(a + .4)*.32, .15, -Math.sin(a + .4)*.32); }
+    r.build(v.rotor); }
+  v.discM = VM.blur.clone(); const disc = new THREE.Mesh(new THREE.CircleGeometry(5.7, 36), v.discM); disc.rotation.x = -HALF_PI; disc.position.y = 3.53; b.add(disc); v.disc = disc;
+  // the tail rotor on the side of the fin
+  v.trotor = new THREE.Group(); v.trotor.position.set(.22, 3.3, -7.95); b.add(v.trotor);
+  { const r = vparts(); r.cyl(VM.dark, .1, .1, .12, 0, 0, 0, 0, 0, HALF_PI, 8); for(let i = 0; i < 4; i++) r.box(VM.dark, .03, .78, .13, .03, Math.cos(i*HALF_PI)*.38, Math.sin(i*HALF_PI)*.38, i*HALF_PI); r.build(v.trotor); }
 }
 const VDEF = {
   truck:{name:'Грузовик', len:7.2, wid:2.6, h:3, camH:2.8, camDist:10, max:16, acc:7, wb:4.4, steer:.55, ram:15},
@@ -1467,7 +1497,7 @@ function updateVehicles(dt){
       else if(Math.abs(v.spd) > .05){ v.spd *= Math.max(0, 1 - 2*dt); const nx = v.p.x + Math.sin(v.yaw)*v.spd*dt, nz = v.p.z + Math.cos(v.yaw)*v.spd*dt; if(!vehHit(v, nx, nz, v.yaw, .45, v.D.h)){ v.p.x = nx; v.p.z = nz; } v.pit *= .9; v.rol *= .9; vehPlace(v); }
     }
     for(const w of v.wheels){ w.spin.rotation.x += v.spd/w.r*dt; if(w.front) w.steer.rotation.y = v.steer; }
-    if(v.rotor){ v.rotor.rotation.y += dt*v.rs*22; v.trotor.rotation.x += dt*v.rs*40; VM.blur.opacity = 0; v.disc.material = VM.blur; v.disc.visible = v.rs > .5; if(v.disc.visible){ v.disc.material = v.discM || (v.discM = VM.blur.clone()); v.discM.opacity = (v.rs - .5)*.35; } }
+    if(v.rotor){ v.rotor.rotation.y += dt*v.rs*22; v.trotor.rotation.x += dt*v.rs*40; v.disc.visible = v.rs > .5; v.discM.opacity = Math.max(0, v.rs - .5)*.35; }
   }
 }
 function vehReset(){
@@ -1490,7 +1520,7 @@ function engineSet(on, freq = 40, vol = .04, throb = 0){
 function slab(w, d, x, z, mat, y){ const m = new THREE.Mesh(new THREE.PlaneGeometry(w, d), mat); m.rotation.x = -HALF_PI; m.position.set(x + WOX, y, z + WOZ); m.receiveShadow = true; scene.add(m); return m; }
 const PER = 70, GATE = 6;
 let barrier = null, rotor = null, flagGeo = null, flagBase = null;
-const radarHead = new THREE.Group();
+const radarHead = new THREE.Group(), RADAR = {waves:[]};
 {
   slab(140, 140, 0, 0, texMat(TEX.gravel, 35, 35), 0.01);
   slab(40, 34, 0, -25, texMat(TEX.concrete, 10, 8, {color:0xb8b5aa}), 0.025);
@@ -1808,18 +1838,79 @@ const radarHead = new THREE.Group();
   pad.position.set(40, 0.1, 15); pad.receiveShadow = true; scene.add(pad);
   addVehicle('heli', 40, 15, -0.6, .2);
 
-  // radar on a lattice tower
+  // the radar station: a tapering lattice tower with a caged ladder, a platform with the equipment hut, a turning dish that sends out signal waves
   {
-    const x = 60, z = -6;
-    for(const sx of [-1, 1]) for(const sz of [-1, 1]) box(0.22, 10, 0.22, MAT.steel, x + sx*1.3, 0, z + sz*1.3, {col:false});
-    for(const y of [2.5, 5, 7.5]){ box(2.8, 0.12, 0.12, MAT.steel, x, y, z - 1.3, {col:false}); box(2.8, 0.12, 0.12, MAT.steel, x, y, z + 1.3, {col:false}); box(0.12, 0.12, 2.8, MAT.steel, x - 1.3, y, z, {col:false}); box(0.12, 0.12, 2.8, MAT.steel, x + 1.3, y, z, {col:false}); }
-    box(3.4, 0.3, 3.4, MAT.steel, x, 10, z, {col:false});
-    addCol(x - 1.5, x + 1.5, 0, 10.3, z - 1.5, z + 1.5);
-    radarHead.position.set(x, 10.3, z); scene.add(radarHead);
-    mesh(new THREE.CylinderGeometry(0.3, 0.4, 1.2, 10), MAT.dark, 0, 0.6, 0, {parent:radarHead});
-    const dish = mesh(new THREE.SphereGeometry(2.6, 24, 10, 0, Math.PI*2, 0, 0.8), std(0xd9d6cb, .5, .2, {side:THREE.DoubleSide}), 0, 2.2, -1.6, {parent:radarHead});
-    dish.rotation.x = -HALF_PI - 0.35;
-    const horn = mesh(new THREE.CylinderGeometry(0.05, 0.05, 2.2, 6), MAT.dark, 0, 2.2, 0, {parent:radarHead}); horn.rotation.x = HALF_PI - 0.35;
+    const x = 60, z = -6, H = 12, k = vparts(), steel = std(0x7b8077, .45, .6), railM = std(0xd9b93e, .5, .3), white = std(0xe6e3d8, .55, .15), conc = std(0x9a978b, .9);
+    const half = y => 1.8 - (1.8 - 1.0)*y/H;
+    for(const sx of [-1, 1]) for(const sz of [-1, 1]){
+      k.box(conc, .7, .35, .7, x + sx*1.8, .17, z + sz*1.8);
+      const a = new THREE.Vector3(x + sx*1.8, .3, z + sz*1.8), b_ = new THREE.Vector3(x + sx*1.0, H, z + sz*1.0), m = a.clone().add(b_).multiplyScalar(.5), L = a.distanceTo(b_);
+      k.add(steel, new THREE.BoxGeometry(.2, L, .2), m.x, m.y, m.z, -sz*Math.atan2(.8, H - .3), 0, sx*Math.atan2(.8, H - .3));
+      addCol(x + sx*1.8 - .2, x + sx*1.8 + .2, 0, 3, z + sz*1.8 - .2, z + sz*1.8 + .2);
+    }
+    // rings and X braces on every face, section by section
+    const lv = [.3, 3.2, 6.1, 9.0, H];
+    for(const y of lv.slice(1)){ const h_ = half(y); k.box(steel, 2*h_, .1, .1, x, y, z - h_); k.box(steel, 2*h_, .1, .1, x, y, z + h_); k.box(steel, .1, .1, 2*h_, x - h_, y, z); k.box(steel, .1, .1, 2*h_, x + h_, y, z); }
+    for(let i = 0; i < 4; i++){ const y0 = lv[i], y1 = lv[i + 1], h0 = half(y0), h1 = half(y1), ym = (y0 + y1)/2, hm = (h0 + h1)/2, dy = y1 - y0;
+      for(const [fx, fz, along] of [[0, -1, 'x'], [0, 1, 'x'], [-1, 0, 'z'], [1, 0, 'z']]) for(const dir of [-1, 1]){
+        const len = Math.hypot(h0 + h1, dy), ang = Math.atan2(h0 + h1, dy)*dir;
+        if(along === 'x') k.add(steel, new THREE.BoxGeometry(.07, len, .07), x, ym, z + fz*hm, 0, 0, ang); else k.add(steel, new THREE.BoxGeometry(.07, len, .07), x + fx*hm, ym, z, ang, 0, 0);
+      } }
+    // the platform (bigger than the top of the tower), grating, railings with a gap for the ladder
+    k.box(steel, 4.2, .18, 4.2, x, H + .09, z); for(let i = 0; i < 9; i++) k.box(VM.dark, 4.1, .02, .04, x, H + .19, z - 2 + i*.5);
+    addCol(x - 2.1, x + 2.1, H, H + .2, z - 2.1, z + 2.1);
+    for(const [dx, dz, w, d] of [[0, -2.05, 4.2, .06], [-2.05, 0, .06, 4.2], [2.05, 0, .06, 4.2], [-1.35, 2.05, 1.5, .06], [1.35, 2.05, 1.5, .06]]){
+      k.box(railM, w, .06, d, x + dx, H + 1.1, z + dz); k.box(steel, w, .05, d, x + dx, H + .6, z + dz);
+      addCol(x + dx - w/2 - .03, x + dx + w/2 + .03, H + .2, H + 1.2, z + dz - d/2 - .03, z + dz + d/2 + .03); }
+    for(const [px, pz] of [[-2.05, -2.05], [2.05, -2.05], [-2.05, 2.05], [2.05, 2.05], [-.6, 2.05], [.6, 2.05], [0, -2.05], [-2.05, 0], [2.05, 0]]) k.box(steel, .06, 1.1, .06, x + px, H + .1, z + pz);
+    // the ladder with a safety cage, on the +z side
+    for(const sx of [-.3, .3]) k.box(steel, .06, H + .2, .06, x + sx, 0, z + 2.15);
+    for(let y = .4; y < H; y += .35) k.box(steel, .6, .04, .05, x, y, z + 2.15);
+    for(let y = 2.4; y < H + 1; y += .9) k.add(steel, new THREE.TorusGeometry(.42, .025, 4, 12, Math.PI), x, y, z + 2.2, HALF_PI, 0, 0);
+    for(const a of [.3, HALF_PI, Math.PI - .3]) k.box(steel, .03, H - 2, .03, x + Math.cos(a)*.42, 2.4, z + 2.2 + Math.sin(a)*.42);
+    LADDERS.push({x, z:z + 2.6, y:H + .2});
+    // the equipment hut with a door, a vent and an air conditioner
+    k.box(white, 1.8, 1.6, 1.4, x - .9, H + .2, z - 1.15); k.box(VM.dark, 1.9, .1, 1.5, x - .9, H + 1.8, z - 1.15);
+    k.box(VM.oliveD, .6, 1.25, .04, x - .5, H + .25, z - .43); k.box(VM.chrome, .04, .12, .05, x - .28, H + .9, z - .4);
+    k.box(std(0xd8d6cf, .6), .6, .45, .3, x - 1.9, H + .9, z - 1.2); k.box(VM.dark, .45, .3, .02, x - 1.89, H + 1.0, z - 1.36);
+    addCol(x - 1.85, x + .05, H + .2, H + 1.9, z - 1.9, z - .4);
+    // a mast with whip antennas, a small dish and the red warning light
+    k.cyl(steel, .06, .08, 3.2, x + 1.6, H + .2, z - 1.6); for(const [ox, oz] of [[.25, 0], [-.2, .15], [0, -.25]]) k.cyl(VM.dark, .012, .012, 1.6, x + 1.6 + ox, H + 1.4, z - 1.6 + oz);
+    k.add(white, new THREE.SphereGeometry(.45, 14, 8, 0, Math.PI*2, 0, 1.0), x + 1.6, H + 2.3, z - 1.25, -HALF_PI - .3, 0, 0);
+    k.add(VM.beacon, new THREE.SphereGeometry(.1, 8, 6), x + 1.6, H + 3.5, z - 1.6);
+    // on the ground: a generator box with a cable up the leg
+    k.box(std(0x55603d, .6, .3), 1.6, 1.0, .9, x + 3.2, 0, z + .5); k.box(VM.dark, 1.4, .08, .7, x + 3.2, 1.0, z + .5); for(let i = 0; i < 5; i++) k.box(VM.dark, .02, .5, .6, x + 2.7 + i*.25, .25, z + .96);
+    k.cyl(VM.dark, .04, .04, 1.8, x + 2.2, .3, z + .9, 0, 0, HALF_PI*.9);
+    addCol(x + 2.4, x + 4.0, 0, 1.0, z + .05, z + .95);
+    k.build(scene);
+    // the turning radar head: yoke, a real parabolic dish with ribs, the feed on three struts, an IFF bar on top
+    radarHead.position.set(x + .6, H + .2, z + .6); scene.add(radarHead);
+    const r = vparts();
+    r.cyl(VM.dark, .35, .45, .5, 0, .25, 0, 0, 0, 0, 14); r.cyl(steel, .18, .18, .9, 0, .9, 0, 0, 0, 0, 10);
+    for(const sx of [-1, 1]) r.box(steel, .1, .9, .2, sx*.55, 1.55, 0); r.box(steel, 1.2, .12, .2, 0, 1.15, 0);
+    r.build(radarHead);
+    // the dish in its own frame: it opens towards +z, tilted up a little; the feed sits at the focus on three struts
+    const dish = new THREE.Group(); dish.position.set(0, 2.0, .25); dish.rotation.x = -.3; radarHead.add(dish);
+    const d = vparts(), F = 1.45, R_ = 2.3, dm = std(0xe2dfd4, .45, .2, {side:THREE.DoubleSide});
+    const parab = []; for(let i = 0; i <= 14; i++){ const rr_ = i/14*R_; parab.push(new THREE.Vector2(rr_, rr_*rr_/(4*F))); }
+    const dishG = new THREE.LatheGeometry(parab, 32); dishG.rotateX(HALF_PI); d.add(dm, dishG);
+    const rimZ = R_*R_/(4*F);
+    d.add(steel, new THREE.TorusGeometry(R_, .05, 5, 32), 0, 0, rimZ);
+    d.cyl(VM.dark, .3, .3, .35, 0, 0, -.15, HALF_PI, 0, 0, 12);
+    const strut = (ax, ay, az, bx, by, bz, mat, w) => { const A = new THREE.Vector3(ax, ay, az), B = new THREE.Vector3(bx, by, bz), dir = B.clone().sub(A), len = dir.length();
+      const q = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir.normalize()), e = new THREE.Euler().setFromQuaternion(q), m = A.clone().add(B).multiplyScalar(.5);
+      d.add(mat, new THREE.BoxGeometry(w, len, w), m.x, m.y, m.z, e.x, e.y, e.z); };
+    for(let i = 0; i < 8; i++){ const a = i/8*Math.PI*2; strut(0, 0, -.05, Math.cos(a)*R_*.98, Math.sin(a)*R_*.98, rimZ - .08, steel, .06); }   // ribs on the back
+    for(const a of [HALF_PI, HALF_PI + 2.094, HALF_PI + 4.189]) strut(Math.cos(a)*R_*.95, Math.sin(a)*R_*.95, rimZ, 0, 0, F, VM.dark, .045);   // feed struts
+    d.add(VM.dark, new THREE.ConeGeometry(.17, .4, 10), 0, 0, F - .1, -HALF_PI, 0, 0);
+    d.box(white, 3.4, .3, .16, 0, R_ + .35, .55); for(let i = 0; i < 9; i++) d.box(VM.dark, .05, .32, .18, -1.5 + i*.375, R_ + .35, .57);   // the IFF bar on top
+    for(const sx of [-1, 1]) d.box(steel, .06, .5, .06, sx*1.2, R_ + .05, .5);
+    d.build(dish);
+    RADAR.dish = dish; RADAR.F = F;
+    // signal waves: rings that leave the dish, grow and fade
+    RADAR.waves = [];
+    for(let i = 0; i < 3; i++){ const m = new THREE.Mesh(new THREE.TorusGeometry(1, .04, 4, 32), new THREE.MeshBasicMaterial({color:0x7fe9ff, transparent:true, opacity:0, depthWrite:false, blending:THREE.AdditiveBlending}));
+      m.position.set(0, 0, F); dish.add(m); RADAR.waves.push({m, t:i/3}); }
   }
 
   // fuel depot
@@ -5679,6 +5770,7 @@ function updateWorld(dt){
   if(BUNKER_ON){ updateBunkerWorld(dt); updateLook(camera.position.x); }
   {
   radarHead.rotation.y += dt*0.6;
+  for(const w of RADAR.waves){ w.t = (w.t + dt*.4) % 1; const sc = .4 + w.t*2.6; w.m.scale.set(sc, sc, sc); w.m.position.z = RADAR.F + w.t*7; w.m.material.opacity = (1 - w.t)*(1 - w.t)*.4; }
   const a = flagGeo.attributes.position.array;
   for(let i = 0; i < a.length; i += 3){ const x = flagBase[i]; a[i + 2] = Math.sin(x*1.8 - time*5 + flagBase[i + 1]*0.4)*0.22*(x/3.2); }
   flagGeo.attributes.position.needsUpdate = true; flagGeo.computeVertexNormals();
