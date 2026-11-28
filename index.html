@@ -715,6 +715,8 @@ nav{gap:12px}
       <label class="chk">Высокое разрешение <input type="checkbox" id="sHq"></label>
       <label class="set"><span class="top">Резкость <output id="oSharp"></output></span><input type="range" id="sSharp" min="1" max="3" step="0.25"></label>
       <label class="chk">Звук <input type="checkbox" id="sSound"></label>
+      <label class="chk">Музыка: Jingle Bells <input type="checkbox" id="sMusic"></label>
+      <label class="set"><span class="top">Громкость музыки <output id="oMvol"></output></span><input type="range" id="sMvol" min="0" max="1" step="0.05"></label>
       <label class="set"><span class="top">Шапка на моём персонаже</span><select id="sHat" class="sel">
         <option value="santa">Деда Мороза (красная)</option><option value="elf">Эльфа (зелёная)</option><option value="snow">Снегурочки (голубая)</option><option value="none">Без шапки</option></select></label>
       <label class="chk">Шапки Деда Мороза на роботах <input type="checkbox" id="sRhat"></label>
@@ -854,7 +856,7 @@ nav{gap:12px}
 <script>
 'use strict';
 I18N.loaded(); I18N.start();
-const VERSION = '2026-11-28c';     // must match version.json: when the site has a newer one, the game offers to update
+const VERSION = '2026-11-28d';     // must match version.json: when the site has a newer one, the game offers to update
 // the old LAN link (http://192.168…) has no secure context, so friends and encryption cannot work there: go to the site
 if(location.protocol === 'http:' && !/^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname)) location.replace('https://kirspeek.github.io/robot/' + location.search);
 const $ = id => document.getElementById(id);
@@ -866,7 +868,7 @@ const rr = (a, b) => a + rnd()*(b - a);
 const HALF_PI = Math.PI/2;
 
 // ---------- settings (saved in the browser) ----------
-const DEF = {sens:1, fov:70, shadows:true, hq:true, sound:true, sharp:TOUCH ? 1.25 : 1.25, fp:false, hat:'santa', rhat:true, snow:true};
+const DEF = {sens:1, fov:70, shadows:true, hq:true, sound:true, sharp:TOUCH ? 1.25 : 1.25, fp:false, hat:'santa', rhat:true, snow:true, music:true, mvol:.4};
 const S = {...DEF};
 const store = {
   get(k){ try{ return JSON.parse(localStorage.getItem(k)); }catch(e){ return null; } },
@@ -5017,6 +5019,7 @@ $('bSettings').onclick = () => { sfx('ui'); syncSettings(); showPanel('pSettings
 document.querySelectorAll('.back').forEach(b => b.onclick = () => { sfx('ui'); showPanel('pMain'); });
 function syncSettings(){
   $('sSens').value = S.sens; $('oSens').textContent = (+S.sens).toFixed(1); $('sFov').value = S.fov; $('oFov').textContent = S.fov + '°';
+  $('sMusic').checked = !!S.music; $('sMvol').value = S.mvol; $('oMvol').textContent = Math.round(S.mvol*100) + '%'; $('sMvol').disabled = !S.music;
   $('sHat').value = HAT_STYLES[S.hat] ? S.hat : 'none'; $('sRhat').checked = !!S.rhat; $('sSnow').checked = !!S.snow;
   $('sFp').checked = !!S.fp; $('sShadows').checked = S.shadows; $('sHq').checked = S.hq; $('sSound').checked = S.sound;
   $('sSharp').value = S.sharp; $('oSharp').textContent = '×' + (+S.sharp).toFixed(2).replace(/0$/, ''); $('sSharp').disabled = !S.hq;
@@ -5032,11 +5035,13 @@ $('sShadows').onchange = e => { S.shadows = e.target.checked; applySettings(); }
 $('sFp').onchange = e => { S.fp = e.target.checked; if(!S.fp) pitch = clamp(pitch, -0.45, 1.25); applySettings(); };
 $('sHq').onchange = e => { S.hq = e.target.checked; applySettings(); };
 $('sSharp').oninput = e => { S.sharp = +e.target.value; applySettings(); };
-$('sSound').onchange = e => { S.sound = e.target.checked; applySettings(); };
+$('sSound').onchange = e => { S.sound = e.target.checked; applySettings(); MUSIC.sync(); };
+$('sMusic').onchange = e => { S.music = e.target.checked; applySettings(); MUSIC.sync(); };
+$('sMvol').oninput = e => { S.mvol = +e.target.value; applySettings(); MUSIC.sync(); };
 $('sHat').onchange = e => { S.hat = e.target.value; applySettings(); applyHats(); sfx('ui'); };
 $('sRhat').onchange = e => { S.rhat = e.target.checked; applySettings(); applyHats(); };
 $('sSnow').onchange = e => { S.snow = e.target.checked; applySettings(); };
-$('bDefaults').onclick = () => { const l = S.lang; Object.assign(S, DEF); S.lang = l; applySettings(); applyHats(); sfx('ui'); };
+$('bDefaults').onclick = () => { const l = S.lang; Object.assign(S, DEF); S.lang = l; applySettings(); applyHats(); MUSIC.sync(); sfx('ui'); };
 // interface language: switched right away, without reloading
 LANGS.forEach(([c, n]) => { const o = document.createElement('option'); o.value = c; o.textContent = n; $('sLang').appendChild(o); });
 $('sLang').value = I18N.lang;
@@ -5487,6 +5492,68 @@ function mulawEnc(x){ let s = Math.max(-1, Math.min(1, x))*32635, sign = s < 0 ?
   let e = 7; for(let m = 0x4000; (s & m) === 0 && e > 0; m >>= 1) e--; const man = (s >> (e + 3)) & 0x0f; return ~(sign | (e << 4) | man) & 0xff; }
 function mulawDec(u){ u = ~u & 0xff; const sign = u & 0x80, e = (u >> 4) & 7, man = u & 0x0f; let s = ((man << 3) + 132) << e; s -= 132; return (sign ? -s : s)/32768; }
 function audioCtx(){ AC = AC || new (window.AudioContext || window.webkitAudioContext)(); if(AC.state === 'suspended') AC.resume(); return AC; }
+
+// ---------- background music: «Jingle Bells» (J. Pierpont, 1857, public domain), played quietly by a small synth ----------
+const MUSIC = (() => {
+  const NOTE = {C:0, D:2, E:4, F:5, G:7, A:9, B:11};
+  const midi = n => 12*(+n.slice(-1) + 1) + NOTE[n[0]];
+  const hz = m => 440*Math.pow(2, (m - 69)/12);
+  const VERSE = 'G3:1 E4:1 D4:1 C4:1 G3:3 G3:.5 G3:.5 G3:1 E4:1 D4:1 C4:1 A3:4 A3:1 F4:1 E4:1 D4:1 B3:4 G4:1 G4:1 F4:1 D4:1 E4:4 ' +
+                'G3:1 E4:1 D4:1 C4:1 G3:4 G3:1 E4:1 D4:1 C4:1 A3:3 A3:1 A3:1 F4:1 E4:1 D4:1 G4:1 G4:1 G4:1 G4:1 A4:1 G4:1 F4:1 D4:1 C4:2 G4:2';
+  const CHORUS = 'E4:1 E4:1 E4:2 E4:1 E4:1 E4:2 E4:1 G4:1 C4:1.5 D4:.5 E4:4 F4:1 F4:1 F4:1.5 F4:.5 F4:1 E4:1 E4:1 E4:.5 E4:.5 E4:1 D4:1 D4:1 E4:1 D4:2 G4:2 ' +
+                 'E4:1 E4:1 E4:2 E4:1 E4:1 E4:2 E4:1 G4:1 C4:1.5 D4:.5 E4:4 F4:1 F4:1 F4:1 F4:1 F4:1 E4:1 E4:1 E4:.5 E4:.5 G4:1 G4:1 F4:1 D4:1 C4:4';
+  const CHORDS = 'C C C F F G G C C C C F F G G C ' + 'C C C C F C D G C C C C F C G C';
+  const ROOT = {C:36, D:38, F:41, G:43}, TRIAD = {C:[60, 64, 67], D:[62, 66, 69], F:[60, 65, 69], G:[59, 62, 67]};
+  const EV = []; let b = 0;
+  for(const tok of (VERSE + ' ' + CHORUS).split(/\s+/)){ const [n, d] = tok.split(':'); EV.push({b, k:'m', m:midi(n), d:+d}); b += +d; }
+  const LEN = b;
+  CHORDS.split(' ').forEach((c, bar) => { const b0 = bar*4;
+    EV.push({b:b0, k:'b', m:ROOT[c]}, {b:b0 + 2, k:'b', m:ROOT[c] + 7}, {b:b0 + 1, k:'c', c:TRIAD[c]}, {b:b0 + 3, k:'c', c:TRIAD[c]});
+    for(let h = 0; h < 8; h++) EV.push({b:b0 + h/2, k:'j', a:h % 2 ? .5 : 1}); });
+  EV.sort((x, y) => x.b - y.b);
+  const BEAT = 60/132;
+  let ac = null, out = null, noise = null, timer = null, start = 0, loop = 0, i = 0, armed = false;
+  const env = (g, t, peak, len) => { g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(peak, t + .012); g.gain.exponentialRampToValueAtTime(.0006, t + len); };
+  function tone(t, f, type, peak, len){ const o = ac.createOscillator(), g = ac.createGain(); o.type = type; o.frequency.value = f; env(g, t, peak, len); o.connect(g).connect(out); o.start(t); o.stop(t + len + .05); }
+  function play(e, t){
+    if(e.k === 'm'){ const f = hz(e.m), len = Math.max(.3, e.d*BEAT*1.1) + .2; tone(t, f, 'triangle', .16, len); tone(t, f*2, 'sine', .05, len*.5); tone(t, f*3.01, 'sine', .015, .25); }
+    else if(e.k === 'b') tone(t, hz(e.m), 'sine', .2, .4);
+    else if(e.k === 'c') for(const m of e.c) tone(t, hz(m), 'sine', .035, .28);
+    else { const s = ac.createBufferSource(), f = ac.createBiquadFilter(), g = ac.createGain(); s.buffer = noise; f.type = 'highpass'; f.frequency.value = 6500;
+      env(g, t, .05*e.a, .09); s.connect(f).connect(g).connect(out); s.start(t); s.stop(t + .12); }
+  }
+  function tick(){
+    const ahead = ac.currentTime + .5;
+    for(let n = 0; n < 200; n++){
+      const e = EV[i], t = start + (loop*LEN + e.b)*BEAT;
+      if(t > ahead) break;
+      if(t > ac.currentTime - .05) play(e, t);
+      if(++i >= EV.length){ i = 0; loop++; }
+    }
+  }
+  const vol = () => .55*(+S.mvol || 0);
+  function on(){
+    ac = audioCtx();
+    if(!noise){ noise = ac.createBuffer(1, ac.sampleRate*.15, ac.sampleRate); const d = noise.getChannelData(0); for(let k = 0; k < d.length; k++) d[k] = Math.random()*2 - 1; }
+    out = ac.createGain(); out.gain.value = 0; out.connect(ac.destination); out.gain.setTargetAtTime(vol(), ac.currentTime, .4);
+    start = ac.currentTime + .15; loop = 0; i = 0; timer = setInterval(tick, 120); tick();
+  }
+  function off(){
+    clearInterval(timer); timer = null;
+    const o = out; out = null; if(!o) return;
+    o.gain.setTargetAtTime(0, ac.currentTime, .15); setTimeout(() => o.disconnect(), 900);
+  }
+  function sync(){
+    const want = armed && S.sound && S.music && +S.mvol > 0 && !document.hidden;
+    if(want && !timer) on(); else if(!want && timer) off();
+    else if(want && out) out.gain.setTargetAtTime(vol(), ac.currentTime, .1);
+  }
+  // browsers let sound start only after the first click or key press
+  const arm = () => { if(armed) return; armed = true; removeEventListener('pointerdown', arm, true); removeEventListener('keydown', arm, true); sync(); };
+  addEventListener('pointerdown', arm, true); addEventListener('keydown', arm, true);
+  document.addEventListener('visibilitychange', sync);
+  return {sync, get playing(){ return !!timer; }, len:LEN, bars:CHORDS.split(' ').length};
+})();
 function voiceSend(){
   const n = VOICE.acc.length; if(!n) return;
   let bin = ''; for(let i = 0; i < n; i++) bin += String.fromCharCode(mulawEnc(VOICE.acc[i]));
