@@ -451,6 +451,7 @@ input.txt:focus{outline:2px solid var(--accent);outline-offset:1px}
     <button class="tb bld" data-a="KeyB" id="tBld"><b>Строить</b><small></small></button>
     <button class="tb use ctx" data-a="KeyE" id="tUse" hidden><b>Залезть</b></button>
     <button class="tb fix ctx" data-a="KeyF" id="tFix" hidden><b>Починить</b></button>
+    <button class="tb fix ctx" data-a="ShiftLeft" id="tDown" hidden><b>Вниз</b></button>
     <button class="tb who ctx" data-a="KeyY" id="tWho" hidden><b>👤</b><small id="tWhoN"></small></button>
     <button class="tb bx" data-a="KeyX"><b>Убрать</b></button>
     <button class="tb bf" data-a="KeyF"><b>Чинить</b><small>стену</small></button>
@@ -1190,6 +1191,302 @@ function tent(x, z, ry = 0){
   const c = Math.round(Math.cos(ry)), s_ = Math.round(Math.sin(ry)), hw = Math.abs(c)*W/2 + Math.abs(s_)*D/2, hd = Math.abs(s_)*W/2 + Math.abs(c)*D/2;
   addRoom(x - hw, x + hw, z - hd, z + hd, 0, H, x - .6*s_, 2.6, z - .6*c);
 }
+
+// ---------- vehicles: trucks and jeeps you drive, a helicopter you fly ----------
+const VEH = []; let DRIVE = null;
+const VM = {
+  olive:std(0x55603d, .62, .25), oliveD:std(0x3f4830, .7, .2), camo:std(0x5d6a3f, .66, .2), dark:std(0x262826, .6, .45), tire:std(0x181818, .95), tread:std(0x232323, .9),
+  rim:std(0x5f6656, .45, .55), chrome:std(0xc8ccc8, .2, .9), canvas:std(0x5a5f3e, .95, 0, {side:THREE.DoubleSide}), canvasD:std(0x4b5034, .95, 0, {side:THREE.DoubleSide}),
+  glass:new THREE.MeshStandardMaterial({color:0x22313b, roughness:.08, metalness:.7}), white:std(0xe8e4d8, .6), red:std(0xa8261d, .6, .2),
+  head:new THREE.MeshStandardMaterial({color:0xfff4d0, emissive:0xffe8b0, emissiveIntensity:.9}), tail:new THREE.MeshStandardMaterial({color:0xff3a2a, emissive:0xff2a1a, emissiveIntensity:.8}),
+  amber:new THREE.MeshStandardMaterial({color:0xffa020, emissive:0xff9010, emissiveIntensity:.7}), navG:new THREE.MeshStandardMaterial({color:0x40ff60, emissive:0x30ff50, emissiveIntensity:1}),
+  beacon:new THREE.MeshStandardMaterial({color:0xff3020, emissive:0xff2010, emissiveIntensity:1}),
+  blur:new THREE.MeshBasicMaterial({color:0x1a1c1a, transparent:true, opacity:0, depthWrite:false, side:THREE.DoubleSide})
+};
+// parts gathered by material and merged: a whole truck body is a handful of draws
+function vparts(){ const P_ = new Map(); return {
+  add(mat, geo, x = 0, y = 0, z = 0, rx = 0, ry = 0, rz = 0, sx = 1, sy = 1, sz = 1){ if(!P_.has(mat)) P_.set(mat, []); P_.get(mat).push([part(geo, x, y, z, rx, ry, rz, sx, sy, sz), 0xffffff]); return this; },
+  box(mat, w, h, d, x, y, z, rx = 0, ry = 0, rz = 0){ return this.add(mat, new THREE.BoxGeometry(w, h, d), x, y, z, rx, ry, rz); },
+  cyl(mat, r1, r2, h, x, y, z, rx = 0, ry = 0, rz = 0, seg = 12){ return this.add(mat, new THREE.CylinderGeometry(r1, r2, h, seg), x, y, z, rx, ry, rz); },
+  build(parent){ for(const [mat, list] of P_){ const m = new THREE.Mesh(mergeParts(list), mat); m.castShadow = !mat.transparent && mat !== VM.head && mat !== VM.tail; m.receiveShadow = true; parent.add(m); } }
+}; }
+function vWheel(v, x, y, z, r, w, front){
+  const steer = new THREE.Group(); steer.position.set(x, y, z); v.g.add(steer);
+  const spin = new THREE.Group(); steer.add(spin);
+  const k = vparts();
+  k.cyl(VM.tire, r, r, w, 0, 0, 0, 0, 0, HALF_PI, 18); k.cyl(VM.rim, r*.6, r*.6, w + .03, 0, 0, 0, 0, 0, HALF_PI, 12);
+  k.cyl(VM.dark, r*.22, r*.22, w + .08, 0, 0, 0, 0, 0, HALF_PI, 8);
+  for(let i = 0; i < 10; i++){ const a = i/10*Math.PI*2; k.box(VM.tread, w*1.03, .07, r*.32, 0, Math.cos(a)*r*.99, Math.sin(a)*r*.99, a); }
+  for(let i = 0; i < 5; i++){ const a = i/5*Math.PI*2; k.box(VM.dark, w + .05, .05, r*.08, 0, Math.cos(a)*r*.4, Math.sin(a)*r*.4, a); }
+  k.build(spin);
+  v.wheels.push({steer, spin, front, r});
+}
+function starGeo(r){ const sh = new THREE.Shape(); for(let i = 0; i < 10; i++){ const a = HALF_PI + i*Math.PI/5, rr_ = i % 2 ? r*.4 : r; if(i) sh.lineTo(Math.cos(a)*rr_, Math.sin(a)*rr_); else sh.moveTo(Math.cos(a)*rr_, Math.sin(a)*rr_); } return new THREE.ShapeGeometry(sh); }
+function buildTruck(v){
+  const k = vparts(), b = v.body;
+  k.box(VM.dark, 1.25, .3, 6.7, 0, .78, -.1);                                                   // chassis
+  k.box(VM.dark, 2.55, .32, .28, 0, .78, 3.42); k.cyl(VM.dark, .16, .16, 1.2, 0, .8, 3.62, 0, 0, HALF_PI, 10);   // bumper and winch
+  for(const s of [-1, 1]) k.box(VM.dark, .12, .45, .12, s*.95, .62, 3.5);
+  k.box(VM.olive, 2.25, .78, 1.35, 0, 1.33, 2.72); k.box(VM.olive, 2.15, .1, 1.3, 0, 1.75, 2.7, .06);   // hood
+  k.box(VM.dark, 1.55, .62, .06, 0, 1.3, 3.42); for(let i = 0; i < 6; i++) k.box(VM.chrome, 1.4, .04, .08, 0, 1.07 + i*.1, 3.45);   // grille
+  for(const s of [-1, 1]){ k.cyl(VM.head, .15, .15, .1, s*.88, 1.45, 3.44, HALF_PI, 0, 0, 14); k.cyl(VM.chrome, .18, .18, .06, s*.88, 1.45, 3.41, HALF_PI, 0, 0, 14); k.box(VM.amber, .14, .08, .06, s*1.02, 1.2, 3.44);
+    k.box(VM.olive, .5, .14, 1.45, s*1.12, 1.2, 2.62); k.box(VM.olive, .45, .5, .14, s*1.12, .97, 3.3); }       // lights and fenders
+  k.box(VM.olive, 2.45, 1.48, 1.75, 0, 1.96, 1.42); k.box(VM.oliveD, 2.52, .12, 1.85, 0, 2.75, 1.42);           // the cab
+  k.box(VM.glass, 2.1, .72, .05, 0, 2.28, 2.31, -.1);
+  for(const s of [-1, 1]){ k.box(VM.glass, .05, .6, .95, s*1.23, 2.25, 1.55); k.box(VM.dark, .03, 1.1, .03, s*1.235, 1.65, .95); k.box(VM.dark, .03, .03, 1.2, s*1.235, 1.2, 1.5);
+    k.box(VM.dark, .3, .04, .04, s*1.38, 2.3, 2.2); k.box(VM.chrome, .06, .32, .2, s*1.53, 2.25, 2.2);              // mirrors
+    k.add(VM.white, starGeo(.22), s*1.232, 1.75, 1.45, 0, s*HALF_PI, 0);
+    k.cyl(VM.oliveD, .28, .28, 1, s*1.0, .78, .55, HALF_PI, 0, 0, 14); k.box(VM.dark, .5, .12, .3, s*1.25, .9, 2.05); }   // fuel tanks and a step
+  k.cyl(VM.dark, .08, .08, 1.5, 1.27, 2.05, .62); k.cyl(VM.dark, .11, .08, .12, 1.27, 2.85, .62);                // exhaust stack
+  k.box(VM.oliveD, 2.5, .16, 4.3, 0, 1.08, -1.4);                                                 // the bed
+  for(const s of [-1, 1]){ k.box(VM.olive, .08, .55, 4.3, s*1.22, 1.43, -1.4); for(let i = 0; i < 4; i++) k.box(VM.oliveD, .1, .55, .08, s*1.23, 1.43, -3.4 + i*1.35); }
+  k.box(VM.olive, 2.5, .55, .08, 0, 1.43, -3.53); for(const s of [-1, 1]) k.box(VM.tail, .18, .1, .05, s*1.05, 1.0, -3.58);
+  { const cover = new THREE.CylinderGeometry(1.24, 1.24, 4.2, 18, 1, true, HALF_PI, Math.PI); cover.rotateX(HALF_PI); k.add(VM.canvas, cover, 0, 1.68, -1.4);
+    k.add(VM.canvasD, new THREE.CircleGeometry(1.24, 18, 0, Math.PI), 0, 1.68, .69); k.add(VM.canvasD, new THREE.CircleGeometry(1.24, 18, 0, Math.PI), 0, 1.68, -3.5, 0, Math.PI, 0);
+    for(let i = 0; i < 4; i++) k.add(VM.dark, new THREE.TorusGeometry(1.26, .025, 4, 18, Math.PI), 0, 1.68, -3.2 + i*1.25); }
+  for(const s of [-1, 1]){ k.box(VM.red, .28, .4, .15, s*1.32, 1.6, -.4); k.box(VM.olive, .28, .4, .15, s*1.32, 1.6, -.62); }   // jerrycans
+  k.build(b);
+  for(const wz of [2.62, -.9, -2.32]) for(const sx of [-1, 1]) vWheel(v, sx*1.13, .56, wz, .56, .44, wz > 0);
+}
+function buildJeep(v){
+  const k = vparts(), b = v.body;
+  k.box(VM.dark, 1.1, .25, 3.9, 0, .55, 0);
+  k.box(VM.camo, 1.85, .55, 3.7, 0, .95, -.05);                                                   // the tub
+  k.box(VM.camo, 1.7, .32, 1.15, 0, 1.2, 1.35, .07);                                              // hood
+  k.box(VM.dark, 1.3, .45, .06, 0, 1.0, 1.95); for(let i = 0; i < 7; i++) k.box(VM.dark, .06, .4, .08, -.48 + i*.16, 1.0, 1.98);    // grille slots
+  for(const s of [-1, 1]){ k.cyl(VM.head, .11, .11, .08, s*.62, 1.15, 1.98, HALF_PI, 0, 0, 12); k.cyl(VM.chrome, .14, .14, .05, s*.62, 1.15, 1.95, HALF_PI, 0, 0, 12);
+    k.box(VM.camo, .32, .08, 1.0, s*1.0, 1.08, 1.35); k.box(VM.camo, .32, .08, .9, s*1.0, 1.08, -1.35);           // fenders
+    k.box(VM.tail, .12, .1, .04, s*.8, 1.0, -1.92); k.add(VM.white, starGeo(.18), s*.93, 1.0, .5, 0, s*HALF_PI, 0); }
+  k.box(VM.dark, 2.0, .22, .2, 0, .6, 2.0); k.box(VM.dark, 1.9, .2, .18, 0, .6, -1.95);           // bumpers
+  // the folding windscreen and the roll bar
+  for(const s of [-1, 1]) k.box(VM.dark, .05, .62, .05, s*.85, 1.55, .72, -.15);
+  k.box(VM.dark, 1.75, .05, .05, 0, 1.86, .67); k.box(VM.glass, 1.65, .55, .03, 0, 1.56, .73, -.15);
+  for(const s of [-1, 1]){ k.box(VM.dark, .07, 1.05, .07, s*.85, 1.72, -.75); } k.box(VM.dark, 1.77, .07, .07, 0, 2.23, -.75);
+  for(const s of [-1, 1]) k.box(VM.dark, .06, .06, 1.0, s*.85, 2.0, -1.2, .45);
+  for(const s of [-1, 1]){ k.box(VM.oliveD, .62, .12, .6, s*.42, 1.15, -.05); k.box(VM.oliveD, .62, .62, .1, s*.42, 1.45, -.33, -.12); }   // seats
+  k.box(VM.oliveD, 1.5, .1, .55, 0, 1.15, -1.25);
+  k.cyl(VM.dark, .03, .03, .38, .2, 1.32, .35, .5); k.add(VM.dark, new THREE.TorusGeometry(.17, .025, 6, 16), .2, 1.45, .45, -1.05);   // steering wheel
+  k.cyl(VM.tire, .42, .42, .26, 0, 1.25, -2.05, HALF_PI, 0, 0, 16); k.cyl(VM.rim, .24, .24, .28, 0, 1.25, -2.05, HALF_PI, 0, 0, 10);   // spare wheel
+  k.cyl(VM.dark, .05, .07, .7, 0, 2.55, -.75); k.box(VM.dark, .14, .14, .8, 0, 2.9, -.55); k.cyl(VM.dark, .03, .03, .7, 0, 2.92, .15, HALF_PI);   // the mounted gun
+  k.box(VM.red, .25, .35, .15, -.9, 1.35, -1.6); k.box(VM.oliveD, .1, .7, .1, .88, 1.5, -1.6, .2);
+  k.build(b);
+  for(const wz of [1.32, -1.35]) for(const sx of [-1, 1]) vWheel(v, sx*.93, .43, wz, .43, .32, wz > 0);
+}
+function buildHeli(v){
+  const k = vparts(), b = v.body;
+  k.add(VM.olive, new THREE.SphereGeometry(1, 22, 16), 0, 1.55, .3, 0, 0, 0, 1.22, 1.05, 2.4);   // the body
+  k.add(VM.oliveD, new THREE.SphereGeometry(1, 18, 12), 0, 1.2, .3, 0, 0, 0, 1.1, .6, 2.2);       // the belly
+  k.add(VM.olive, new THREE.SphereGeometry(1, 18, 12), 0, 1.35, 2.45, 0, 0, 0, .78, .72, 1.05);   // the nose
+  k.add(VM.glass, new THREE.SphereGeometry(1, 18, 12, 0, Math.PI*2, 0, 1.2), 0, 1.72, 1.8, -.35, 0, 0, .98, .85, 1.25);   // canopy
+  for(const s of [-1, 1]){ k.box(VM.glass, .05, .5, 1.0, s*1.16, 1.78, .25); k.box(VM.dark, .03, 1.0, .03, s*1.2, 1.5, -.45); k.box(VM.dark, .03, .03, 1.5, s*1.2, 2.0, .2); }
+  k.box(VM.oliveD, 1.25, .62, 2.3, 0, 2.6, -.35); k.box(VM.olive, 1.1, .2, 2.1, 0, 2.95, -.35);   // engine
+  for(const s of [-1, 1]){ k.cyl(VM.dark, .23, .23, .5, s*.62, 2.62, .78, HALF_PI); k.cyl(VM.dark, .17, .2, .6, s*.55, 2.55, -1.6, HALF_PI - .25); }
+  k.cyl(VM.olive, .2, .46, 6.3, 0, 1.95, -4.35, HALF_PI);                                        // tail boom
+  k.box(VM.olive, .12, 1.6, 1.05, 0, 2.6, -7.35, -.35); k.box(VM.olive, 1.9, .08, .55, 0, 2.0, -6.7);   // fin and stabiliser
+  k.box(VM.white, .02, .02, 1.5, .41, 2.0, -3.2);
+  k.box(VM.oliveD, 3.9, .1, .62, 0, 1.25, -.2);                                                   // stub wings with rocket pods
+  for(const s of [-1, 1]){ k.cyl(VM.dark, .19, .19, 1.1, s*1.75, 1.03, -.1, HALF_PI, 0, 0, 12); for(let i = 0; i < 6; i++) k.cyl(VM.white, .04, .04, .02, s*1.75 + Math.cos(i)*.1, 1.03 + Math.sin(i)*.1, .46, HALF_PI, 0, 0, 6);
+    k.add(s < 0 ? VM.tail : VM.navG, new THREE.SphereGeometry(.07, 8, 6), s*1.95, 1.3, -.2); }
+  k.add(VM.dark, new THREE.SphereGeometry(.2, 10, 8), 0, .78, 2.9); k.cyl(VM.dark, .05, .05, .9, 0, .75, 3.3, HALF_PI);   // nose gun
+  for(const s of [-1, 1]){ k.cyl(VM.dark, .06, .06, 4.6, s*1.12, .08, .3, HALF_PI, 0, 0, 8); k.cyl(VM.dark, .06, .06, .5, s*1.12, .2, 2.75, HALF_PI - .6, 0, 0, 8);   // skids
+    for(const zz of [-.8, 1.5]) k.box(VM.dark, .08, .75, .08, s*1.0, .45, zz, 0, 0, s*.3); }
+  k.cyl(VM.dark, .1, .12, .45, 0, 3.15, 0);
+  k.add(VM.beacon, new THREE.SphereGeometry(.08, 8, 6), 0, 3.45, -7.5);
+  k.build(b);
+  // the number on the tail
+  const num = canvasTex(128, 64, (g, w, h) => { g.clearRect(0, 0, w, h); g.fillStyle = '#e8e4d8'; g.font = '700 46px "Russo One", Impact, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('07', w/2, h/2 + 2); });
+  for(const s of [-1, 1]){ const m = new THREE.Mesh(new THREE.PlaneGeometry(.9, .45), new THREE.MeshStandardMaterial({map:num, transparent:true, roughness:.8})); m.position.set(s*.37, 2.05, -3.0); m.rotation.y = s*HALF_PI; b.add(m); }
+  // rotors
+  v.rotor = new THREE.Group(); v.rotor.position.set(0, 3.42, 0); b.add(v.rotor);
+  { const r = vparts(); r.cyl(VM.dark, .24, .24, .2, 0, 0, 0); for(let i = 0; i < 4; i++) r.box(VM.dark, 5.5, .05, .34, Math.cos(i*HALF_PI)*2.85, .02, -Math.sin(i*HALF_PI)*2.85, 0, i*HALF_PI, .03); r.build(v.rotor); }
+  const disc = new THREE.Mesh(new THREE.CircleGeometry(5.7, 32), VM.blur); disc.rotation.x = -HALF_PI; disc.position.y = 3.43; b.add(disc); v.disc = disc;
+  v.trotor = new THREE.Group(); v.trotor.position.set(.24, 2.75, -7.5); b.add(v.trotor);
+  { const r = vparts(); r.box(VM.dark, .04, 1.4, .15, 0, 0, 0); r.box(VM.dark, .04, .15, 1.4, 0, 0, 0); r.build(v.trotor); }
+}
+const VDEF = {
+  truck:{name:'Грузовик', len:7.2, wid:2.6, h:3, camH:2.8, camDist:10, max:16, acc:7, wb:4.4, steer:.55, ram:15},
+  jeep: {name:'Джип', len:4.2, wid:2.05, h:2.3, camH:2.1, camDist:7.5, max:24, acc:11, wb:2.7, steer:.62, ram:9},
+  heli: {name:'Вертолёт', len:5.4, wid:2.6, h:3.4, camH:2.6, camDist:15, max:26, acc:1.3, heli:true}
+};
+function addVehicle(kind, x, z, ry, y = 0){
+  const D = VDEF[kind], g = new THREE.Group(), body = new THREE.Group(); g.add(body); scene.add(g);
+  const v = {i:VEH.length, kind, D, g, body, wheels:[], p:new THREE.Vector3(x + WOX, y, z + WOZ), yaw:ry, spd:0, steer:0, vel:new THREE.Vector3(), rs:0, home:[x + WOX, y, z + WOZ, ry], driver:null, net:null, pit:0, rol:0, gy:y};
+  if(kind === 'truck') buildTruck(v); else if(kind === 'jeep') buildJeep(v); else buildHeli(v);
+  const hit = new THREE.Mesh(new THREE.BoxGeometry(D.wid, D.h*.8, D.len), new THREE.MeshBasicMaterial({visible:false})); hit.position.y = D.h*.45; g.add(hit); solids.push(hit);
+  v.col = addCol(0, 0, -100, -99, 0, 0, {veh:v});
+  VEH.push(v); vehPlace(v); return v;
+}
+// the collider follows the vehicle: the box round its turned footprint
+function vehPlace(v){
+  v.g.position.copy(v.p); v.g.rotation.y = v.yaw; v.body.rotation.set(v.pit, 0, v.rol);
+  const c = Math.abs(Math.cos(v.yaw)), s_ = Math.abs(Math.sin(v.yaw)), hw = (v.D.wid*c + v.D.len*s_)/2*.92, hd = (v.D.wid*s_ + v.D.len*c)/2*.92, col = v.col;
+  col.x0 = v.p.x - hw; col.x1 = v.p.x + hw; col.z0 = v.p.z - hd; col.z1 = v.p.z + hd; col.y0 = v.p.y; col.y1 = v.p.y + v.D.h*(v.D.heli ? .75 : .85);
+}
+// something solid where the vehicle would be? Circles along its length against the boxes of the world
+function vehHit(v, x, z, yaw, y0, y1){
+  const D = v.D, r = D.wid/2*.95, n = Math.max(2, Math.ceil(D.len/D.wid) + 1), fx = Math.sin(yaw), fz = Math.cos(yaw);
+  for(let i = 0; i < n; i++){
+    const t = -D.len/2 + r + (D.len - 2*r)*i/(n - 1), px = x + fx*t, pz = z + fz*t;
+    for(const c of COLS){
+      if(c === v.col || c.item || passable(c) || c.y1 <= y0 || c.y0 >= y1) continue;
+      if(px + r < c.x0 || px - r > c.x1 || pz + r < c.z0 || pz - r > c.z1) continue;
+      const cx = clamp(px, c.x0, c.x1), cz = clamp(pz, c.z0, c.z1); if((px - cx)**2 + (pz - cz)**2 >= r*r) continue;
+      return c;
+    }
+  }
+  return null;
+}
+function vehGround(v){
+  let g = 0; const b = v.p.y + .6, r = 1.4;
+  for(const c of COLS){ if(c === v.col || c.item || passable(c) || c.y1 > b || c.y1 <= g) continue; if(v.p.x + r < c.x0 || v.p.x - r > c.x1 || v.p.z + r < c.z0 || v.p.z - r > c.z1) continue; g = c.y1; }
+  return g;
+}
+function nearVeh(){
+  if(PILOT || rig.r > .8 || NET.guest && false) return null;
+  let best = null, bd = 1e9;
+  for(const v of VEH){
+    if(v.driver || v.net) continue;
+    const dx = P.pos.x - v.p.x, dz = P.pos.z - v.p.z, fx = Math.sin(v.yaw), fz = Math.cos(v.yaw), al = dx*fx + dz*fz, sd = dx*fz - dz*fx;
+    if(Math.abs(al) < v.D.len/2 + 1.3 && Math.abs(sd) < v.D.wid/2 + 1.6 && Math.abs(P.pos.y - v.p.y) < 3){ const d = Math.hypot(dx, dz); if(d < bd){ bd = d; best = v; } }
+  }
+  return best;
+}
+function vehEnter(v){
+  if(HOLD) dropItem(false);
+  if(build) setBuild(false);
+  DRIVE = v; v.driver = 'me'; v.spd = 0; P.vel.set(0, 0, 0); heroGroup.visible = false; sfx('stomp');
+  toast(v.D.heli ? 'Вертолёт: Пробел — вверх, Shift — вниз, W A S D — лететь, мышь — куда, ЛКМ — пулемёт, E — выйти (на земле)'
+    : `${v.D.name}: W — газ, S — тормоз и назад, A D — руль, Пробел — ручник, E — выйти. Можно давить роботов`);
+}
+function vehExit(force){
+  const v = DRIVE; if(!v) return;
+  if(v.D.heli && !force && v.p.y - vehGround(v) > .4){ toast('Сначала приземлитесь: Shift — вниз', true); sfx('err'); return; }
+  DRIVE = null; v.driver = null; v.spd *= force ? 1 : 0;
+  // step out on the left (or the right, or behind) of it
+  const fx = Math.sin(v.yaw), fz = Math.cos(v.yaw), lx = fz, lz = -fx, out = v.D.wid/2 + .9;
+  let ok = false;
+  for(const [ax, az] of [[lx*out, lz*out], [-lx*out, -lz*out], [-fx*(v.D.len/2 + 1), -fz*(v.D.len/2 + 1)], [fx*(v.D.len/2 + 1), fz*(v.D.len/2 + 1)]]){
+    const x = v.p.x + ax, z = v.p.z + az; if(ptFree(x, z, .4)){ P.pos.set(x, Math.max(0, v.p.y), z); ok = true; break; } }
+  if(!ok) P.pos.set(v.p.x + lx*out, Math.max(0, v.p.y), v.p.z + lz*out);
+  P.vel.set(0, 0, 0); P.face = v.yaw; heroGroup.position.copy(P.pos); heroGroup.visible = !S.fp; collideXZ(P.pos);
+  engineSet(false); sfx('stomp');
+}
+// driving, every frame (instead of walking)
+function vehDrive(v, dt){
+  const D = v.D, inp = state === 'play' && P.dead <= 0;
+  if(P.dead > 0){ vehExit(true); return; }
+  if(D.heli){
+    let fw = 0, st = 0, up = 0;
+    if(inp){ fw = (keys.KeyW || keys.ArrowUp ? 1 : 0) - (keys.KeyS || keys.ArrowDown ? 1 : 0); st = (keys.KeyD || keys.ArrowRight ? 1 : 0) - (keys.KeyA || keys.ArrowLeft ? 1 : 0);
+      up = (keys.Space ? 1 : 0) - (keys.ShiftLeft || keys.ShiftRight ? 1 : 0); if(JOY.on && JOY.m > .15){ fw += -JOY.y; st += JOY.x; } }
+    v.rs = Math.min(1, v.rs + dt*.5);
+    const g = vehGround(v), flying = v.p.y - g > .05 || (up > 0 && v.rs > .85);
+    if(flying){
+      // it turns to where the camera looks and flies relative to the camera
+      const want = Math.atan2(fwd.x, fwd.z); let d = want - v.yaw; d = Math.atan2(Math.sin(d), Math.cos(d)); v.yaw += clamp(d, -1.4*dt, 1.4*dt);
+      _a.copy(fwd).multiplyScalar(fw).addScaledVector(right, st); if(_a.lengthSq() > 1) _a.normalize();
+      v.vel.x += (_a.x*D.max - v.vel.x)*Math.min(1, D.acc*dt); v.vel.z += (_a.z*D.max - v.vel.z)*Math.min(1, D.acc*dt);
+      v.vel.y += ((v.rs > .85 ? up*7 : -5) - v.vel.y)*Math.min(1, 2*dt);
+    } else { v.vel.set(0, Math.max(0, v.vel.y), 0); if(up > 0 && v.rs < .85 && Math.random() < dt*2) toast('Винт раскручивается…'); }
+    const nx = v.p.x + v.vel.x*dt, nz = v.p.z + v.vel.z*dt;
+    if(vehHit(v, nx, nz, v.yaw, v.p.y + .3, v.p.y + 2.8)){ v.vel.x *= -.3; v.vel.z *= -.3; } else { v.p.x = clamp(nx, -315, 315); v.p.z = clamp(nz, -315, 315); }
+    v.p.y = Math.min(70, v.p.y + v.vel.y*dt); const g2 = vehGround(v); if(v.p.y < g2){ if(v.vel.y < -5) { sfxAt('stomp', v.p); shakeAt(v.p, .3); } v.p.y = g2; v.vel.y = 0; }
+    // lean into the flight
+    const fx = Math.sin(v.yaw), fz = Math.cos(v.yaw), vf = v.vel.x*fx + v.vel.z*fz, vs = -(v.vel.x*fz - v.vel.z*fx);
+    v.pit += (clamp(vf*.022, -.3, .3) - v.pit)*Math.min(1, 3*dt); v.rol += (clamp(-vs*.03, -.35, .35) - v.rol)*Math.min(1, 3*dt);
+    if(v.p.y - g2 < 7 && v.rs > .6 && Math.random() < dt*14) emit(PUFF, v.p.x + rr(-4, 4), g2 + .2, v.p.z + rr(-4, 4), 1, 0x9a8f78, 4, 1, -0.2, .5);
+    engineSet(true, 40 + v.rs*28 + Math.hypot(v.vel.x, v.vel.z)*.6, .05, 9*v.rs);
+  } else {
+    let th = 0, st = 0;
+    if(inp){ th = (keys.KeyW || keys.ArrowUp ? 1 : 0) - (keys.KeyS || keys.ArrowDown ? 1 : 0); st = (keys.KeyA || keys.ArrowLeft ? 1 : 0) - (keys.KeyD || keys.ArrowRight ? 1 : 0);
+      if(JOY.on && JOY.m > .15){ th += -JOY.y; st += -JOY.x; } th = clamp(th, -1, 1); st = clamp(st, -1, 1); }
+    const s0 = v.spd, hb = inp && keys.Space;
+    if(th > 0) v.spd += (v.spd < 0 ? 22 : D.acc*(1 - Math.max(0, v.spd)/D.max))*th*dt;
+    else if(th < 0) v.spd += (v.spd > 0 ? 22 : D.acc*.7*(1 - Math.max(0, -v.spd)/6))*th*dt;
+    else v.spd *= Math.max(0, 1 - .9*dt);
+    if(hb) v.spd *= Math.max(0, 1 - 4*dt);
+    v.spd = clamp(v.spd, -6, D.max);
+    const sw = st*D.steer/(1 + Math.abs(v.spd)*.05); v.steer += clamp(sw - v.steer, -3*dt, 3*dt);
+    const yawRate = v.spd*Math.tan(v.steer)/D.wb*(hb ? 1.5 : 1), ny = v.yaw + yawRate*dt;
+    const nx = v.p.x + Math.sin(ny)*v.spd*dt, nz = v.p.z + Math.cos(ny)*v.spd*dt;
+    const c = vehHit(v, nx, nz, ny, v.p.y + .45, v.p.y + D.h);
+    if(c && c.wire && c.wall){ hitWall(c.wall, 400*dt, null); v.spd *= .97; v.p.x = nx; v.p.z = nz; v.yaw = ny; }        // barbed wire gets crushed
+    else if(c){ if(Math.abs(v.spd) > 6){ sfxAt('crash', v.p); shakeAt(v.p, .5); emit(SPARK, v.p.x + Math.sin(v.yaw)*D.len/2, 1, v.p.z + Math.cos(v.yaw)*D.len/2, 16, 0xffd080, 5, .4); } v.spd *= -.25; }
+    else { v.p.x = clamp(nx, -315, 315); v.p.z = clamp(nz, -315, 315); v.yaw = ny; }
+    // running robots over (the truck hits harder), pushing allies and loose things aside
+    const fx = Math.sin(v.yaw), fz = Math.cos(v.yaw);
+    for(const e of enemies){
+      if(e.dead) continue; const dx = e.p.x - v.p.x, dz = e.p.z - v.p.z, al = dx*fx + dz*fz, sd = dx*fz - dz*fx;
+      if(Math.abs(al) > D.len/2 + e.R.r*.6 || Math.abs(sd) > D.wid/2 + e.R.r*.6) continue;
+      if((e.runT || 0) <= 0 && Math.abs(v.spd) > 3){ e.runT = .7; damageEnemy(e, Math.abs(v.spd)*D.ram, 'player'); hitMark(false); sfxAt('crash', e.p); shakeAt(e.p, .4);
+        emit(SPARK, e.p.x, e.R.h*.4, e.p.z, 18, 0xffd080, 6, .4); }
+      const push = Math.sign(sd || 1)*(D.wid/2 + e.R.r*.6 - Math.abs(sd)); if(!e.dead){ e.p.x += fz*push*.5; e.p.z -= fx*push*.5; }
+      v.spd *= e.R.r > 1.2 ? -.3 : .9;
+    }
+    for(const e of enemies) if(e.runT > 0) e.runT -= dt;
+    for(const a of allies){ const dx = a.p.x - v.p.x, dz = a.p.z - v.p.z, al = dx*fx + dz*fz, sd = dx*fz - dz*fx;
+      if(Math.abs(al) < D.len/2 + a.R.r && Math.abs(sd) < D.wid/2 + a.R.r){ const push = Math.sign(sd || 1)*(D.wid/2 + a.R.r - Math.abs(sd)); a.p.x += fz*push; a.p.z -= fx*push; } }
+    for(const it of ITEMS){ if(it.gone || it.holder || HOLD === it) continue; const dx = it.p.x - v.p.x, dz = it.p.z - v.p.z, al = dx*fx + dz*fz, sd = dx*fz - dz*fx;
+      if(Math.abs(al) < D.len/2 + it.rad && Math.abs(sd) < D.wid/2 + it.rad && it.p.y < D.h){ it.v.set(fx*v.spd*1.1 + fz*Math.sign(sd || 1)*2, 2 + Math.abs(v.spd)*.2, fz*v.spd*1.1 - fx*Math.sign(sd || 1)*2); it.spin.set(rr(-8, 8), rr(-4, 4), rr(-8, 8)); it.awake = 1; it.thrown = Math.abs(v.spd) > 5; it.hitSet = new Set(); } }
+    // the body pitches as it speeds up or brakes and leans out of the turns
+    const acc = (v.spd - s0)/Math.max(dt, 1e-3);
+    v.pit += (clamp(-acc*.006, -.06, .06) - v.pit)*Math.min(1, 6*dt); v.rol += (clamp(-v.spd*yawRate*.012, -.08, .08) - v.rol)*Math.min(1, 6*dt);
+    if(Math.abs(v.spd) > 10 && Math.random() < dt*6) emit(PUFF, v.p.x - fx*D.len/2, .3, v.p.z - fz*D.len/2, 1, 0x9a8f78, 1.5, 1, -0.3, .5);
+    engineSet(true, 32 + Math.abs(v.spd)*3.2 + Math.abs(th)*8, .045, 0);
+  }
+  vehPlace(v);
+  P.pos.set(v.p.x, v.p.y, v.p.z); P.vel.set(0, 0, 0); P.face = v.yaw; P.onGround = true; heroGroup.position.copy(P.pos); heroGroup.visible = false;
+}
+// the helicopter's gun
+let vehGunT = 0;
+function vehFire(v, dt){
+  vehGunT -= dt; if(vehGunT > 0) return; vehGunT = .09;
+  raycaster.setFromCamera(_v2.set(rr(-.008, .008), rr(-.008, .008)), camera);
+  raycaster.near = Math.max(0, camera.position.distanceTo(tgt) + 2); raycaster.far = 260;
+  const h = raycaster.intersectObjects(hitTargets.concat(rayTargets, ITEM_HITS), false)[0]; raycaster.near = 0;
+  const end = h ? _b.copy(h.point) : _b.copy(raycaster.ray.origin).addScaledVector(raycaster.ray.direction, 260);
+  const from = _a.set(0, .75, 3.7).applyMatrix4(v.body.matrixWorld);
+  tracer(from, end, 0xffe08a); emit(SPARK, from.x, from.y, from.z, 2, 0xffd080, 2, .08, 0); sfx('gat', .8);
+  if(boomLight.intensity < .9){ boomLight.position.copy(from); boomLight.intensity = .9; }
+  if(h){ const e = h.object.userData.enemy, it = h.object.userData.item, b = h.object.userData.built;
+    if(e){ damageEnemy(e, 26); if(!e.dead) hitMark(false); emit(SPARK, end.x, end.y, end.z, 6, 0xffc060, 4, .35); }
+    else if(it) itemShot(it, 26, raycaster.ray.direction);
+    else if(b) hitWall(b, 4, end);
+    else emit(SPARK, end.x, end.y, end.z, 4, 0xc8bea8, 2.5, .3); }
+  if(NET.peer && NET.shots.length < 12) NET.shots.push([r2(from.x), r2(from.y), r2(from.z), r2(end.x), r2(end.y), r2(end.z), 0xffe08a, 'gat', 0]);
+}
+// every frame: rotors, wheels, lights; vehicles driven by other players follow what they send; an empty helicopter in the air comes down
+function updateVehicles(dt){
+  if(!DRIVE || state !== 'play') engineSet(false);
+  const blink = Math.sin(time*6) > .6 ? 1.4 : .1; VM.beacon.emissiveIntensity = blink;
+  for(const v of VEH){
+    if(v.net){ const n = v.net; v.p.lerp(_c.set(n[1], n[2], n[3]), Math.min(1, 10*dt)); let d = n[4] - v.yaw; d = Math.atan2(Math.sin(d), Math.cos(d)); v.yaw += d*Math.min(1, 10*dt);
+      v.pit = n[5]; v.rol = n[6]; v.steer = n[7]; v.spd = n[8]; v.rs = n[9]; vehPlace(v); }
+    else if(v.driver !== 'me'){
+      if(v.D.heli){ v.rs = Math.max(0, v.rs - dt*.25); const g = vehGround(v); if(v.p.y > g){ v.p.y = Math.max(g, v.p.y - dt*4); v.pit *= .95; v.rol *= .95; vehPlace(v); } }
+      else if(Math.abs(v.spd) > .05){ v.spd *= Math.max(0, 1 - 2*dt); const nx = v.p.x + Math.sin(v.yaw)*v.spd*dt, nz = v.p.z + Math.cos(v.yaw)*v.spd*dt; if(!vehHit(v, nx, nz, v.yaw, .45, v.D.h)){ v.p.x = nx; v.p.z = nz; } v.pit *= .9; v.rol *= .9; vehPlace(v); }
+    }
+    for(const w of v.wheels){ w.spin.rotation.x += v.spd/w.r*dt; if(w.front) w.steer.rotation.y = v.steer; }
+    if(v.rotor){ v.rotor.rotation.y += dt*v.rs*22; v.trotor.rotation.x += dt*v.rs*40; VM.blur.opacity = 0; v.disc.material = VM.blur; v.disc.visible = v.rs > .5; if(v.disc.visible){ v.disc.material = v.discM || (v.discM = VM.blur.clone()); v.discM.opacity = (v.rs - .5)*.35; } }
+  }
+}
+function vehReset(){
+  if(DRIVE) vehExit(true);
+  for(const v of VEH){ v.p.set(v.home[0], v.home[1], v.home[2]); v.yaw = v.home[3]; v.spd = 0; v.vel.set(0, 0, 0); v.rs = 0; v.pit = v.rol = 0; v.net = null; vehPlace(v); }
+}
+// engine (and rotor) sound: one sawtooth through a low-pass filter, with a throb for the rotor
+const ENG = {};
+function engineSet(on, freq = 40, vol = .04, throb = 0){
+  if(!S.sound) on = false;
+  try {
+    if(on && !ENG.osc){ const ac = audioCtx(); ENG.osc = ac.createOscillator(); ENG.osc.type = 'sawtooth'; ENG.f = ac.createBiquadFilter(); ENG.f.type = 'lowpass'; ENG.f.frequency.value = 420;
+      ENG.trem = ac.createGain(); ENG.trem.gain.value = .7; ENG.lfo = ac.createOscillator(); ENG.lfo.frequency.value = 8; ENG.lg = ac.createGain(); ENG.lg.gain.value = 0; ENG.lfo.connect(ENG.lg).connect(ENG.trem.gain);
+      ENG.g = ac.createGain(); ENG.g.gain.value = 0; ENG.osc.connect(ENG.f).connect(ENG.trem).connect(ENG.g).connect(ac.destination); ENG.osc.start(); ENG.lfo.start(); }
+    if(!ENG.osc) return; const t = AC.currentTime;
+    ENG.osc.frequency.setTargetAtTime(freq, t, .08); ENG.g.gain.setTargetAtTime(on ? vol : 0, t, .12);
+    ENG.lfo.frequency.setTargetAtTime(Math.max(1, throb), t, .1); ENG.lg.gain.setTargetAtTime(throb ? .3 : 0, t, .1);
+  } catch(e){}
+}
 function slab(w, d, x, z, mat, y){ const m = new THREE.Mesh(new THREE.PlaneGeometry(w, d), mat); m.rotation.x = -HALF_PI; m.position.set(x + WOX, y, z + WOZ); m.receiveShadow = true; scene.add(m); return m; }
 const PER = 70, GATE = 6;
 let barrier = null, rotor = null, flagGeo = null, flagBase = null;
@@ -1509,21 +1806,7 @@ const radarHead = new THREE.Group();
   // helipad with a parked helicopter whose rotor turns slowly
   const pad = new THREE.Mesh(new THREE.CylinderGeometry(9, 9.3, 0.2, 40), [MAT.concrete, new THREE.MeshStandardMaterial({map:TEX.pad, roughness:.9}), MAT.concrete]);
   pad.position.set(40, 0.1, 15); pad.receiveShadow = true; scene.add(pad);
-  const heli = new THREE.Group(); heli.position.set(40, 0.2, 15); heli.rotation.y = -0.6; scene.add(heli);
-  {
-    const o = {parent:heli};
-    mesh(new THREE.SphereGeometry(1, 20, 14), MAT.olive, 0, 1.7, 0.4, o).scale.set(1.25, 1.15, 2.6);
-    mesh(new THREE.SphereGeometry(1, 16, 10, 0, Math.PI*2, 0, 1.2), MAT.glass, 0, 1.75, 1.6, o).scale.set(1.05, 0.95, 1.4);
-    const boom = mesh(new THREE.CylinderGeometry(0.22, 0.42, 6.5, 10), MAT.olive, 0, 2.0, -4.6, o); boom.rotation.x = HALF_PI;
-    mesh(new THREE.BoxGeometry(0.12, 1.6, 1.1), MAT.olive, 0, 2.6, -7.6, o).rotation.x = -0.3;
-    const tr = mesh(new THREE.BoxGeometry(0.06, 1.6, 0.16), MAT.dark, 0.2, 2.6, -7.7, o);
-    for(const s of [-1, 1]){ const sk = mesh(new THREE.CylinderGeometry(0.07, 0.07, 4.8, 6), MAT.dark, s*1.1, 0.08, 0.4, o); sk.rotation.x = HALF_PI;
-      for(const zz of [-0.8, 1.6]) mesh(new THREE.BoxGeometry(0.08, 0.7, 0.08), MAT.dark, s*1.0, 0.4, zz, o).rotation.z = s*0.3; }
-    mesh(new THREE.CylinderGeometry(0.18, 0.25, 0.5, 10), MAT.dark, 0, 2.95, 0.3, o);
-    rotor = new THREE.Group(); rotor.position.set(0, 3.25, 0.3); heli.add(rotor);
-    for(let i = 0; i < 4; i++){ const b = mesh(new THREE.BoxGeometry(5.6, 0.05, 0.3), MAT.dark, 2.8, 0, 0, {parent:rotor}); const g = new THREE.Group(); g.rotation.y = i*HALF_PI; g.add(b); rotor.add(g); }
-    addCol(37.5, 42.5, 0, 3.2, 12.5, 17.5);
-  }
+  addVehicle('heli', 40, 15, -0.6, .2);
 
   // radar on a lattice tower
   {
@@ -1551,21 +1834,9 @@ const radarHead = new THREE.Group();
   for(let i = 0; i < 4; i++) tent(-46 + i*8, 30, 0);
 
   // army trucks
-  function truck(x, z, ry){
-    const g = new THREE.Group(); g.position.set(x, 0, z); g.rotation.y = ry; scene.add(g); const o = {parent:g};
-    mesh(new THREE.BoxGeometry(2.3, 0.4, 6.4), MAT.dark, 0, 0.9, 0, o);
-    mesh(new THREE.BoxGeometry(2.4, 1.6, 1.8), MAT.olive, 0, 1.9, 1.7, o);
-    mesh(new THREE.BoxGeometry(2.2, 0.9, 1.0), MAT.olive, 0, 1.5, 3.1, o);
-    mesh(new THREE.BoxGeometry(2.0, 0.7, 0.05), MAT.glass, 0, 2.25, 2.62, o);
-    mesh(new THREE.BoxGeometry(2.4, 0.7, 4), MAT.oliveD, 0, 1.45, -1.3, o);
-    const cover = new THREE.CylinderGeometry(1.2, 1.2, 4, 16, 1, true, HALF_PI, Math.PI); cover.rotateX(HALF_PI);
-    mesh(cover, std(0x5a5f3e, .95, 0, {side:THREE.DoubleSide}), 0, 1.8, -1.3, o);
-    mesh(new THREE.CircleGeometry(1.2, 16, 0, Math.PI), std(0x4b5034, .95, 0, {side:THREE.DoubleSide}), 0, 1.8, 0.7, o);
-    for(const wz of [2.9, -0.8, -2.2]) for(const s of [-1, 1]){ const w = mesh(new THREE.CylinderGeometry(0.52, 0.52, 0.4, 14), MAT.dark, s*1.1, 0.52, wz, o); w.rotation.z = HALF_PI; }
-    colFor(x, z, 2.6, 7, 0, 3, ry);
-    const hit = new THREE.Mesh(new THREE.BoxGeometry(2.6, 3, 7), new THREE.MeshBasicMaterial({visible:false})); hit.position.set(0, 1.5, 0); g.add(hit); solids.push(hit);
-  }
+  function truck(x, z, ry){ addVehicle('truck', x, z, ry); }
   truck(16, 28, 0); truck(23, 28, 0); truck(-22, -54, HALF_PI);
+  addVehicle('jeep', 10, -37, HALF_PI); addVehicle('jeep', -10, -37, -HALF_PI);
 
   // shipping containers behind the headquarters
   for(const [x, y, z, c] of [[22, 0, -62, 0x7a3b2a], [22, 2.6, -62, 0x3a5a6a], [22, 0, -57, 0x56603e], [-24, 0, -62, 0x8a6a2a]])
@@ -2617,6 +2888,7 @@ addEventListener('keydown', e => {
 function keyAction(code){
   if(NET.hub && /^(KeyB|KeyT|KeyQ|KeyG|KeyR|KeyX|KeyF|Digit\d)$/.test(code)) return;     // the lobby: just walking and talking
   const e = {code};
+  if(DRIVE && /^(KeyB|KeyR|KeyX|KeyF|Digit\d)$/.test(e.code)) return;
   if(e.code === 'KeyB'){ setBuild(!build); }
   else if(e.code === 'KeyR'){ if(build){ rot = WT[sel].kind === 'stairs' ? (rot + 1) & 3 : (rot & 1) ^ 1; sfx('tick'); } else startReload(); }
   else if(/^Digit[1-9]$/.test(e.code)){ sel = +e.code[5] - 1; if(!build) setBuild(true); renderBar(); sfx('tick'); }
@@ -2626,10 +2898,11 @@ function keyAction(code){
   else if(e.code === 'KeyT' && G.phase === 'build'){ if(NET.guest) netSend({t:'wave'}); else G.timer = 0; }
   else if(e.code === 'KeyE' && P.dead <= 0){
     if(P.repair) cancelRepair('Ремонт отменён, запчасти возвращены');
+    else if(DRIVE) vehExit(false);
     else if(PILOT) pilotOut(false);
     else if(HOLD) dropItem(false);
     else { const a = nearAlly(), w = a ? null : nearWreck(), h = w || a ? null : nearHatch(); if(a) pilotIn(a); else if(w){ toast(`Сначала почините робота: F (⚙ ${repairCost(w)}). Залезть можно только в починенного`, true); sfx('err'); } else if(h) toggleHatch(h);
-      else { const n = nearSlot(); if(n){ setCharacter(n.i, true); sfx('stomp'); toast(`Вы управляете: ${CHARS[n.i].name}`); } else pickItem(nearItem()); } }
+      else { const n = nearSlot(); if(n){ setCharacter(n.i, true); sfx('stomp'); toast(`Вы управляете: ${CHARS[n.i].name}`); } else { const vh = nearVeh(); if(vh) vehEnter(vh); else pickItem(nearItem()); } } }
   }
   else if(e.code === 'KeyG') toggleAllyMode();
   else if((e.code === 'KeyP' || e.code === 'KeyN') && !e.repeat) buddyToggle();
@@ -2789,14 +3062,16 @@ if(TOUCH){
     let use = '', fix = false;
     if(state === 'play' && P.dead <= 0 && !build){
       if(P.repair) use = 'Отмена';
+      else if(DRIVE) use = 'Выйти';
       else if(PILOT) use = 'Вылезти';
       else if(HOLD) use = 'Положить';
-      else { const a = nearAlly(), w = a ? null : nearWreck(), h = w || a ? null : nearHatch(), n = w || a || h ? null : nearSlot(), it = w || a || h || n ? null : nearItem();
-        use = a ? 'Залезть' : h ? (h.open ? 'Закрыть люк' : 'Открыть люк') : n ? 'Пересесть' : it ? 'Взять' : ''; fix = !!w; }
+      else { const a = nearAlly(), w = a ? null : nearWreck(), h = w || a ? null : nearHatch(), n = w || a || h ? null : nearSlot(), vh = w || a || h || n ? null : nearVeh(), it = w || a || h || n || vh ? null : nearItem();
+        use = a ? 'Залезть' : h ? (h.open ? 'Закрыть люк' : 'Открыть люк') : n ? 'Пересесть' : vh ? 'Сесть' : it ? 'Взять' : ''; fix = !!w; }
     }
-    const key = use + fix; if(key === ctxKey) return; ctxKey = key;
+    const down = !!(DRIVE && DRIVE.D.heli && state === 'play');
+    const key = use + fix + down; if(key === ctxKey) return; ctxKey = key;
     $('tUse').hidden = !use; if(use) $('tUse').firstChild.textContent = use;
-    $('tFix').hidden = !fix;
+    $('tFix').hidden = !fix; $('tDown').hidden = !down;
   };
 }
 function touchLabels(){
@@ -4112,7 +4387,7 @@ function updateGame(dt){
   if(P.reload > 0){ P.reload -= dt; if(P.reload <= 0){ P.reload = 0; P.ammo = curW().mag; } }
   if(P.dead > 0){ P.dead -= dt; if(P.dead <= 0) respawn(); }
   else if(G.phase === 'build' && P.hp < P.maxHp) P.hp = Math.min(P.maxHp, P.hp + P.maxHp*0.05*dt);
-  if(firing && !build){ if(HOLD){ dropItem(true); firing = false; } else playerFire(); }
+  if(firing && !build){ if(DRIVE){ if(DRIVE.D.heli && DRIVE.p.y > .5) vehFire(DRIVE, dt); } else if(HOLD){ dropItem(true); firing = false; } else playerFire(); }
   updateRepair(dt);
   if(hitT > 0){ hitT -= dt; if(hitT <= 0) $('cross').classList.remove('hit'); }
   if(BUNKER_ON) updateRadiation(dt);
@@ -4282,7 +4557,7 @@ function startPlay(){
 function newGame(){
   if(PILOT){ hideBody(PILOT.prev, false); setGlowRig(rig, false); const pv = PILOT.prev; PILOT = null; setCharacter(pv); }
   for(const b of built.slice()) dropWall(b);
-  P.repair = null; allyMode = 'follow'; droneHome();
+  P.repair = null; allyMode = 'follow'; droneHome(); vehReset();
   for(const u of [...enemies, ...allies, ...wrecks]) removeUnit(u);
   Object.assign(G, {phase:'build', timer:BUILD_FIRST, wave:0, res:START_RES, parts:START_PARTS, hq:G.hqMax, kills:0, queue:[]});
   P.hp = P.maxHp; P.dead = 0; P.ammo = curW().mag; P.reload = 0; rig.root.rotation.set(0, 0, 0);
@@ -4607,6 +4882,8 @@ function netOnPeer(id, m){
   const q = getPeer(id);
   q.on = true; q.seen = performance.now(); q.t.set(m.x, m.y, m.z); q.tface = m.f; q.walk = m.w; q.amt = m.a; q.air = m.air; q.build = !!m.b;
   q.pitch = m.pi; q.place = m.pl; q.dead = !!m.d; q.fall = q.dead ? 1 : 0; q.talk = m.v ? performance.now() : q.talk;
+  { const was = q.vh ? VEH[q.vh[0]] : null, now_ = m.vh && VEH[m.vh[0]] ? VEH[m.vh[0]] : null; if(was && was !== now_) was.net = null;
+    q.vh = now_ ? m.vh : null; if(now_ && now_.driver !== 'me') now_.net = m.vh; }
   if(m.c !== q.i && CHARS[m.c]){
     if(q.R) q.g.remove(q.R.root);
     // every player gets their own copy of the model (several players can pick the same robot)
@@ -4623,15 +4900,15 @@ function updatePeer(dt){
   for(const q of PEERS.values()){
     if(now - q.seen > 15000 && q.on){ q.on = false; }          // nothing from them for a while: hide
     const show = NET.on && q.on && !!q.R;
-    q.g.visible = q.label.visible = show; if(!show) continue;
+    q.g.visible = q.label.visible = show; if(!show){ if(q.vh && VEH[q.vh[0]]) VEH[q.vh[0]].net = null; continue; }
     if(q.p.distanceTo(q.t) > 8) q.p.copy(q.t); else q.p.lerp(q.t, Math.min(1, 10*dt));
     let d = q.tface - q.face; d = Math.atan2(Math.sin(d), Math.cos(d)); q.face += d*Math.min(1, 10*dt);
     const R = q.R;
     animateRig(R, q.walk, q.amt, q.air, q.place, q.build, q.pitch);
     if(q.dead){ R.root.rotation.x = -HALF_PI*0.92; R.root.position.y = R.r*0.5; } else { R.root.rotation.x = R.lean || 0; R.root.position.y = 0; }
     if(R.jets && !q.dead) poseFlight(R, !!q.air, q.amt*8, dt, false);
-    q.g.position.copy(q.p); q.g.rotation.y = q.face;
-    q.label.position.set(q.p.x, q.p.y + R.h + 0.9, q.p.z);
+    q.g.position.copy(q.p); q.g.rotation.y = q.face; if(q.vh) q.g.visible = false;
+    q.label.position.set(q.p.x, q.p.y + (q.vh ? VEH[q.vh[0]].D.h + .8 : R.h + 0.9), q.p.z);
     q.label.material.color.setHex(q.talk && now - q.talk < 600 ? 0x9fffa0 : 0xffffff);      // green while they talk
   }
 }
@@ -4714,7 +4991,8 @@ function netTick(dt){
   if(NET.pT <= 0){
     NET.pT = 1/8;
     pub('p/' + NET.myId, {t:'p', x:r2(P.pos.x), y:r2(P.pos.y), z:r2(P.pos.z), f:r2(P.face), w:r2(P.walk), a:r2(Math.min(1, P.speed/rig.walk)), air:P.onGround ? 0 : 1,
-      b:build ? 1 : 0, pi:r2(pitch), pl:r2(P.place), c:cur, d:P.dead > 0 ? 1 : 0, s:NET.shots.splice(0), v:VOICE.on ? 1 : 0});
+      b:build ? 1 : 0, pi:r2(pitch), pl:r2(P.place), c:cur, d:P.dead > 0 ? 1 : 0, s:NET.shots.splice(0), v:VOICE.on ? 1 : 0,
+      vh:DRIVE ? [DRIVE.i, r2(DRIVE.p.x), r2(DRIVE.p.y), r2(DRIVE.p.z), r2(DRIVE.yaw), r2(DRIVE.pit), r2(DRIVE.rol), r2(DRIVE.steer), r2(DRIVE.spd), r2(DRIVE.rs)] : 0});
   }
   NET.presT -= dt; if(NET.presT <= 0) announce();
   if(NET.hub) return;
@@ -5004,11 +5282,7 @@ const HUB = {x:0, z:-1000, r:22, portals:[], flag:null, flagBase:null, radar:nul
   for(const [x, z, r] of [[-19, -6, HALF_PI], [-19, 4, HALF_PI], [19, -6, -HALF_PI], [19, 4, -HALF_PI]]){
     tent(X + x, Z + z, r);
   }
-  { const tx = X - 12, tz = Z + 18, g = new THREE.Group(); g.position.set(tx, 0, tz); g.rotation.y = .1; scene.add(g); const o = {parent:g};
-    mesh(new THREE.BoxGeometry(2.4, 1, 6.5), MAT.oliveD, 0, 1, 0, o); mesh(new THREE.BoxGeometry(2.4, 1.6, 2), MAT.olive, 0, 2.2, 2.2, o);
-    mesh(new THREE.BoxGeometry(2.5, 2, 4.2), MAT.camo, 0, 2.5, -1, o);
-    for(const sx of [-1, 1]) for(const sz of [-2.2, 0, 2.2]){ const w = mesh(new THREE.CylinderGeometry(.5, .5, .35, 12), MAT.dark, sx*1.2, .5, sz, o); w.rotation.z = HALF_PI; }
-    addCol(tx - 1.4, tx + 1.4, 0, 3.5, tz - 3.4, tz + 3.4); }
+  addVehicle('truck', X - 12, Z + 18, .1);
   const lampM = new THREE.MeshStandardMaterial({color:0xfff2c0, emissive:0xffe9a8, emissiveIntensity:.9});
   for(const [x, z] of [[-22, -22], [22, -22], [-22, 22], [22, 22], [-22, 0], [22, 0]].map(([a, b]) => [a*.9, b*.9])){
     cyl(.1, .14, 7, MAT.dark, X + x, 0, Z + z, 6); box(.9, .45, .5, lampM, X + x, 7, Z + z, {col:false}); addCol(X + x - .2, X + x + .2, 0, 7, Z + z - .2, Z + z + .2); }
@@ -5280,6 +5554,7 @@ const fwd = new THREE.Vector3(), right = new THREE.Vector3(), move = new THREE.V
 let last = performance.now(), time = 0, stepT = 0;
 function updatePlayer(dt){
   fwd.set(-Math.sin(yaw), 0, -Math.cos(yaw)); right.set(Math.cos(yaw), 0, -Math.sin(yaw));
+  if(DRIVE){ vehDrive(DRIVE, dt); return; }
   move.set(0, 0, 0);
   if(state === 'play' && P.dead <= 0){
     if(keys.KeyW || keys.ArrowUp) move.add(fwd); if(keys.KeyS || keys.ArrowDown) move.sub(fwd);
@@ -5356,8 +5631,8 @@ function updateCamera(dt){
     camera.position.set(cx + Math.sin(a)*rad, BUNKER_ON ? 62 : 46, (BUNKER_ON ? 20 : 0) + Math.cos(a)*rad); camera.lookAt(cx, 4, 0);
     return;
   }
-  heroGroup.visible = !S.fp;
-  if(S.fp){
+  heroGroup.visible = !S.fp && !DRIVE;
+  if(S.fp && !DRIVE){
     // first person: the camera sits in the hero's head and looks where the crosshair points; the own body is hidden
     const eye = rig.camH*(rig.h < 2.5 ? 0.98 : 0.9);
     tgt.set(P.pos.x, P.pos.y + eye, P.pos.z);
@@ -5367,11 +5642,11 @@ function updateCamera(dt){
     return;
   }
   dist += (distWant - dist)*Math.min(1, 8*dt);
-  const shoulder = (build ? 0.75 : 0.55)*Math.max(1, rig.h/2.6);
-  tgt.set(P.pos.x + right.x*shoulder, P.pos.y + rig.camH, P.pos.z + right.z*shoulder);
+  const shoulder = DRIVE ? 0 : (build ? 0.75 : 0.55)*Math.max(1, rig.h/2.6);
+  tgt.set(P.pos.x + right.x*shoulder, P.pos.y + (DRIVE ? DRIVE.D.camH : rig.camH), P.pos.z + right.z*shoulder);
   camWant.set(Math.sin(yaw)*Math.cos(pitch), Math.sin(pitch), Math.cos(yaw)*Math.cos(pitch));
-  let d = dist;
-  for(const c of COLS){ if(passable(c)) continue; const t = rayBoxT(tgt, camWant, c, d + 0.3); if(t < d + 0.3) d = Math.max(0.6, t - 0.3); }
+  let d = DRIVE ? Math.max(dist, DRIVE.D.camDist) : dist;
+  for(const c of COLS){ if(passable(c) || (DRIVE && c === DRIVE.col)) continue; const t = rayBoxT(tgt, camWant, c, d + 0.3); if(t < d + 0.3) d = Math.max(0.6, t - 0.3); }
   camera.position.copy(tgt).addScaledVector(camWant, d);
   if(camera.position.y < 0.3) camera.position.y = 0.3;
   camera.lookAt(tgt);
@@ -5398,10 +5673,9 @@ function updateDoors(dt){
   if(Math.abs(k0 - ROOM_LIGHT.k) > 1e-4) hemi.intensity = HEMI0 + .3*ROOM_LIGHT.k;
 }
 function updateWorld(dt){
-  updateDoors(dt); syncStatues();
+  updateDoors(dt); syncStatues(); updateVehicles(dt);
   if(BUNKER_ON){ updateBunkerWorld(dt); updateLook(camera.position.x); }
   {
-  rotor.rotation.y += dt*1.2;
   radarHead.rotation.y += dt*0.6;
   const a = flagGeo.attributes.position.array;
   for(let i = 0; i < a.length; i += 3){ const x = flagBase[i]; a[i + 2] = Math.sin(x*1.8 - time*5 + flagBase[i + 1]*0.4)*0.22*(x/3.2); }
