@@ -791,7 +791,7 @@ renderer.shadowMap.autoUpdate = false;     // the shadows are redrawn every othe
 let SHADOW_T = 0;
 const MAX_ANISO = Math.min(16, renderer.capabilities.getMaxAnisotropy() || 8);
 const scene = new THREE.Scene();
-scene.fog = new THREE.Fog(0xc9d2d2, 150, 640);
+scene.fog = new THREE.Fog(0xb3bcbe, 150, 640);
 const camera = new THREE.PerspectiveCamera(S.fov, 1, 0.1, 850);
 function resize(){
   // «Резкость»: how many real pixels per screen point. Above the screen's own density the picture is supersampled (smoother, crisper edges)
@@ -804,16 +804,16 @@ addEventListener('resize', resize); resize();
 const sky = new THREE.Mesh(new THREE.SphereGeometry(800, 32, 16), new THREE.ShaderMaterial({
   side:THREE.BackSide, depthWrite:false, fog:false,
   vertexShader:'varying vec3 vP; void main(){ vP = normalize(position); gl_Position = projectionMatrix*modelViewMatrix*vec4(position,1.); }',
-  fragmentShader:'varying vec3 vP; void main(){ float h = vP.y; ' + 'vec3 top = vec3(.30,.50,.76), hor = vec3(.79,.82,.82), gnd = vec3(.60,.57,.48);'
+  fragmentShader:'varying vec3 vP; void main(){ float h = vP.y; ' + 'vec3 top = vec3(.28,.47,.72), hor = vec3(.70,.74,.75), gnd = vec3(.54,.51,.43);'
     + ' vec3 c = h > 0. ? mix(hor, top, pow(h, .55)) : mix(hor, gnd, min(1., -h*5.));'
     + ' float sun = max(0., dot(vP, normalize(vec3(-.45,.8,.35)))); c += vec3(1.,.9,.7)*pow(sun, 300.)*1.2 + vec3(.25,.2,.1)*pow(sun, 8.)*.4;'
     + ' gl_FragColor = vec4(c, 1.); }'
 }));
 sky.renderOrder = -1; scene.add(sky);
 
-const hemi = new THREE.HemisphereLight(0xd8e6f0, 0x6f6448, 0.5); scene.add(hemi);
+const hemi = new THREE.HemisphereLight(0xd8e6f0, 0x6f6448, 0.4); scene.add(hemi);     // a little softer: the bright ground used to glare
 // a soft fill light from the side opposite the sun, without shadows: the shaded sides are not black
-const fillLight = new THREE.DirectionalLight(0xb8c8e0, 0.38); fillLight.position.set(0.5, 0.45, -0.75); scene.add(fillLight);
+const fillLight = new THREE.DirectionalLight(0xb8c8e0, 0.26); fillLight.position.set(0.5, 0.45, -0.75); scene.add(fillLight);
 {
   const c = document.createElement('canvas'); c.width = 512; c.height = 256; const g = c.getContext('2d');
   const gr = g.createLinearGradient(0, 0, 0, 256);
@@ -825,10 +825,10 @@ const fillLight = new THREE.DirectionalLight(0xb8c8e0, 0.38); fillLight.position
   const t = new THREE.CanvasTexture(c); t.mapping = THREE.EquirectangularReflectionMapping;
   try { const pm_ = new THREE.PMREMGenerator(renderer); scene.environment = pm_.fromEquirectangular(t).texture; pm_.dispose(); } catch(e){}
 }
-const sun = new THREE.DirectionalLight(0xfff1dc, 0.95);
+const sun = new THREE.DirectionalLight(0xfff1dc, 0.78);
 // near the radioactive street the air turns hazy and green
-const LOOK_A = {fog:new THREE.Color(0xc9d2d2), near:150, far:640, sky:new THREE.Color(0xd8e6f0), gnd:new THREE.Color(0x6f6448), hi:.62, sun:new THREE.Color(0xfff1dc), si:.95};
-const LOOK_B = {fog:new THREE.Color(0x9fa585), near:60, far:400, sky:new THREE.Color(0xcfd8b4), gnd:new THREE.Color(0x4a4636), hi:.58, sun:new THREE.Color(0xf2f0c2), si:.8};
+const LOOK_A = {fog:new THREE.Color(0xb3bcbe), near:150, far:640, sky:new THREE.Color(0xd8e6f0), gnd:new THREE.Color(0x6f6448), hi:.4, sun:new THREE.Color(0xfff1dc), si:.78};
+const LOOK_B = {fog:new THREE.Color(0x9fa585), near:60, far:400, sky:new THREE.Color(0xcfd8b4), gnd:new THREE.Color(0x4a4636), hi:.4, sun:new THREE.Color(0xf2f0c2), si:.7};
 let lookK = -1;
 function updateLook(x){
   const k = clamp((x - 78)/40, 0, 1); if(Math.abs(k - lookK) < .002) return; lookK = k;
@@ -5118,6 +5118,7 @@ function mergeStatic(){
   for(const o of scene.children) if(o.isGroup && o.userData.tent) mergeNode(o, new Set());
 }
 mergeStatic();
+scene.traverse(o => { if(!o.material) return; for(const m of [].concat(o.material)) if(m.isMeshStandardMaterial && !m.userData.lifted && m.envMapIntensity === 1) m.envMapIntensity = .6; });
 function drawSign(P_, title, line2, line3){
   const g = P_.c.getContext('2d'), w = P_.c.width, h = P_.c.height;
   g.clearRect(0, 0, w, h); g.fillStyle = 'rgba(38,46,28,.92)'; g.beginPath(); g.roundRect ? g.roundRect(6, 6, w - 12, h - 12, 22) : g.rect(6, 6, w - 12, h - 12); g.fill();
@@ -5394,7 +5395,7 @@ function updateDoors(dt){
   let R = null; const pp = P.pos;
   if(state === 'play') for(const r of ROOMS) if(pp.x > r.x0 && pp.x < r.x1 && pp.z > r.z0 && pp.z < r.z1 && pp.y >= r.y0 - .3 && pp.y < r.y1){ R = r; break; }
   const k0 = ROOM_LIGHT.k; ROOM_LIGHT.k += ((R ? 1 : 0) - ROOM_LIGHT.k)*Math.min(1, 4*dt);
-  if(Math.abs(k0 - ROOM_LIGHT.k) > 1e-4) hemi.intensity = HEMI0 + .45*ROOM_LIGHT.k;
+  if(Math.abs(k0 - ROOM_LIGHT.k) > 1e-4) hemi.intensity = HEMI0 + .3*ROOM_LIGHT.k;
 }
 function updateWorld(dt){
   updateDoors(dt); syncStatues();
