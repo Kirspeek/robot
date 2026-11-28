@@ -464,6 +464,7 @@ input.txt:focus{outline:2px solid var(--accent);outline-offset:1px}
       <button class="tb" data-a="KeyG"><b>Союзники</b></button>
       <button class="tb" data-a="KeyV"><b>Вид</b><small>1-е / 3-е лицо</small></button>
       <button class="tb" data-a="KeyT"><b>Волна</b><small>сейчас</small></button>
+      <button class="tb" data-a="KeyN"><b>Напарник</b><small>позвать / убрать</small></button>
     </div>
   </div>
 </div>
@@ -560,6 +561,7 @@ input.txt:focus{outline:2px solid var(--accent);outline-offset:1px}
       <button class="btn" id="bNew">Новая игра <small>с начала</small></button>
       <button class="btn" id="bVideos">Видео <small id="vidCount">лента</small></button>
       <button class="btn" id="bFriends">Друзья и чаты <small id="frBadge" class="frb">0</small></button>
+      <button class="btn" id="bBuddy">Напарник-бот <small id="buddyState">нет</small></button>
       <button class="btn" id="bNet">Сервер · по сети <small id="netState">выкл</small></button>
       <button class="btn" id="bChar">Персонаж <small id="charName">Солдат</small></button>
       <button class="btn" id="bControls">Управление</button>
@@ -589,6 +591,8 @@ input.txt:focus{outline:2px solid var(--accent);outline-offset:1px}
         <kbd>Q</kbd><span>выпустить / вернуть ремонтного робота: сам лечит союзников, поднимает обломки, чинит стены</span>
         <kbd>I</kbd><span>свернуть / развернуть инвентарь</span>
         <kbd>G</kbd><span>союзники: за мной / держать позицию</span>
+        <kbd>N</kbd><span>позвать / убрать бота-напарника</span>
+        <kbd>E</kbd><span>взять / поставить предмет (ЛКМ — бросить)</span>
         <span class="sep">Строительство</span>
         <kbd>B</kbd><span>строительство / оружие</span>
         <kbd>1 – 5</kbd><span>бетон, металл, доски, мешки, проволока</span>
@@ -2215,7 +2219,7 @@ function nearSlot(){
 // ---------- climbing into your own (blue) robots ----------
 function nearAlly(){
   let best = null, bd = 3.5;
-  for(const a of allies){ if(a.dead || a.fall > 0) continue; const d = Math.hypot(a.p.x - P.pos.x, a.p.z - P.pos.z) - a.R.r - P.r; if(d < bd){ bd = d; best = a; } }
+  for(const a of allies){ if(a.dead || a.fall > 0 || a.buddy) continue; const d = Math.hypot(a.p.x - P.pos.x, a.p.z - P.pos.z) - a.R.r - P.r; if(d < bd){ bd = d; best = a; } }
   return best;
 }
 function hideBody(i, on){ const s = slots[i]; if(!s){ RIGS[i].root.visible = !on; return; } RIGS[i].root.visible = !on; if(on){ s.label.visible = false; if(s.col){ COLS.splice(COLS.indexOf(s.col), 1); s.col = null; } } }
@@ -2345,6 +2349,7 @@ function keyAction(code){
       else { const n = nearSlot(); if(n){ setCharacter(n.i, true); sfx('stomp'); toast(`Вы управляете: ${CHARS[n.i].name}`); } else pickItem(nearItem()); } }
   }
   else if(e.code === 'KeyG') toggleAllyMode();
+  else if(e.code === 'KeyN') buddyToggle();
   else if(e.code === 'KeyQ') toggleDrone();
   else if(e.code === 'KeyI'){ $('inv').classList.toggle('min'); sfx('tick'); }
   else if(e.code === 'KeyV') setView(!S.fp);
@@ -2765,6 +2770,7 @@ const ETYPES = {
   red:    {c:4, hp:450,  speed:2.9, dmg:30,  rate:.8,  range:22,  acc:.55, reward:80, parts:20},
   groza:  {c:1, hp:600,  speed:2.7, dmg:40,  rate:.7,  range:24,  acc:.55, reward:100, parts:25},
   bastion:{c:5, hp:700,  speed:2.5, dmg:55,  rate:.5,  range:28,  acc:.55, reward:120, parts:30, splash:3},
+  buddy:  {c:0, hp:220,  speed:5.2, dmg:14,  rate:4,   range:26,  acc:.6,  reward:0, parts:0, buddy:true},   // the bot partner (a soldier), never in a wave
   titan:  {c:6, hp:2200, speed:2.3, dmg:120, rate:.5,  range:3,   melee:true, reward:300, parts:80, splash:3.5}
 };
 function waveList(n){
@@ -3367,6 +3373,7 @@ function damageAlly(a, d){
   if(!a || a.dead || a.fall > 0) return;
   hitFx(a, d);
   a.hp -= d;
+  if(a.hp <= 0 && a.buddy){ buddyDown(a); return; }
   if(a.hp <= 0){ toast(`${CHARS[a.T.c].name} выведен из строя. Его можно починить снова`, true); makeWreck(a); }
 }
 function damagePlayer(d, quiet){
@@ -3511,8 +3518,9 @@ function playerInLine(from, to){
 function allyShoot(a, from, to, foe){
   const T = a.T, hit = rnd() < Math.min(.95, (T.acc || .6) + .2), end = _c.copy(to);
   if(!hit){ end.x += rr(-1.2, 1.2); end.y += rr(-.4, 1); end.z += rr(-1.2, 1.2); }
-  tracer(from, end, 0x6fe0ff); emit(SPARK, from.x, from.y, from.z, 3, 0x9fe8ff, 2, .15, 0); if(NET.host) netFx(0, from, end, 0x6fe0ff);
-  sfxAt('eshot', from);
+  const tc_ = a.buddy ? 0xffe08a : 0x6fe0ff; a.aimT = .6;
+  tracer(from, end, tc_); emit(SPARK, from.x, from.y, from.z, 3, a.buddy ? 0xffd080 : 0x9fe8ff, 2, .15, 0); if(NET.host) netFx(0, from, end, tc_);
+  sfxAt(a.buddy ? 'shot' : 'eshot', from);
   if(hit) damageEnemy(foe, T.dmg, 'ally');
   if(T.splash) explode(end, T.splash, T.dmg*.6, 'ally');
 }
@@ -3578,7 +3586,7 @@ function updateAllies(dt){
       }
     } else if(allyMode === 'follow' && P.dead <= 0){
       // fan out behind the player
-      const n = allies.length, ang = P.face + Math.PI + (idx - (n - 1)/2)*0.55, rad = 3.5 + R.r*1.5 + Math.floor(idx/6)*3;
+      const n = allies.length, ang = a.buddy ? P.face + Math.PI*.78 : P.face + Math.PI + (idx - (n - 1)/2)*0.55, rad = a.buddy ? 2.4 : 3.5 + R.r*1.5 + Math.floor(idx/6)*3;
       const tx = P.pos.x + Math.sin(ang)*rad, tz = P.pos.z + Math.cos(ang)*rad, nav = navPoint(p, tx, tz);
       gx = nav.x; gz = nav.z; if(nav.direct && Math.hypot(tx - p.x, tz - p.z) < 1.5) want = false;
     } else { gx = a.hx; gz = a.hz; if(Math.hypot(gx - p.x, gz - p.z) < 1.5) want = false; }
@@ -3596,8 +3604,58 @@ function updateAllies(dt){
     let d = wantF - a.face; d = Math.atan2(Math.sin(d), Math.cos(d)); a.face += d*Math.min(1, 6*dt);
     a.walk += dt*hs*R.stride;
     animateRig(R, a.walk, Math.min(1, hs/T.speed), 0, a.punch, false, 0); poseAlive(a, dt);
+    if(a.buddy){ a.aimT = Math.max(0, (a.aimT || 0) - dt); if((foe || a.aimT > 0) && R.arms) for(const A of R.arms){ A.sh.rotation.set(-1.45, 0, 0); A.el.rotation.x = 0; } }
     a.g.position.set(p.x, 0, p.z); a.g.rotation.y = a.face;
   });
+}
+
+// ---------- the bot partner: a soldier who fights at your side. N (or the menu) calls him and sends him away at any time.
+// He works without internet. Shot down, he falls and comes back to you a little later; he is not a robot, so no one can get into him.
+let BUDDY = null, BUDDY_ON = !!store.get('forpost.buddy');
+const BUDDY_NAME = 'Бот · напарник';
+function buddyAllowed(){ return !NET.guest && !NET.hub; }
+function buddySpawn(){
+  const u = makeUnit('buddy'); u.id = ++UNIT_ID; u.buddy = true;
+  const a = P.face + Math.PI*.75, x = P.pos.x + Math.sin(a)*2.2, z = P.pos.z + Math.cos(a)*2.2;
+  u.p.set(x, 0, z); collideXZ(u.p); u.v.set(0, 0, 0);
+  Object.assign(u, {state:'ally', hp:u.T.hp, max:u.T.hp, face:P.face, walk:0, cd:1, dead:false, fall:0, hx:x, hz:z, sideT:0, side:1, chkT:1.2, cx:x, cz:z, punch:0, smokeT:0, downT:0, hitT:0});
+  setGlow(u, 'ally'); tintRig(u.R, 1); u.R.root.rotation.set(0, 0, 0); u.R.root.position.set(0, 0, 0);
+  if(!u.label){ u.label = new THREE.Sprite(new THREE.SpriteMaterial({map:nameTex(BUDDY_NAME), depthWrite:false, transparent:true})); u.label.scale.set(1.3, .33, 1); u.label.position.y = u.R.h + .95; u.g.add(u.label); }
+  u.g.position.copy(u.p); u.g.rotation.y = u.face; u.bg.visible = u.fill.visible = false;
+  scene.add(u.g, u.bg, u.fill); allies.push(u);
+  emit(SPARK, u.p.x, 1, u.p.z, 20, 0x6fe0ff, 3, .5); sfx('place');
+  return BUDDY = u;
+}
+function buddyRemove(){
+  const u = BUDDY; BUDDY = null; if(!u) return;
+  emit(SPARK, u.p.x, 1, u.p.z, 20, 0x6fe0ff, 3, .5);
+  if(allies.includes(u) || u.downT > 0){ u.downT = 0; u.dead = false; removeUnit(u); }
+}
+function buddyToggle(){
+  if(!buddyAllowed()){ toast(NET.hub ? 'В лобби не воюют: напарника можно позвать в бою' : 'Напарника зовёт первый игрок на сервере', true); sfx('err'); return; }
+  BUDDY_ON = !BUDDY_ON; store.set('forpost.buddy', BUDDY_ON ? 1 : 0);
+  if(!BUDDY_ON){ buddyRemove(); toast('Напарник ушёл. Вы играете один'); }
+  else { if(state === 'play' && !BUDDY) buddySpawn(); toast('Напарник с вами. Убрать — N'); }
+  sfx('tick'); buddyUI();
+}
+function buddyUI(){ const b = $('buddyState'); if(b) b.textContent = BUDDY_ON ? 'с вами' : 'нет'; }
+// shot down: he falls, lies a while and then comes back next to you
+function buddyDown(u){
+  const i = allies.indexOf(u); if(i >= 0) allies.splice(i, 1);
+  u.dead = true; u.downT = 12; u.fall = 0; u.dv = 0; u.kv = null; u.hitT = 0;
+  toast('Напарника подстрелили. Он вернётся через 12 секунд', true);
+  emit(SPARK, u.p.x, 1, u.p.z, 14, 0xffb050, 4, .5); sfxAt('crash', u.p);
+}
+function updateBuddy(dt){
+  if(BUDDY && !BUDDY.downT && !allies.includes(BUDDY)) BUDDY = null;        // a new game or a reset took everyone away
+  if(!BUDDY_ON || !buddyAllowed() || state !== 'play'){ if(BUDDY && !buddyAllowed()) buddyRemove(); return; }
+  if(!BUDDY){ if(P.dead <= 0) buddySpawn(); return; }
+  const u = BUDDY;
+  if(u.downT > 0){
+    if(u.fall < 1){ u.fall = Math.min(1, u.fall + dt*1.6); poseFall(u); }
+    u.downT -= dt;
+    if(u.downT <= 0){ scene.remove(u.g, u.bg, u.fill); EPOOL[u.type].push(u); BUDDY = null; if(P.dead <= 0){ buddySpawn(); toast('Напарник вернулся'); } }
+  }
 }
 function toggleAllyMode(){
   if(NET.guest){ toast('Союзниками командует первый игрок'); return; }
@@ -3798,7 +3856,7 @@ function setBuild(on){
   $('bar').classList.toggle('dim', !on);
   $('hint').innerHTML = on
     ? '<kbd>ЛКМ</kbd> поставить · <kbd>ПКМ</kbd> убрать · <kbd>F</kbd> починить<br><kbd>R</kbd> повернуть · <kbd>1–9</kbd> тип · <kbd>B</kbd> к оружию'
-    : '<kbd>ЛКМ</kbd> огонь · <kbd>R</kbd> перезарядка · <kbd>B</kbd> строить<br><kbd>E</kbd> залезть в робота · <kbd>F</kbd> починить его<br><kbd>Q</kbd> ремонтный робот · <kbd>G</kbd> союзники';
+    : '<kbd>ЛКМ</kbd> огонь · <kbd>R</kbd> перезарядка · <kbd>B</kbd> строить<br><kbd>E</kbd> залезть в робота · <kbd>F</kbd> починить его<br><kbd>Q</kbd> ремонтный робот · <kbd>G</kbd> союзники · <kbd>N</kbd> напарник';
   if(!on){ ghost.visible = false; $('tip').textContent = ''; }
   renderBar(); touchLabels();
 }
@@ -3853,6 +3911,8 @@ function updateCharUI(){
 }
 $('charList').onclick = e => { const b = e.target.closest('.chr'); if(!b) return; pilotOut(false); setCharacter(+b.dataset.i); sfx('ui'); };
 $('bChar').onclick = () => { sfx('ui'); showPanel('pChar'); };
+$('bBuddy').onclick = () => { sfx('ui'); buddyToggle(); };
+buddyUI();
 document.querySelectorAll('#mapList .chr').forEach(b => b.classList.toggle('on', b.dataset.map === MAP));
 function pickMap(m){
   sfx('ui');
@@ -4150,7 +4210,7 @@ function netOnMessage(m, from){
     case 'hurt': damagePlayer(m.d); break;
     case 'pilotok': if(NET.guest && !pilotStart(m)) netSend({...m, t:'unpilot', d:0}); break;
     // requests to the leader
-    case 'pilot': if(NET.host){ const a = allies.find(u => u.id === m.id), q = PEERS.get(from);
+    case 'pilot': if(NET.host){ const a = allies.find(u => u.id === m.id && !u.buddy), q = PEERS.get(from);
       const d = a && q && Math.hypot(a.p.x - q.p.x, a.p.z - q.p.z) < a.R.r + 6 ? takeRobot(a) : null;
       netSendTo(from, d ? {t:'pilotok', ...d} : {t:'toast', m:'Этот робот уже занят или далеко', bad:1}); } break;
     case 'unpilot': if(NET.host) dropRobot(m); break;
@@ -4901,7 +4961,7 @@ function frame(now){
   if(state === 'play') updatePlayer(dt);
   if(NET.hub){}
   else if(NET.guest){ if(state === 'play') updateGame(dt); netUpdateUnits(dt); }
-  else if(state === 'play' || NET.host){ updateGame(dt); updateEnemies(dt); updateAllies(dt); updateWrecks(dt); updateDrone(dt); }
+  else if(state === 'play' || NET.host){ updateGame(dt); updateEnemies(dt); updateAllies(dt); updateBuddy(dt); updateWrecks(dt); updateDrone(dt); }
   netTick(dt); updatePeer(dt); updateHub(dt); updatePeerHint();
   updateWorld(dt);
   updateCamera(dt);
@@ -5749,7 +5809,7 @@ async function nickSave(){
   NICK.busy = true; say('Проверяю, свободен ли ник…', true);
   try {
     // wait a little for the list of players, if we have only just connected
-    for(let i = 0; i < 20 && !anyUp(SITE.cs); i++) await new Promise(r => setTimeout(r, 400));
+    for(let i = 0; i < 20 && !anyUp(SITE.cs) && navigator.onLine !== false; i++) await new Promise(r => setTimeout(r, 400));
     const online = anyUp(SITE.cs), key = await nickKey(s);
     if(online){
       await new Promise(r => setTimeout(r, SITE.users.size ? 300 : 2000));
