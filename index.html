@@ -737,7 +737,7 @@ input.txt:focus{outline:2px solid var(--accent);outline-offset:1px}
     </section>
 
     <section class="panel" id="pOver" hidden>
-      <h2>Штаб разрушен</h2>
+      <h2 id="overTitle">Штаб разрушен</h2>
       <p style="margin:0;color:var(--muted)" id="overText"></p>
       <div class="row"><button class="btn primary" id="bAgain">Заново</button><button class="btn back">В меню</button></div>
     </section>
@@ -4156,8 +4156,9 @@ function damagePlayer(d, quiet){
   P.hp -= d; if(!quiet) P.hurt = Math.min(1, P.hurt + d/P.maxHp*3 + .15);
   if(P.hp <= 0 && PILOT){ pilotOut(true); return; }
   if(P.hp <= 0){
-    P.hp = 0; P.dead = 6; firing = false; if(build) setBuild(false);
-    toast('Вы погибли. Возрождение у штаба через 6 секунд', true);
+    P.hp = 0; P.dead = NET.on ? 6 : 3; firing = false; if(build) setBuild(false);
+    if(DRIVE) vehExit(true);
+    toast(NET.on ? 'Вы погибли. Возрождение у штаба через 6 секунд' : 'Вы погибли. Игра начнётся заново', true);
     burst(P.pos.x, P.pos.y + 1, P.pos.z, 30, 0xff6a3a, 6, 1); sfx('boom');
   }
 }
@@ -4572,7 +4573,7 @@ function updateGame(dt){
   P.fireCD = Math.max(0, P.fireCD - dt); P.aimT = Math.max(0, P.aimT - dt); P.recoil = Math.max(0, P.recoil - dt*8); rig.recoil = P.recoil;
   P.hurt = Math.max(0, P.hurt - dt*1.5);
   if(P.reload > 0){ P.reload -= dt; if(P.reload <= 0){ P.reload = 0; P.ammo = curW().mag; } }
-  if(P.dead > 0){ P.dead -= dt; if(P.dead <= 0) respawn(); }
+  if(P.dead > 0){ P.dead -= dt; if(P.dead <= 0){ if(NET.on) respawn(); else playerLost(); } }
   else if(G.phase === 'build' && P.hp < P.maxHp) P.hp = Math.min(P.maxHp, P.hp + P.maxHp*0.05*dt);
   if(firing && !build){ if(DRIVE){ if(DRIVE.D.heli && DRIVE.p.y > .5) vehFire(DRIVE, dt); } else if(HOLD){ dropItem(true); firing = false; } else playerFire(); }
   updateRepair(dt);
@@ -4597,8 +4598,21 @@ function respawn(){
 }
 function gameOver(){
   G.phase = 'over'; G.best = Math.max(G.best, G.wave - 1); saveGame(); firing = false;
+  $('overTitle').textContent = 'Штаб разрушен';
   $('overText').textContent = `Роботы разрушили штаб на ${G.wave}-й волне. Уничтожено роботов: ${G.kills}. Рекорд: ${G.best}.`;
   sfx('boom'); openMenu(); showPanel('pOver');
+}
+// alone, the player's death ends the game: a short summary, then it starts again from the first wave
+let OVER_T = null;
+function playerLost(){
+  G.phase = 'over'; G.best = Math.max(G.best, G.wave - 1); saveGame(); firing = false;
+  const line = `Вы погибли на ${Math.max(1, G.wave)}-й волне. Уничтожено роботов: ${G.kills}. Рекорд: ${G.best}.`;
+  $('overTitle').textContent = 'Вы погибли';
+  openMenu(); showPanel('pOver');
+  let n = 5; const show = () => { $('overText').textContent = `${line} Новая игра через ${n}…`; };
+  show(); clearInterval(OVER_T);
+  OVER_T = setInterval(() => { n--; if($('pOver').hidden || G.phase !== 'over'){ clearInterval(OVER_T); return; }
+    if(n <= 0){ clearInterval(OVER_T); newGame(); } else show(); }, 1000);
 }
 let bannerT;
 function banner(title, sub){ $('bannerT').textContent = title; $('bannerS').textContent = sub; $('banner').classList.add('show'); clearTimeout(bannerT); bannerT = setTimeout(() => $('banner').classList.remove('show'), 3500); }
@@ -4764,7 +4778,7 @@ function exitToMenu(){
 }
 $('bExit').onclick = exitToMenu;
 $('bNew').onclick = () => { sfx('ui'); if(NET.on && NET.room.startsWith('w')){ toast('На общем сервере мир общий: начать заново нельзя', true); return; } if(NET.guest){ toast('Новую игру начинает первый игрок', true); return; } if(built.length || G.wave) showPanel('pConfirm'); else newGame(); };
-$('bAgain').onclick = newGame;
+$('bAgain').onclick = () => { clearInterval(OVER_T); newGame(); };
 $('bYes').onclick = newGame;
 $('bControls').onclick = () => { sfx('ui'); showPanel('pControls'); };
 $('bSettings').onclick = () => { sfx('ui'); syncSettings(); showPanel('pSettings'); };
